@@ -1,0 +1,14 @@
+# Supabase local development configuration (CampaignOS M3)
+
+project_id = "campaignos"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+major_version = 15
+
+# pgvector is enabled via 002_extensions.sql — confirm in Supabase Dashboard
+# for hosted projects: Database → Extensions → vector
