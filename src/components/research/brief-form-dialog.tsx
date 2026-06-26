@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   RESEARCH_TYPE_LABELS,
   researchTypeSchema,
@@ -179,9 +181,8 @@ export function BriefFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="research-type">Research type</Label>
-            <select
+            <Select
               id="research-type"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               value={researchType}
               onChange={(event) =>
                 setResearchType(event.target.value as ResearchType)
@@ -192,7 +193,7 @@ export function BriefFormDialog({
                   {RESEARCH_TYPE_LABELS[type]}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {mode === "manual" ? (
@@ -259,9 +260,8 @@ export function BriefFormDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="brief-status">Status</Label>
-                <select
+                <Select
                   id="brief-status"
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   value={status}
                   onChange={(event) =>
                     setStatus(event.target.value as "draft" | "complete")
@@ -269,13 +269,32 @@ export function BriefFormDialog({
                 >
                   <option value="draft">Draft</option>
                   <option value="complete">Complete</option>
-                </select>
+                </Select>
               </div>
             </>
           ) : (
             <>
               <div className="space-y-2">
                 <Label htmlFor="ai-topic">Research topic / query</Label>
+                {topIssues.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {topIssues.map((issue) => (
+                      <button
+                        key={issue}
+                        type="button"
+                        onClick={() => setTopic(issue)}
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                          topic === issue
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background/60 hover:bg-muted",
+                        )}
+                      >
+                        {issue}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <textarea
                   id="ai-topic"
                   className="flex min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"

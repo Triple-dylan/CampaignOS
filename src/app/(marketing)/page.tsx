@@ -61,19 +61,19 @@ export default function MarketingPage() {
     <div className="flex min-h-full flex-col">
       <MarketingHeader />
       <main className="flex-1">
-        <section className="border-b bg-linear-to-b from-muted/40 to-background">
+        <section className="relative overflow-hidden border-b border-border/60">
           <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 md:grid-cols-2 md:items-center md:py-28">
             <div className="space-y-6">
-              <p className="text-sm font-medium uppercase tracking-wider text-primary">
-                Built for campaign teams
+              <p className="badge-red inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wider backdrop-blur-sm">
+                The AI operating system for campaigns
               </p>
               <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
                 Run your campaign like a modern operation
               </h1>
               <p className="text-lg text-muted-foreground">
-                CampaignOS brings strategy, field, fundraising, research, and
-                compliance into a single workspace — so your team moves faster
-                with fewer dropped balls.
+                Chat with your campaign and watch a living knowledge graph grow —
+                strategy, field, fundraising, research, and compliance in one
+                workspace, with AI agents in the center.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link href="/sign-up">
@@ -86,38 +86,44 @@ export default function MarketingPage() {
                 </Link>
               </div>
             </div>
-            <Card className="border-primary/10 shadow-lg">
+            <Card className="glass-card glass-hover">
               <CardHeader>
                 <CardTitle>Campaign command center</CardTitle>
                 <CardDescription>
-                  Your campaign command center — strategy, field, and fundraising
-                  in one place.
+                  A central canvas where chat and your knowledge graph live
+                  together.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="rounded-lg border bg-muted/30 p-4">
-                  <p className="font-medium text-foreground">Today&apos;s focus</p>
-                  <ul className="mt-2 space-y-1">
-                    <li>• 120 doors in Ward 3</li>
-                    <li>• Fundraising call block — 2:00 PM</li>
-                    <li>• Digital ad creative review</li>
-                  </ul>
+                <div className="relative overflow-hidden rounded-lg border bg-muted/20 p-4">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-md border border-violet-400/60 bg-violet-100/60 px-2 py-1 text-xs font-medium text-violet-900 dark:bg-violet-950/50 dark:text-violet-200">
+                      Candidate
+                    </span>
+                    <span className="rounded-md border border-blue-400/60 bg-blue-100/60 px-2 py-1 text-xs font-medium text-blue-900 dark:bg-blue-950/50 dark:text-blue-200">
+                      Housing
+                    </span>
+                    <span className="rounded-md border border-cyan-400/60 bg-cyan-100/60 px-2 py-1 text-xs font-medium text-cyan-900 dark:bg-cyan-950/50 dark:text-cyan-200">
+                      Young families
+                    </span>
+                    <span className="rounded-md border border-emerald-400/60 bg-emerald-100/60 px-2 py-1 text-xs font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+                      Launch email
+                    </span>
+                    <span className="rounded-md border border-amber-400/60 bg-amber-100/60 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                      Town hall
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs">
+                    Every asset, event, and brief becomes a connected node.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border p-3">
-                    <p className="text-xs uppercase text-muted-foreground">
-                      Field goal
-                    </p>
-                    <p className="text-2xl font-semibold text-foreground">68%</p>
-                  </div>
-                  <div className="rounded-lg border p-3">
-                    <p className="text-xs uppercase text-muted-foreground">
-                      Raised QTD
-                    </p>
-                    <p className="text-2xl font-semibold text-foreground">
-                      $42k
-                    </p>
-                  </div>
+                <div className="glass-card flex items-center gap-2 rounded-2xl p-2">
+                  <span className="flex-1 px-2 py-1.5 text-sm">
+                    What should we prioritize this week?
+                  </span>
+                  <span className="brand-mark flex size-7 items-center justify-center rounded-xl text-white">
+                    <Flag className="size-3.5" />
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -136,9 +142,9 @@ export default function MarketingPage() {
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {features.map((feature) => (
-              <Card key={feature.title} className="h-full">
+              <Card key={feature.title} className="glass-hover h-full">
                 <CardHeader>
-                  <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
                     <feature.icon className="size-5" />
                   </div>
                   <CardTitle className="text-lg">{feature.title}</CardTitle>

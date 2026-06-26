@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, PanelLeft } from "lucide-react";
 import { useCampaign } from "@/components/campaign/campaign-context";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { campaignDisplayName } from "@/lib/db/schema";
 
 type AppHeaderProps = {
@@ -19,12 +20,21 @@ export function AppHeader({
   showCampaignContext = true,
 }: AppHeaderProps) {
   const { orgName, campaign } = useCampaign();
+  const { toggleRailMobile } = useWorkspaceShell();
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-2 h-4" />
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl backdrop-saturate-150">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="glass-hover -ml-1 md:hidden"
+        aria-label="Open navigation"
+        onClick={toggleRailMobile}
+      >
+        <PanelLeft aria-hidden />
+      </Button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {showCampaignContext && (orgName || campaignName) ? (
           <nav
@@ -55,6 +65,7 @@ export function AppHeader({
           {campaign.office_sought}
         </Link>
       ) : null}
+      <ThemeToggle className="shrink-0" />
     </header>
   );
 }

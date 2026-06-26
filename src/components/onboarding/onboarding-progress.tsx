@@ -8,8 +8,7 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
   basics: "Basics",
   issues: "Issues",
   voters: "Voters",
-  brand: "Brand",
-  fundraising: "Fundraising",
+  brand: "Brand & goals",
   review: "Review",
 };
 

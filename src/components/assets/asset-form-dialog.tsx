@@ -14,12 +14,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import {
   ASSET_TYPE_LABELS,
   M7_ASSET_TYPES,
   defaultChannelForAssetType,
   type M7AssetType,
 } from "@/lib/validators/assets";
+import { TOP_ISSUE_PRESETS } from "@/lib/validators/onboarding";
 
 type AssetFormDialogProps = {
   open: boolean;
@@ -140,9 +142,8 @@ export function AssetFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="asset-type">Asset type</Label>
-            <select
+            <Select
               id="asset-type"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               value={assetType}
               onChange={(event) =>
                 setAssetType(event.target.value as M7AssetType)
@@ -153,7 +154,7 @@ export function AssetFormDialog({
                   {ASSET_TYPE_LABELS[type]}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {mode === "manual" ? (
@@ -200,12 +201,18 @@ export function AssetFormDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="asset-issue">Issue (optional)</Label>
-              <Input
+              <Select
                 id="asset-issue"
                 value={issue}
                 onChange={(event) => setIssue(event.target.value)}
-                placeholder="Housing affordability"
-              />
+              >
+                <option value="">None</option>
+                {TOP_ISSUE_PRESETS.map((preset) => (
+                  <option key={preset} value={preset}>
+                    {preset}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
 

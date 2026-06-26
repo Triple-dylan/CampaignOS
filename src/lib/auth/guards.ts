@@ -12,7 +12,9 @@ export async function requireOnboardingComplete() {
   const complete = await isOnboardingComplete(user, orgId);
 
   if (!complete) {
-    redirect("/onboarding");
+    // Funnel incomplete campaigns to the workspace home, which renders the
+    // setup flow inline (no standalone onboarding page redirect).
+    redirect("/dashboard");
   }
 }
 

@@ -1,8 +1,8 @@
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { ComplianceDisclaimer } from "@/components/layout/compliance-disclaimer";
 import { CampaignProviderServer } from "@/components/campaign/campaign-provider";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
+import { ChatProvider } from "@/components/chat/chat-provider";
 import { ensureOrganizationSynced } from "@/actions/organizations";
+import { isOpenAiConfigured } from "@/lib/ai/config";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +19,9 @@ export default async function AppLayout({
 
   return (
     <CampaignProviderServer>
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset className="flex min-h-svh flex-col">
-          <div className="flex flex-1 flex-col">{children}</div>
-          <ComplianceDisclaimer />
-        </SidebarInset>
-      </SidebarProvider>
+      <ChatProvider initialAiConfigured={isOpenAiConfigured()}>
+        <WorkspaceShell>{children}</WorkspaceShell>
+      </ChatProvider>
     </CampaignProviderServer>
   );
 }

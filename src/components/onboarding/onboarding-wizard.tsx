@@ -2,14 +2,15 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import {
   completeOnboarding,
   saveOnboardingStep,
   type OnboardingData,
 } from "@/actions/campaigns";
 import { OnboardingProgress } from "@/components/onboarding/onboarding-progress";
-import { TagInput } from "@/components/onboarding/tag-input";
+import { ChipMultiSelect } from "@/components/ui/chip-multi-select";
+import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,19 +30,26 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   BRAND_TONE_OPTIONS,
+  FUNDRAISING_GOAL_PRESETS,
+  OFFICE_DISTRICT_PLACEHOLDERS,
+  OFFICE_SOUGHT_OPTIONS,
   ONBOARDING_STEPS,
+  PARTY_OPTIONS,
   TOP_ISSUE_PRESETS,
   US_STATES,
   VOTER_SEGMENT_SUGGESTIONS,
+  WA_STATE_CODE,
+  getDefaultElectionDate,
   onboardingBasicsSchema,
   onboardingBrandSchema,
   onboardingFormSchema,
-  onboardingFundraisingSchema,
   onboardingIssuesSchema,
   onboardingVotersSchema,
+  suggestJurisdictionForOffice,
   type OnboardingFormInput,
   type OnboardingStep,
 } from "@/lib/validators/onboarding";
@@ -51,7 +59,6 @@ const STEP_SCHEMAS = {
   issues: onboardingIssuesSchema,
   voters: onboardingVotersSchema,
   brand: onboardingBrandSchema,
-  fundraising: onboardingFundraisingSchema,
   review: onboardingFormSchema,
 } as const;
 
@@ -60,27 +67,20 @@ const STEP_TITLES: Record<OnboardingStep, { title: string; description: string }
     basics: {
       title: "Campaign basics",
       description:
-        "Tell us about the candidate and the race. Washington defaults are pre-filled where helpful.",
+        "Pick your office and race details — Washington defaults are pre-filled.",
     },
     issues: {
       title: "Top issues",
-      description:
-        "Select the policy priorities this campaign will lead with.",
+      description: "Tap the priorities this campaign will lead with.",
     },
     voters: {
       title: "Target voter segments",
-      description:
-        "Define the audiences you need to persuade or turn out.",
+      description: "One-click select the audiences you need to reach.",
     },
     brand: {
-      title: "Brand tone",
+      title: "Brand tone & fundraising",
       description:
-        "Choose how the campaign should sound in messaging and content.",
-    },
-    fundraising: {
-      title: "Fundraising goal",
-      description:
-        "Optional — set a target to track later in the fundraising module.",
+        "Choose your voice and optionally set a fundraising target.",
     },
     review: {
       title: "Review & launch",
@@ -88,6 +88,11 @@ const STEP_TITLES: Record<OnboardingStep, { title: string; description: string }
         "Confirm your campaign profile before entering the workspace.",
     },
   };
+
+const OFFICE_COMBO_OPTIONS = OFFICE_SOUGHT_OPTIONS.map((office) => ({
+  value: office,
+  label: office,
+}));
 
 type OnboardingWizardProps = {
   initialData: OnboardingData;
@@ -105,16 +110,16 @@ export function OnboardingWizard({ initialData }: OnboardingWizardProps) {
       candidateName: initialData.formDefaults.candidateName ?? "",
       officeSought: initialData.formDefaults.officeSought ?? "",
       jurisdiction: initialData.formDefaults.jurisdiction ?? "",
-      state: initialData.formDefaults.state ?? "WA",
+      state: initialData.formDefaults.state ?? WA_STATE_CODE,
       district: initialData.formDefaults.district ?? "",
       party: initialData.formDefaults.party ?? "",
-      electionDate: initialData.formDefaults.electionDate ?? "",
+      electionDate:
+        initialData.formDefaults.electionDate ?? getDefaultElectionDate(),
       topIssues: initialData.formDefaults.topIssues ?? [],
       voterSegments:
-        initialData.formDefaults.voterSegments?.length &&
-        initialData.formDefaults.voterSegments.length > 0
-          ? initialData.formDefaults.voterSegments
-          : [{ name: "", description: "" }],
+        initialData.formDefaults.voterSegments?.filter((segment) =>
+          segment.name.trim(),
+        ) ?? [],
       tonePreferences: {
         selectedTones: initialData.formDefaults.tonePreferences?.selectedTones ?? [],
         notes: initialData.formDefaults.tonePreferences?.notes ?? "",
@@ -203,7 +208,7 @@ export function OnboardingWizard({ initialData }: OnboardingWizardProps) {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <OnboardingProgress steps={ONBOARDING_STEPS} currentStep={currentStep} />
 
-      <Card>
+      <Card className="glass-card">
         <CardHeader>
           <CardTitle>{STEP_TITLES[currentStep].title}</CardTitle>
           <CardDescription>{STEP_TITLES[currentStep].description}</CardDescription>
@@ -225,7 +230,6 @@ export function OnboardingWizard({ initialData }: OnboardingWizardProps) {
               {currentStep === "issues" ? <IssuesStep form={form} /> : null}
               {currentStep === "voters" ? <VotersStep form={form} /> : null}
               {currentStep === "brand" ? <BrandStep form={form} /> : null}
-              {currentStep === "fundraising" ? <FundraisingStep form={form} /> : null}
               {currentStep === "review" ? (
                 <ReviewStep values={form.getValues()} />
               ) : null}
@@ -283,6 +287,22 @@ function BasicsStep({
 }: {
   form: ReturnType<typeof useForm<OnboardingFormInput>>;
 }) {
+  const officeSought = form.watch("officeSought");
+  const state = form.watch("state");
+  const districtPlaceholder =
+    OFFICE_DISTRICT_PLACEHOLDERS[officeSought] ?? "District or position";
+
+  function handleOfficeChange(office: string) {
+    form.setValue("officeSought", office, { shouldValidate: true });
+    const currentJurisdiction = form.getValues("jurisdiction").trim();
+    if (!currentJurisdiction) {
+      const suggested = suggestJurisdictionForOffice(office, form.getValues("state"));
+      if (suggested) {
+        form.setValue("jurisdiction", suggested);
+      }
+    }
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <FormField
@@ -292,7 +312,7 @@ function BasicsStep({
           <FormItem className="md:col-span-2">
             <FormLabel>Candidate name</FormLabel>
             <FormControl>
-              <Input placeholder="Jane Doe" {...field} />
+              <Input placeholder="Jane Doe" autoFocus {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -306,7 +326,14 @@ function BasicsStep({
           <FormItem>
             <FormLabel>Office sought</FormLabel>
             <FormControl>
-              <Input placeholder="State Senate" {...field} />
+              <Combobox
+                value={field.value}
+                onChange={handleOfficeChange}
+                options={OFFICE_COMBO_OPTIONS}
+                placeholder="Select an office…"
+                searchPlaceholder="Search offices…"
+                customLabel="Other office (custom)"
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -320,32 +347,17 @@ function BasicsStep({
           <FormItem>
             <FormLabel>Jurisdiction</FormLabel>
             <FormControl>
-              <Input placeholder="Washington State Legislature" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="state"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>State</FormLabel>
-            <FormControl>
-              <select
+              <Input
+                placeholder={
+                  suggestJurisdictionForOffice(officeSought, state) ??
+                  "e.g. City of Seattle"
+                }
                 {...field}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {US_STATES.map((state) => (
-                  <option key={state.code} value={state.code}>
-                    {state.name} ({state.code})
-                  </option>
-                ))}
-              </select>
+              />
             </FormControl>
-            <FormDescription>Defaults to Washington (WA).</FormDescription>
+            <FormDescription>
+              City, county, or legislative body — auto-suggested from office.
+            </FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -356,9 +368,11 @@ function BasicsStep({
         name="district"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>District</FormLabel>
+            <FormLabel>
+              District <span className="font-normal text-muted-foreground">(optional)</span>
+            </FormLabel>
             <FormControl>
-              <Input placeholder="LD 34" {...field} />
+              <Input placeholder={districtPlaceholder} {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -370,9 +384,21 @@ function BasicsStep({
         name="party"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Party</FormLabel>
+            <FormLabel>
+              Party <span className="font-normal text-muted-foreground">(optional)</span>
+            </FormLabel>
             <FormControl>
-              <Input placeholder="Democratic" {...field} />
+              <Select
+                value={field.value ?? ""}
+                onChange={(event) => field.onChange(event.target.value)}
+              >
+                <option value="">Prefer not to say</option>
+                {PARTY_OPTIONS.map((party) => (
+                  <option key={party} value={party}>
+                    {party}
+                  </option>
+                ))}
+              </Select>
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -387,6 +413,52 @@ function BasicsStep({
             <FormLabel>Election date</FormLabel>
             <FormControl>
               <Input type="date" {...field} />
+            </FormControl>
+            <FormDescription>
+              Defaults to the next even-year general election.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="state"
+        render={({ field }) => (
+          <FormItem className="md:col-span-2">
+            <FormLabel>
+              State{" "}
+              {field.value === WA_STATE_CODE ? (
+                <span className="font-normal text-muted-foreground">
+                  — Washington (default)
+                </span>
+              ) : null}
+            </FormLabel>
+            <FormControl>
+              <Select
+                value={field.value}
+                onChange={(event) => {
+                  field.onChange(event.target.value);
+                  const office = form.getValues("officeSought");
+                  if (!form.getValues("jurisdiction").trim() && office) {
+                    const suggested = suggestJurisdictionForOffice(
+                      office,
+                      event.target.value,
+                    );
+                    if (suggested) {
+                      form.setValue("jurisdiction", suggested);
+                    }
+                  }
+                }}
+                className="max-w-xs"
+              >
+                {US_STATES.map((entry) => (
+                  <option key={entry.code} value={entry.code}>
+                    {entry.name} ({entry.code})
+                  </option>
+                ))}
+              </Select>
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -409,15 +481,16 @@ function IssuesStep({
         <FormItem>
           <FormLabel>Top issues</FormLabel>
           <FormControl>
-            <TagInput
+            <ChipMultiSelect
               value={field.value}
               onChange={field.onChange}
-              suggestions={TOP_ISSUE_PRESETS}
-              placeholder="Type an issue and press Enter"
+              options={TOP_ISSUE_PRESETS}
+              maxItems={12}
+              customPlaceholder="Add a custom issue…"
             />
           </FormControl>
           <FormDescription>
-            Choose presets or add custom issues (up to 12).
+            Tap to toggle — selected chips highlight in blue (up to 12).
           </FormDescription>
           <FormMessage />
         </FormItem>
@@ -432,21 +505,36 @@ function VotersStep({
   form: ReturnType<typeof useForm<OnboardingFormInput>>;
 }) {
   const segments = form.watch("voterSegments");
+  const selectedNames = segments.map((segment) => segment.name).filter(Boolean);
+  const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>({});
+  const [customDraft, setCustomDraft] = useState("");
 
-  function addSegment(name?: string) {
-    form.setValue("voterSegments", [
-      ...segments,
-      { name: name ?? "", description: "" },
-    ]);
+  function setSegmentsFromNames(names: string[]) {
+    const next = names.map((name) => {
+      const existing = segments.find((segment) => segment.name === name);
+      return existing ?? { name, description: "" };
+    });
+    form.setValue("voterSegments", next, { shouldValidate: true });
   }
 
-  function updateSegment(
-    index: number,
-    key: "name" | "description",
-    value: string,
-  ) {
+  function toggleSuggestion(name: string) {
+    if (selectedNames.includes(name)) {
+      setSegmentsFromNames(selectedNames.filter((item) => item !== name));
+      return;
+    }
+    setSegmentsFromNames([...selectedNames, name]);
+  }
+
+  function addCustomSegment() {
+    const trimmed = customDraft.trim();
+    if (!trimmed || selectedNames.includes(trimmed)) return;
+    setSegmentsFromNames([...selectedNames, trimmed]);
+    setCustomDraft("");
+  }
+
+  function updateSegmentNotes(index: number, description: string) {
     const next = [...segments];
-    next[index] = { ...next[index], [key]: value };
+    next[index] = { ...next[index], description };
     form.setValue("voterSegments", next, { shouldValidate: true });
   }
 
@@ -460,54 +548,113 @@ function VotersStep({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {VOTER_SEGMENT_SUGGESTIONS.filter(
-          (suggestion) => !segments.some((segment) => segment.name === suggestion),
-        ).map((suggestion) => (
-          <Button
-            key={suggestion}
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={() => addSegment(suggestion)}
-          >
-            {suggestion}
-          </Button>
-        ))}
+      <div>
+        <FormLabel>Common segments</FormLabel>
+        <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Voter segment presets">
+          {VOTER_SEGMENT_SUGGESTIONS.map((suggestion) => {
+            const selected = selectedNames.includes(suggestion);
+            return (
+              <button
+                key={suggestion}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggleSuggestion(suggestion)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",
+                )}
+              >
+                {suggestion}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {segments.map((segment, index) => (
-        <div
-          key={`segment-${index}`}
-          className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_1fr_auto]"
-        >
-          <Input
-            placeholder="Segment name"
-            value={segment.name}
-            onChange={(event) => updateSegment(index, "name", event.target.value)}
-          />
-          <Input
-            placeholder="Notes (optional)"
-            value={segment.description ?? ""}
-            onChange={(event) =>
-              updateSegment(index, "description", event.target.value)
+      <div className="flex gap-2">
+        <Input
+          value={customDraft}
+          onChange={(event) => setCustomDraft(event.target.value)}
+          placeholder="Add a custom segment…"
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addCustomSegment();
             }
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => removeSegment(index)}
-            disabled={segments.length <= 1}
-          >
-            Remove
-          </Button>
-        </div>
-      ))}
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addCustomSegment}
+          disabled={!customDraft.trim()}
+        >
+          Add
+        </Button>
+      </div>
 
-      <Button type="button" variant="outline" size="sm" onClick={() => addSegment()}>
-        Add segment
-      </Button>
+      {segments.length > 0 ? (
+        <ul className="space-y-2">
+          {segments.map((segment, index) => {
+            const notesOpen = expandedNotes[index] ?? false;
+            return (
+              <li
+                key={`${segment.name}-${index}`}
+                className="rounded-lg border border-border/80 bg-background/40 p-3 backdrop-blur-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{segment.name}</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() =>
+                        setExpandedNotes((current) => ({
+                          ...current,
+                          [index]: !notesOpen,
+                        }))
+                      }
+                    >
+                      Notes
+                      {notesOpen ? (
+                        <ChevronUp className="size-3" />
+                      ) : (
+                        <ChevronDown className="size-3" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => removeSegment(index)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+                {notesOpen ? (
+                  <Input
+                    className="mt-2"
+                    placeholder="Optional notes about this segment…"
+                    value={segment.description ?? ""}
+                    onChange={(event) =>
+                      updateSegmentNotes(index, event.target.value)
+                    }
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Select at least one segment above to continue.
+        </p>
+      )}
 
       {form.formState.errors.voterSegments ? (
         <p className="text-sm text-destructive">
@@ -525,6 +672,7 @@ function BrandStep({
   form: ReturnType<typeof useForm<OnboardingFormInput>>;
 }) {
   const selectedTones = form.watch("tonePreferences.selectedTones");
+  const [customGoal, setCustomGoal] = useState(false);
 
   function toggleTone(tone: string) {
     const next = selectedTones.includes(tone)
@@ -535,23 +683,29 @@ function BrandStep({
     });
   }
 
+  function selectGoalPreset(amount: number) {
+    form.setValue("fundraisingGoal", amount, { shouldValidate: true });
+    setCustomGoal(false);
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
         <FormLabel>Brand tones</FormLabel>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Brand tone options">
           {BRAND_TONE_OPTIONS.map((tone) => {
             const selected = selectedTones.includes(tone);
             return (
               <button
                 key={tone}
                 type="button"
+                aria-pressed={selected}
                 onClick={() => toggleTone(tone)}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                   selected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background hover:bg-muted",
+                    ? "border-primary bg-primary text-primary-foreground shadow-[inset_0_1px_0_0_oklch(1_0_0_/_0.18)]"
+                    : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",
                 )}
               >
                 {tone}
@@ -571,53 +725,102 @@ function BrandStep({
         name="tonePreferences.notes"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Voice notes (optional)</FormLabel>
+            <FormLabel>
+              Voice notes{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </FormLabel>
             <FormControl>
               <textarea
                 {...field}
                 rows={3}
-                placeholder="Any phrases to use or avoid, local references, etc."
-                className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                placeholder="Phrases to use or avoid, local references, etc."
+                className="w-full rounded-lg border border-input bg-background/60 px-2.5 py-2 text-sm backdrop-blur-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
               />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
       />
-    </div>
-  );
-}
 
-function FundraisingStep({
-  form,
-}: {
-  form: ReturnType<typeof useForm<OnboardingFormInput>>;
-}) {
-  return (
-    <FormField
-      control={form.control}
-      name="fundraisingGoal"
-      render={({ field }) => (
-        <FormItem className="max-w-sm">
-          <FormLabel>Fundraising goal (USD)</FormLabel>
-          <FormControl>
-            <Input
-              type="number"
-              min={0}
-              step={1000}
-              placeholder="250000"
-              value={field.value ?? ""}
-              onChange={(event) => {
-                const raw = event.target.value;
-                field.onChange(raw === "" ? null : Number(raw));
-              }}
-            />
-          </FormControl>
-          <FormDescription>Leave blank if not ready to set a target.</FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
+      <FormField
+        control={form.control}
+        name="fundraisingGoal"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>
+              Fundraising goal{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </FormLabel>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {FUNDRAISING_GOAL_PRESETS.map((preset) => {
+                const selected = field.value === preset.value && !customGoal;
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => selectGoalPreset(preset.value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                aria-pressed={customGoal || (field.value != null && !FUNDRAISING_GOAL_PRESETS.some((p) => p.value === field.value))}
+                onClick={() => setCustomGoal(true)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  customGoal
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",
+                )}
+              >
+                Custom
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  form.setValue("fundraisingGoal", null);
+                  setCustomGoal(false);
+                }}
+                className="rounded-full border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Skip
+              </button>
+            </div>
+            {customGoal ||
+            (field.value != null &&
+              !FUNDRAISING_GOAL_PRESETS.some((preset) => preset.value === field.value)) ? (
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  className="mt-3 max-w-xs"
+                  placeholder="Enter amount in USD"
+                  value={field.value ?? ""}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    field.onChange(raw === "" ? null : Number(raw));
+                  }}
+                />
+              </FormControl>
+            ) : null}
+            <FormDescription>
+              Quick-pick a target or skip — you can adjust this later.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
   );
 }
 
@@ -692,9 +895,7 @@ function getStepFields(step: OnboardingStep): string[] {
     case "voters":
       return ["voterSegments"];
     case "brand":
-      return ["tonePreferences"];
-    case "fundraising":
-      return ["fundraisingGoal"];
+      return ["tonePreferences", "fundraisingGoal"];
     case "review":
       return [];
     default:

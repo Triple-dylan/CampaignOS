@@ -14,8 +14,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import type { DbFundraisingPlan } from "@/lib/db/schema";
 import type { FundraisingTimelineMilestone } from "@/lib/validators/fundraising";
+import { FUNDRAISING_GOAL_PRESETS } from "@/lib/validators/onboarding";
 
 type PlanFormDialogProps = {
   open: boolean;
@@ -183,11 +185,29 @@ export function PlanFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="plan-goal">Goal amount ($)</Label>
+              <div className="flex flex-wrap gap-2">
+                {FUNDRAISING_GOAL_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => setGoalAmount(String(preset.value))}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                      goalAmount === String(preset.value)
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background/60 hover:bg-muted",
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
               <Input
                 id="plan-goal"
                 inputMode="numeric"
                 value={goalAmount}
                 onChange={(event) => setGoalAmount(event.target.value)}
+                placeholder="Custom amount"
               />
             </div>
             <div className="space-y-2">

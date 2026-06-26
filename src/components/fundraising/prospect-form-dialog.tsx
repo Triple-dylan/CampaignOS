@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   PROSPECT_STATUS_LABELS,
   PROSPECT_TYPE_LABELS,
@@ -32,6 +34,7 @@ type ProspectFormDialogProps = {
 
 const PROSPECT_TYPES = prospectTypeSchema.options;
 const PROSPECT_STATUSES = prospectStatusSchema.options;
+const CAPACITY_PRESETS = [1000, 2500, 5000, 10000, 25000] as const;
 
 export function ProspectFormDialog({
   open,
@@ -132,9 +135,8 @@ export function ProspectFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="prospect-type">Type</Label>
-              <select
+              <Select
                 id="prospect-type"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 value={prospectType}
                 onChange={(event) =>
                   setProspectType(event.target.value as ProspectType)
@@ -145,13 +147,12 @@ export function ProspectFormDialog({
                     {PROSPECT_TYPE_LABELS[type]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="prospect-status">Status</Label>
-              <select
+              <Select
                 id="prospect-status"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 value={status}
                 onChange={(event) =>
                   setStatus(event.target.value as ProspectStatus)
@@ -162,7 +163,7 @@ export function ProspectFormDialog({
                     {PROSPECT_STATUS_LABELS[value]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -200,9 +201,8 @@ export function ProspectFormDialog({
             <div className="space-y-2">
               <Label htmlFor="prospect-issue">Related issue</Label>
               {topIssues.length > 0 ? (
-                <select
+                <Select
                   id="prospect-issue"
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   value={relatedIssue}
                   onChange={(event) => setRelatedIssue(event.target.value)}
                 >
@@ -212,7 +212,7 @@ export function ProspectFormDialog({
                       {issue}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : (
                 <Input
                   id="prospect-issue"
@@ -224,12 +224,29 @@ export function ProspectFormDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="prospect-capacity">Est. capacity ($)</Label>
+              <div className="flex flex-wrap gap-2">
+                {CAPACITY_PRESETS.map((amount) => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setEstimatedCapacity(String(amount))}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                      estimatedCapacity === String(amount)
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background/60 hover:bg-muted",
+                    )}
+                  >
+                    ${amount.toLocaleString()}
+                  </button>
+                ))}
+              </div>
               <Input
                 id="prospect-capacity"
                 inputMode="numeric"
                 value={estimatedCapacity}
                 onChange={(event) => setEstimatedCapacity(event.target.value)}
-                placeholder="5000"
+                placeholder="Custom amount"
               />
             </div>
           </div>

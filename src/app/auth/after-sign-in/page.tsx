@@ -1,6 +1,5 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { isOnboardingComplete } from "@/lib/auth/onboarding";
 
 export default async function AfterSignInPage() {
   const user = await currentUser();
@@ -9,11 +8,7 @@ export default async function AfterSignInPage() {
     redirect("/sign-in");
   }
 
-  const { orgId } = await auth();
-
-  if (await isOnboardingComplete(user, orgId)) {
-    redirect("/dashboard");
-  }
-
-  redirect("/onboarding");
+  // The workspace home (/dashboard) handles in-app onboarding inline when the
+  // campaign is incomplete, so there's no separate onboarding redirect.
+  redirect("/dashboard");
 }

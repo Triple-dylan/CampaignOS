@@ -39,12 +39,13 @@ export const onboardingVotersSchema = z.object({
 
 export const onboardingBrandSchema = z.object({
   tonePreferences: tonePreferencesSchema,
-});
-
-export const onboardingFundraisingSchema = z.object({
   fundraisingGoal: z
     .union([z.number().nonnegative("Fundraising goal must be zero or greater"), z.null()])
     .optional(),
+});
+
+export const onboardingFundraisingSchema = onboardingBrandSchema.pick({
+  fundraisingGoal: true,
 });
 
 export const onboardingFormSchema = onboardingBasicsSchema
@@ -69,7 +70,6 @@ export const ONBOARDING_STEPS = [
   "issues",
   "voters",
   "brand",
-  "fundraising",
   "review",
 ] as const;
 
@@ -83,7 +83,6 @@ export const onboardingStepSchemas: Record<
   issues: onboardingIssuesSchema,
   voters: onboardingVotersSchema,
   brand: onboardingBrandSchema,
-  fundraising: onboardingFundraisingSchema,
 };
 
 export const TOP_ISSUE_PRESETS = [
@@ -127,3 +126,105 @@ export const US_STATES = [
   { code: "MT", name: "Montana" },
   { code: "AK", name: "Alaska" },
 ] as const;
+
+export const OFFICE_SOUGHT_OPTIONS = [
+  "City Council",
+  "Mayor",
+  "School Board",
+  "County Commissioner",
+  "County Executive",
+  "Port Commissioner",
+  "State Representative",
+  "State Senator",
+  "Governor",
+  "Lieutenant Governor",
+  "Attorney General",
+  "Secretary of State",
+  "State Treasurer",
+  "Auditor",
+  "Commissioner of Public Lands",
+  "Insurance Commissioner",
+  "Superintendent of Public Instruction",
+  "U.S. Representative",
+  "U.S. Senator",
+] as const;
+
+export const PARTY_OPTIONS = [
+  "Democratic",
+  "Republican",
+  "Independent",
+  "Nonpartisan",
+  "Green",
+  "Libertarian",
+] as const;
+
+export const FUNDRAISING_GOAL_PRESETS = [
+  { label: "$25k", value: 25_000 },
+  { label: "$50k", value: 50_000 },
+  { label: "$100k", value: 100_000 },
+  { label: "$250k", value: 250_000 },
+] as const;
+
+export const OFFICE_JURISDICTION_DEFAULTS: Record<string, string> = {
+  "State Senator": "Washington State Senate",
+  "State Representative": "Washington House of Representatives",
+  Governor: "State of Washington",
+  "Lieutenant Governor": "State of Washington",
+  "Attorney General": "State of Washington",
+  "Secretary of State": "State of Washington",
+  "State Treasurer": "State of Washington",
+  Auditor: "State of Washington",
+  "Commissioner of Public Lands": "State of Washington",
+  "Insurance Commissioner": "State of Washington",
+  "Superintendent of Public Instruction": "State of Washington",
+  "U.S. Representative": "United States House of Representatives",
+  "U.S. Senator": "United States Senate",
+};
+
+export const OFFICE_DISTRICT_PLACEHOLDERS: Record<string, string> = {
+  "State Senator": "e.g. LD 34",
+  "State Representative": "e.g. LD 34, Position 1",
+  "U.S. Representative": "e.g. WA-07",
+  "City Council": "e.g. Seattle City Council, District 3",
+  Mayor: "e.g. City of Tacoma",
+  "School Board": "e.g. Seattle School Board, District 5",
+  "County Commissioner": "e.g. King County, District 2",
+  "Port Commissioner": "e.g. Port of Seattle, Position 3",
+};
+
+/** First Tuesday after the first Monday in November (US general election). */
+export function getGeneralElectionDate(year: number): Date {
+  const novemberFirst = new Date(year, 10, 1);
+  const weekday = novemberFirst.getDay();
+  const firstMonday =
+    weekday === 1 ? 1 : weekday === 0 ? 2 : 1 + (8 - weekday);
+  return new Date(year, 10, firstMonday + 1);
+}
+
+export function getDefaultElectionDate(from = new Date()): string {
+  const startYear = from.getFullYear();
+  for (let year = startYear; year <= startYear + 3; year += 1) {
+    if (year % 2 !== 0) continue;
+    const election = getGeneralElectionDate(year);
+    if (election >= from) {
+      const pad = (value: number) => String(value).padStart(2, "0");
+      return `${election.getFullYear()}-${pad(election.getMonth() + 1)}-${pad(election.getDate())}`;
+    }
+  }
+  const fallback = getGeneralElectionDate(startYear + 2);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${fallback.getFullYear()}-${pad(fallback.getMonth() + 1)}-${pad(fallback.getDate())}`;
+}
+
+export function suggestJurisdictionForOffice(
+  office: string,
+  stateCode = WA_STATE_CODE,
+): string | undefined {
+  const preset = OFFICE_JURISDICTION_DEFAULTS[office];
+  if (preset) return preset;
+  if (stateCode === WA_STATE_CODE) {
+    return "Washington";
+  }
+  const state = US_STATES.find((entry) => entry.code === stateCode);
+  return state?.name;
+}

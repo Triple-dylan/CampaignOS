@@ -398,8 +398,8 @@ export function DashboardModuleCards({
             key={item.title}
             className={
               needsComplianceReview
-                ? "border-amber-300 dark:border-amber-800"
-                : undefined
+                ? "glass-hover border-amber-300/70 dark:border-amber-700/60"
+                : "glass-hover"
             }
           >
             <CardHeader className="pb-3">
