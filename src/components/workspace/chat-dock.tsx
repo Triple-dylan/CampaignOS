@@ -74,7 +74,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="glass-panel flex shrink-0 flex-col border-t border-border/60">
+    <div className="relative z-10 flex shrink-0 flex-col border-t border-border/50 bg-background/30">
       <div className="flex items-center justify-between gap-2 px-4 pt-2.5">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <span className="badge-red inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6875rem] font-medium">

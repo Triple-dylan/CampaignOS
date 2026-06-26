@@ -24,7 +24,7 @@ export function AppHeader({
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl backdrop-saturate-150">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/50 bg-background/45 px-4 backdrop-blur-xl backdrop-saturate-150">
       <Button
         type="button"
         variant="ghost"

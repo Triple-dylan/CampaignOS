@@ -121,13 +121,14 @@ function WorkspaceGraphCanvasInner({
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={20}
+          gap={22}
           size={1.5}
-          className="opacity-60"
+          color="var(--brand-blue)"
+          className="opacity-30"
         />
         <Controls
           showInteractive={false}
-          className="!rounded-lg !border !border-border/60 !bg-background/80 !shadow-sm backdrop-blur"
+          className="!rounded-xl !border !border-[var(--glass-border)] !bg-background/55 !shadow-md backdrop-blur-xl"
         />
         <MiniMap
           pannable
@@ -137,8 +138,9 @@ function WorkspaceGraphCanvasInner({
               (node.data as CampaignFlowNode["data"]).nodeType,
             )
           }
-          maskColor="oklch(0.55 0.05 257 / 0.1)"
-          className="!rounded-lg !border !border-border/60 !bg-background/70 backdrop-blur"
+          maskColor="oklch(0.62 0.18 257 / 0.12)"
+          bgColor="transparent"
+          className="!rounded-xl !border !border-[var(--glass-border)] !bg-background/35 !shadow-md backdrop-blur-xl"
         />
       </ReactFlow>
       <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full border border-border/60 bg-background/70 px-3 py-1 text-[0.6875rem] text-muted-foreground backdrop-blur">

@@ -1,7 +1,7 @@
 export function ComplianceDisclaimer() {
   return (
     <footer
-      className="border-t bg-muted/30 px-4 py-3 text-xs leading-relaxed text-muted-foreground md:px-6"
+      className="glass-floating shrink-0 rounded-2xl px-4 py-2.5 text-xs leading-relaxed text-muted-foreground"
       role="note"
       aria-label="Compliance disclaimer"
     >

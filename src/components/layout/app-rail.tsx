@@ -22,7 +22,7 @@ export function AppRail() {
   const officeLabel = campaign?.office_sought?.trim();
 
   return (
-    <div className="glass-panel flex h-full w-full flex-col border-r border-border/60">
+    <div className="glass-floating flex h-full w-full flex-col overflow-hidden rounded-2xl">
       <div className="flex flex-col gap-2 p-3">
         <Link
           href="/dashboard"

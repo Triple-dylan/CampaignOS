@@ -4,6 +4,8 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  // Dev-only workspace preview (the page itself 404s in production).
+  "/preview(.*)",
   "/api/health(.*)",
   "/api/webhooks/clerk(.*)",
 ]);

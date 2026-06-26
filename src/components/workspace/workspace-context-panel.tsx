@@ -51,7 +51,7 @@ export function WorkspaceContextPanel({
 }: WorkspaceContextPanelProps) {
   if (collapsed) {
     return (
-      <div className="hidden w-12 shrink-0 flex-col items-center gap-2 border-l border-border/60 py-3 lg:flex">
+      <div className="glass-floating hidden w-12 shrink-0 flex-col items-center gap-2 rounded-2xl py-3 lg:flex">
         <button
           type="button"
           onClick={onToggleCollapsed}
@@ -65,8 +65,8 @@ export function WorkspaceContextPanel({
   }
 
   return (
-    <aside className="hidden w-80 shrink-0 flex-col overflow-y-auto border-l border-border/60 bg-background/40 backdrop-blur lg:flex">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+    <aside className="glass-floating hidden w-80 shrink-0 flex-col overflow-hidden rounded-2xl lg:flex">
+      <div className="relative z-10 flex items-center justify-between gap-2 border-b border-border/50 px-4 py-3">
         <h2 className="text-sm font-semibold">
           {selectedNode ? "Node details" : "Campaign context"}
         </h2>
@@ -92,7 +92,7 @@ export function WorkspaceContextPanel({
         </div>
       </div>
 
-      <div className="flex-1 space-y-5 p-4">
+      <div className="relative z-10 min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         {selectedNode ? (
           <NodeDetail node={selectedNode} />
         ) : (

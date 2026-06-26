@@ -56,8 +56,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   return (
     <WorkspaceShellContext.Provider value={value}>
-      <div className="flex h-svh w-full overflow-hidden">
-        <aside className="hidden h-svh w-64 shrink-0 md:flex">
+      <div className="workspace-stage flex h-svh w-full gap-2.5 overflow-hidden p-2.5 md:gap-3 md:p-3">
+        <aside className="hidden h-full w-64 shrink-0 md:flex">
           <AppRail />
         </aside>
 
@@ -65,7 +65,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <SheetContent
             side="left"
             showCloseButton={false}
-            className="w-[18rem] gap-0 p-0"
+            className="w-[18rem] gap-0 border-none bg-transparent p-2.5"
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Workspace navigation</SheetTitle>
@@ -77,10 +77,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {children}
-          </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2.5 md:gap-3">
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
           <ComplianceDisclaimer />
         </div>
       </div>

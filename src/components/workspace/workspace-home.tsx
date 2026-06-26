@@ -55,12 +55,12 @@ export function WorkspaceHome({
 
   if (!isSetupComplete) {
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <AppHeader
-          title="Set up your campaign"
-          description="Answer a few questions and your campaign map starts building itself."
-        />
-        <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-full min-h-0 gap-2.5 md:gap-3">
+        <section className="glass-floating relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
+          <AppHeader
+            title="Set up your campaign"
+            description="Answer a few questions and your campaign map starts building itself."
+          />
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
             {onboardingData ? (
               <OnboardingWizard initialData={onboardingData} />
@@ -72,40 +72,38 @@ export function WorkspaceHome({
             )}
           </div>
           <ChatDock composerRef={composerRef} />
-        </div>
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <AppHeader
-        title="Workspace"
-        description="Your live campaign map and command center."
-      />
-      <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="relative min-h-0 flex-1">
-            <WorkspaceGraphCanvas
-              graph={graph}
-              edgeCount={edgeCount}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={handleSelectNode}
-              onFocusComposer={focusComposer}
-            />
-          </div>
-          <ChatDock composerRef={composerRef} />
-        </div>
-        <WorkspaceContextPanel
-          campaign={campaign}
-          profile={profile}
-          metrics={metrics}
-          selectedNode={selectedNode}
-          collapsed={panelCollapsed}
-          onToggleCollapsed={() => setPanelCollapsed((v) => !v)}
-          onClearSelection={() => handleSelectNode(null, null)}
+    <div className="flex h-full min-h-0 gap-2.5 md:gap-3">
+      <section className="glass-floating relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
+        <AppHeader
+          title="Workspace"
+          description="Your live campaign map and command center."
         />
-      </div>
+        <div className="relative min-h-0 flex-1">
+          <WorkspaceGraphCanvas
+            graph={graph}
+            edgeCount={edgeCount}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={handleSelectNode}
+            onFocusComposer={focusComposer}
+          />
+        </div>
+        <ChatDock composerRef={composerRef} />
+      </section>
+      <WorkspaceContextPanel
+        campaign={campaign}
+        profile={profile}
+        metrics={metrics}
+        selectedNode={selectedNode}
+        collapsed={panelCollapsed}
+        onToggleCollapsed={() => setPanelCollapsed((v) => !v)}
+        onClearSelection={() => handleSelectNode(null, null)}
+      />
     </div>
   );
 }

@@ -102,21 +102,24 @@
 
   /* Liquid-glass tokens (light). Lower opacity so backdrop-blur reads as glass
    * over the colored ambient background; borders + highlights give edge depth. */
-  --glass-bg: oklch(1 0 0 / 0.55);
-  --glass-bg-strong: oklch(1 0 0 / 0.72);
-  --glass-border: oklch(0.55 0.05 257 / 0.18);
+  --glass-bg: oklch(1 0 0 / 0.4);
+  --glass-bg-strong: oklch(1 0 0 / 0.54);
+  --glass-border: oklch(0.55 0.07 257 / 0.3);
   --glass-ring: oklch(0.21 0.02 264 / 0.08);
-  --glass-highlight: oklch(1 0 0 / 0.9);
-  --glass-shadow: 0 1px 2px oklch(0.21 0.04 264 / 0.08),
-    0 10px 30px -12px oklch(0.3 0.08 257 / 0.22);
-  --glass-blur: 20px;
+  --glass-highlight: oklch(1 0 0 / 0.95);
+  --glass-shadow: 0 1px 2px oklch(0.21 0.04 264 / 0.06),
+    0 18px 40px -18px oklch(0.4 0.12 257 / 0.35),
+    0 6px 14px -10px oklch(0.55 0.2 25 / 0.12);
+  --glass-blur: 26px;
 
-  /* Decorative ambient washes for the page background — soft blue + faint red
-   * so translucent panels actually have something to refract. */
-  --glow-blue: oklch(0.68 0.17 257 / 0.22);
-  --glow-red: oklch(0.66 0.2 25 / 0.14);
-  --glow-blue-2: oklch(0.7 0.15 240 / 0.14);
-  --grid-line: oklch(0.55 0.05 257 / 0.05);
+  /* Decorative ambient washes — vivid blue + red so translucent glass panels
+   * actually have colored light to refract. Used on the workspace stage. */
+  --glow-blue: oklch(0.62 0.21 257 / 0.6);
+  --glow-red: oklch(0.62 0.23 25 / 0.42);
+  --glow-blue-2: oklch(0.66 0.18 240 / 0.44);
+  --glow-violet: oklch(0.62 0.2 290 / 0.3);
+  --grid-line: oklch(0.55 0.08 257 / 0.08);
+  --stage-base: oklch(0.965 0.018 250);
 }
 
 .dark {
@@ -168,19 +171,22 @@
   --brand-red-soft: oklch(0.66 0.2 25 / 0.18);
 
   /* Liquid-glass tokens (dark). */
-  --glass-bg: oklch(0.26 0.02 264 / 0.5);
-  --glass-bg-strong: oklch(0.27 0.022 264 / 0.68);
-  --glass-border: oklch(1 0 0 / 0.12);
+  --glass-bg: oklch(0.26 0.025 264 / 0.45);
+  --glass-bg-strong: oklch(0.27 0.025 264 / 0.62);
+  --glass-border: oklch(1 0 0 / 0.14);
   --glass-ring: oklch(1 0 0 / 0.06);
-  --glass-highlight: oklch(1 0 0 / 0.14);
-  --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.45),
-    0 16px 40px -12px oklch(0 0 0 / 0.6);
-  --glass-blur: 22px;
+  --glass-highlight: oklch(1 0 0 / 0.16);
+  --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.5),
+    0 22px 50px -18px oklch(0 0 0 / 0.7),
+    0 6px 16px -10px oklch(0.6 0.2 257 / 0.25);
+  --glass-blur: 26px;
 
-  --glow-blue: oklch(0.6 0.2 257 / 0.3);
-  --glow-red: oklch(0.6 0.22 25 / 0.18);
-  --glow-blue-2: oklch(0.62 0.16 240 / 0.18);
-  --grid-line: oklch(1 0 0 / 0.04);
+  --glow-blue: oklch(0.58 0.23 257 / 0.55);
+  --glow-red: oklch(0.58 0.24 25 / 0.34);
+  --glow-blue-2: oklch(0.6 0.2 240 / 0.36);
+  --glow-violet: oklch(0.58 0.22 290 / 0.3);
+  --grid-line: oklch(1 0 0 / 0.05);
+  --stage-base: oklch(0.16 0.018 264);
 }
 
 @layer base {
@@ -297,6 +303,118 @@
     position: relative;
   }
 
+  /*
+   * .glass-floating — the primary workspace panels (rail, center, context).
+   * Heavier reflective glass with a pronounced top sheen so the translucency
+   * over the ambient stage reads clearly as liquid glass.
+   */
+  .glass-floating {
+    position: relative;
+    background-color: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(185%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(185%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      inset 0 0 0 1px oklch(1 0 0 / 0.04),
+      var(--glass-shadow);
+  }
+
+  .glass-floating::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      to bottom,
+      var(--glass-highlight),
+      transparent 32%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.8;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /*
+   * .workspace-stage — vivid ambient backdrop the glass panels float over.
+   * Blue + red + violet orbs give the glass colored light to refract; the
+   * masked blueprint grid adds depth without overwhelming content.
+   */
+  .workspace-stage {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--stage-base);
+  }
+
+  .workspace-stage::before {
+    content: "";
+    position: absolute;
+    inset: -12%;
+    z-index: -2;
+    background-image:
+      radial-gradient(70rem 58rem at 4% -4%, var(--glow-blue), transparent 62%),
+      radial-gradient(64rem 54rem at 100% 0%, var(--glow-red), transparent 60%),
+      radial-gradient(
+        72rem 60rem at 88% 108%,
+        var(--glow-blue-2),
+        transparent 62%
+      ),
+      radial-gradient(
+        56rem 48rem at 6% 112%,
+        var(--glow-violet),
+        transparent 62%
+      ),
+      radial-gradient(
+        58rem 50rem at 52% 46%,
+        var(--glow-blue),
+        transparent 66%
+      );
+    background-repeat: no-repeat;
+    filter: saturate(135%);
+    animation: stage-drift 26s ease-in-out infinite alternate;
+  }
+
+  .workspace-stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size:
+      30px 30px,
+      30px 30px;
+    -webkit-mask-image: radial-gradient(
+      circle at 50% 38%,
+      #000 55%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(circle at 50% 38%, #000 55%, transparent 100%);
+    pointer-events: none;
+  }
+
+  @keyframes stage-drift {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      transform: translate3d(-2%, 1.5%, 0) scale(1.06);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-stage::before {
+      animation: none;
+    }
+  }
+
   .glass-hover {
     transition:
       box-shadow 0.2s ease,
@@ -325,13 +443,28 @@
 
   /* Active rail item: blue-tinted glass with a red identity indicator bar. */
   .rail-active {
-    background-color: oklch(0.55 0.2 257 / 0.1);
+    background-image: linear-gradient(
+      90deg,
+      oklch(0.55 0.2 257 / 0.18),
+      oklch(0.55 0.2 257 / 0.05)
+    );
     color: var(--foreground);
-    box-shadow: inset 2px 0 0 0 var(--brand-red);
+    box-shadow:
+      inset 3px 0 0 0 var(--brand-red),
+      inset 0 1px 0 0 var(--glass-highlight),
+      0 6px 16px -10px oklch(0.55 0.2 257 / 0.45);
+  }
+
+  .rail-active :where(svg) {
+    color: var(--brand-blue);
   }
 
   .dark .rail-active {
-    background-color: oklch(0.65 0.18 257 / 0.16);
+    background-image: linear-gradient(
+      90deg,
+      oklch(0.65 0.18 257 / 0.26),
+      oklch(0.65 0.18 257 / 0.08)
+    );
   }
 
   /* Subtle red identity badge. */
