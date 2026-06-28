@@ -1,6 +1,12 @@
 import type { DbGraphEdge, DbGraphNode } from "@/lib/db/schema";
 import type { GraphNodeType } from "@/lib/validators/enums";
 import { GRAPH_NODE_MINIMAP_COLORS } from "@/lib/graph/node-styles";
+import {
+  CENTER_FOLDER,
+  folderClusterAngles,
+  folderForNode,
+} from "@/lib/graph/folder-clusters";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 
 export const MAX_DISPLAY_GRAPH_NODES = 200;
 
@@ -43,29 +49,13 @@ export type CampaignGraphFlow = {
 };
 
 /**
- * Concentric "rings" by node type, radiating out from the candidate at the
- * center. This produces the airy, organic web that reads like an Obsidian
- * context graph rather than a rigid top-down tree.
+ * Distance from the candidate (centre) to each folder's cluster centre, and the
+ * base spacing used to pack nodes within a cluster. Tuned so clusters read as
+ * distinct, airy constellations — the Obsidian "folder galaxy" feel.
  */
-const RING_BY_TYPE: Record<GraphNodeType, number> = {
-  candidate: 0,
-  strategic_priority: 1,
-  issue: 1,
-  voter_segment: 1,
-  message_theme: 2,
-  opponent: 2,
-  organization: 2,
-  asset: 3,
-  event: 3,
-  task: 3,
-  research: 3,
-  prospect: 3,
-  donor: 3,
-  compliance: 3,
-};
-
-const RING_RADIUS = 260;
-const MIN_NODE_SPACING = 150;
+const CLUSTER_RADIUS = 460;
+const INTRA_CLUSTER_SPACING = 132;
+const CENTER_SPACING = 150;
 
 /** Deterministic pseudo-random in [-1, 1] from a string seed. */
 function seededOffset(seed: string): number {
@@ -93,9 +83,15 @@ function readPositionFromMetadata(
   return null;
 }
 
+/**
+ * Place nodes into folder clusters radiating from the candidate. Each folder
+ * occupies a stable angular sector; within a sector nodes fan out around their
+ * cluster centre. Nodes carrying explicit metadata coordinates keep them, so
+ * future drag-to-pin / saved layouts compose cleanly.
+ */
 function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
-  const rings = new Map<number, DbGraphNode[]>();
+  const byFolder = new Map<CampaignFolderId, DbGraphNode[]>();
 
   for (const node of nodes) {
     const fromMetadata = readPositionFromMetadata(node.metadata_json);
@@ -104,39 +100,58 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
       continue;
     }
 
-    const ring = RING_BY_TYPE[node.node_type] ?? 3;
-    const bucket = rings.get(ring) ?? [];
+    const folder = folderForNode({
+      nodeType: node.node_type,
+      metadata: node.metadata_json,
+    });
+    const bucket = byFolder.get(folder) ?? [];
     bucket.push(node);
-    rings.set(ring, bucket);
+    byFolder.set(folder, bucket);
   }
 
-  const sortedRings = [...rings.entries()].sort(([a], [b]) => a - b);
+  // Centre cluster (candidate + core campaign nodes) sits at the origin.
+  const centerNodes = byFolder.get(CENTER_FOLDER) ?? [];
+  centerNodes.forEach((node, index) => {
+    if (positions.has(node.id)) return;
+    if (index === 0) {
+      positions.set(node.id, { x: 0, y: 0 });
+      return;
+    }
+    const angle = (index / Math.max(centerNodes.length - 1, 1)) * Math.PI * 2;
+    positions.set(node.id, {
+      x: Math.cos(angle) * CENTER_SPACING,
+      y: Math.sin(angle) * CENTER_SPACING,
+    });
+  });
 
-  for (const [ring, ringNodes] of sortedRings) {
-    if (ring === 0) {
-      // Center the root node(s) at the origin.
-      ringNodes.forEach((node, index) => {
-        if (!positions.has(node.id)) {
-          positions.set(node.id, { x: index * MIN_NODE_SPACING, y: 0 });
-        }
-      });
+  const angles = folderClusterAngles(byFolder.keys());
+
+  for (const [folder, clusterAngle] of angles) {
+    const clusterNodes = byFolder.get(folder) ?? [];
+    const cx = Math.cos(clusterAngle) * CLUSTER_RADIUS;
+    const cy = Math.sin(clusterAngle) * CLUSTER_RADIUS;
+
+    if (clusterNodes.length === 1) {
+      const only = clusterNodes[0];
+      if (!positions.has(only.id)) positions.set(only.id, { x: cx, y: cy });
       continue;
     }
 
-    const count = ringNodes.length;
-    // Grow the radius if a ring is crowded so labels stay readable.
-    const circumferenceRadius = (count * MIN_NODE_SPACING) / (2 * Math.PI);
-    const radius = Math.max(ring * RING_RADIUS, circumferenceRadius);
-    // Offset every other ring so spokes don't visually align.
-    const angleOffset = ring * 0.6;
+    // Fan the cluster's nodes around its centre, biased to face outward so the
+    // labels don't collide with the spoke back to the candidate.
+    const count = clusterNodes.length;
+    const ringRadius = Math.max(
+      INTRA_CLUSTER_SPACING,
+      (count * INTRA_CLUSTER_SPACING) / (2 * Math.PI),
+    );
 
-    ringNodes.forEach((node, index) => {
+    clusterNodes.forEach((node, index) => {
       if (positions.has(node.id)) return;
-      const angle = angleOffset + (index / count) * Math.PI * 2;
-      const jitter = 1 + seededOffset(node.id) * 0.12;
+      const spread = (index / count) * Math.PI * 2;
+      const jitter = 1 + seededOffset(node.id) * 0.14;
       positions.set(node.id, {
-        x: Math.cos(angle) * radius * jitter,
-        y: Math.sin(angle) * radius * jitter,
+        x: cx + Math.cos(clusterAngle + spread) * ringRadius * jitter,
+        y: cy + Math.sin(clusterAngle + spread) * ringRadius * jitter,
       });
     });
   }

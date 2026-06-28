@@ -125,6 +125,25 @@
     0 1px 1px oklch(0.205 0 0 / 0.03);
   --shadow-pop: 0 4px 12px -2px oklch(0.205 0 0 / 0.1),
     0 2px 6px -2px oklch(0.205 0 0 / 0.06);
+
+  /*
+   * Liquid-glass tokens. Translucent frosted surfaces that float over the
+   * knowledge graph (composer) or the stage (rail, bars, preview panel).
+   * Light-first: a high-white translucency with a soft inner highlight reads as
+   * brushed glass while keeping text contrast strong over the graph behind it.
+   */
+  --glass-blur: 18px;
+  --glass-saturate: 150%;
+  --glass-bar-bg: oklch(1 0 0 / 0.66);
+  --glass-rail-bg: oklch(1 0 0 / 0.55);
+  --glass-panel-bg: oklch(1 0 0 / 0.62);
+  --glass-composer-bg: oklch(1 0 0 / 0.72);
+  --glass-border: oklch(0.205 0 0 / 0.08);
+  --glass-highlight: oklch(1 0 0 / 0.65);
+  --glass-shadow: 0 1px 2px oklch(0.205 0 0 / 0.05),
+    0 8px 24px -12px oklch(0.205 0 0 / 0.18);
+  --glass-shadow-pop: 0 2px 6px oklch(0.205 0 0 / 0.06),
+    0 16px 40px -16px oklch(0.205 0 0 / 0.28);
 }
 
 .dark {
@@ -182,6 +201,18 @@
   --hairline: oklch(1 0 0 / 0.09);
   --shadow-panel: 0 1px 2px oklch(0 0 0 / 0.3);
   --shadow-pop: 0 6px 16px -4px oklch(0 0 0 / 0.5);
+
+  /* Dark glass: a smoky translucency with a faint top highlight. */
+  --glass-bar-bg: oklch(0.214 0 0 / 0.62);
+  --glass-rail-bg: oklch(0.2 0 0 / 0.55);
+  --glass-panel-bg: oklch(0.214 0 0 / 0.58);
+  --glass-composer-bg: oklch(0.24 0 0 / 0.7);
+  --glass-border: oklch(1 0 0 / 0.1);
+  --glass-highlight: oklch(1 0 0 / 0.08);
+  --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.4),
+    0 10px 30px -14px oklch(0 0 0 / 0.6);
+  --glass-shadow-pop: 0 2px 8px oklch(0 0 0 / 0.45),
+    0 20px 48px -18px oklch(0 0 0 / 0.7);
 }
 
 @layer base {
@@ -241,6 +272,52 @@
     background-color: var(--stage-base);
   }
 
+  /*
+   * Liquid-glass surfaces. Each variant shares a frosted backdrop-blur with a
+   * layered border + inner top highlight, differing only in translucency so the
+   * composer reads as the lightest, most "liftable" pane floating on the graph.
+   * `@supports` keeps a solid fallback where backdrop-filter is unavailable.
+   */
+  .glass-bar,
+  .glass-rail,
+  .glass-frost,
+  .glass-composer {
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      var(--glass-shadow),
+      inset 0 1px 0 0 var(--glass-highlight);
+  }
+
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .glass-bar,
+    .glass-rail,
+    .glass-frost,
+    .glass-composer {
+      -webkit-backdrop-filter: blur(var(--glass-blur))
+        saturate(var(--glass-saturate));
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    }
+  }
+
+  .glass-bar {
+    background-color: var(--glass-bar-bg);
+  }
+
+  .glass-rail {
+    background-color: var(--glass-rail-bg);
+  }
+
+  .glass-frost {
+    background-color: var(--glass-panel-bg);
+  }
+
+  .glass-composer {
+    background-color: var(--glass-composer-bg);
+    box-shadow:
+      var(--glass-shadow-pop),
+      inset 0 1px 0 0 var(--glass-highlight);
+  }
+
   .glass-hover {
     transition:
       background-color 0.15s ease,
@@ -288,29 +365,78 @@
     border-color: color-mix(in oklch, var(--brand-blue) 30%, transparent);
   }
 
+  /* Obsidian-style graph dot. A soft, type-tinted node; the only interactive
+   * surface in the graph. */
+  .graph-dot {
+    box-shadow: var(--shadow-panel);
+    animation: graph-dot-pop 460ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  }
+
+  .graph-dot-selected {
+    border-color: var(--brand-blue) !important;
+    box-shadow:
+      0 0 0 4px color-mix(in oklch, var(--brand-blue) 22%, transparent),
+      var(--shadow-panel);
+  }
+
   /*
    * Graph node "thinking" highlight. When the assistant is searching the
-   * campaign documents, nodes pulse with a soft blue ring to visualize the
-   * model reading through the graph.
+   * campaign, nodes light up and pulse with a soft blue ring to visualize the
+   * model reading and connecting context across the graph.
    */
   .graph-node-active {
     animation: node-search-pulse 1.1s ease-in-out infinite;
     border-color: var(--brand-blue) !important;
+    background-color: color-mix(
+      in oklch,
+      var(--brand-blue) 26%,
+      var(--card)
+    ) !important;
     z-index: 5;
   }
 
   @keyframes node-search-pulse {
     0%,
     100% {
+      transform: scale(1);
       box-shadow:
-        0 0 0 0 color-mix(in oklch, var(--brand-blue) 45%, transparent),
+        0 0 0 0 color-mix(in oklch, var(--brand-blue) 50%, transparent),
         var(--shadow-panel);
     }
     50% {
+      transform: scale(1.18);
       box-shadow:
-        0 0 0 6px color-mix(in oklch, var(--brand-blue) 0%, transparent),
-        0 0 18px 2px color-mix(in oklch, var(--brand-blue) 35%, transparent),
+        0 0 0 7px color-mix(in oklch, var(--brand-blue) 0%, transparent),
+        0 0 20px 3px color-mix(in oklch, var(--brand-blue) 40%, transparent),
         var(--shadow-panel);
+    }
+  }
+
+  /*
+   * New-node entrance. As the knowledge graph grows, freshly added dots ease in
+   * with a soft pop + fade so growth reads as organic, never a hard cut. No
+   * animation fill so the dot's hover transition stays intact afterwards.
+   */
+  @keyframes graph-dot-pop {
+    0% {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    55% {
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes graph-node-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
     }
   }
 
@@ -340,17 +466,59 @@
   display: none;
 }
 
-.react-flow__edge-path {
-  stroke: var(--border);
-  stroke-width: 1.5;
+/* Only nodes are interactive; edges are quiet visual connectors. */
+.react-flow__node {
+  cursor: pointer;
+  /* Gentle fade-in for every node as it mounts / the graph grows. */
+  animation: graph-node-fade 460ms ease;
 }
 
+.react-flow__edge {
+  pointer-events: none;
+}
+
+.react-flow__edge-path {
+  stroke: color-mix(in oklch, var(--muted-foreground) 36%, transparent);
+  stroke-width: 1.25;
+  opacity: 0.9;
+  transition:
+    stroke 0.3s ease,
+    stroke-width 0.3s ease,
+    filter 0.3s ease,
+    opacity 0.3s ease;
+}
+
+/*
+ * Active edges glow softly while the assistant's "thinking" pass ripples across
+ * the graph, fading back out smoothly when the activation moves on.
+ */
 .react-flow__edge.is-active .react-flow__edge-path {
   stroke: var(--brand-blue);
   stroke-width: 2;
+  opacity: 1;
+  filter: drop-shadow(
+    0 0 4px color-mix(in oklch, var(--brand-blue) 55%, transparent)
+  );
+  animation: edge-flow-glow 1.4s ease-in-out infinite;
 }
 
-.react-flow__edge-text {
-  fill: var(--muted-foreground);
-  font-size: 10px;
+@keyframes edge-flow-glow {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__node,
+  .graph-dot {
+    animation: none;
+  }
+
+  .react-flow__edge.is-active .react-flow__edge-path {
+    animation: none;
+  }
 }

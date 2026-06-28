@@ -17,7 +17,15 @@ import type {
   CampaignGraphFlow,
   CampaignGraphNodeData,
 } from "@/lib/graph/to-react-flow";
-import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
+import { useDynamicCampaignGraph } from "@/lib/graph/dynamic-graph";
+import { foldersForText, nodeIdsForFolders } from "@/lib/graph/folder-clusters";
+import type {
+  DbCampaign,
+  DbCampaignProfile,
+  DbGraphEdge,
+  DbGraphNode,
+} from "@/lib/db/schema";
+import type { KnowledgeNode } from "@/lib/campaign-knowledge/types";
 
 type WorkspaceHomeProps = {
   isSetupComplete: boolean;
@@ -27,46 +35,158 @@ type WorkspaceHomeProps = {
   edgeCount: number;
   metrics: WorkspaceMetrics;
   onboardingData: OnboardingData | null;
+  /**
+   * Optional live-graph seed. When provided (e.g. the preview workspace), the
+   * graph becomes a client-side {@link useDynamicCampaignGraph} that can grow
+   * as knowledge is added — demonstrating the dynamic knowledge graph.
+   */
+  liveSeed?: { nodes: DbGraphNode[]; edges: DbGraphEdge[] } | null;
+  /** Knowledge steps cycled through by the "Add knowledge" affordance. */
+  growthSteps?: KnowledgeNode[];
 };
 
 /**
- * While the assistant is working, stage a rotating set of highlighted node ids
- * so the graph visibly "lights up" as the model reads through the campaign —
- * a simulated visualization of its search/thinking, tied to chat activity.
+ * Keeps a boolean "on" for at least `minMs` after it first turns on, so a fast
+ * assistant reply still produces a visible "thinking" pass over the graph.
+ */
+function useMinimumActive(active: boolean, minMs: number): boolean {
+  const [held, setHeld] = React.useState(false);
+  const sinceRef = React.useRef(0);
+
+  React.useEffect(() => {
+    if (active) {
+      sinceRef.current = Date.now();
+      // Edge-triggered: turn the "thinking" pass on the moment activity starts.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHeld(true);
+      return;
+    }
+    // Activity ended — keep the pass visible until at least minMs has elapsed.
+    const elapsed = Date.now() - sinceRef.current;
+    const remaining = Math.max(0, minMs - elapsed);
+    const timeout = setTimeout(() => setHeld(false), remaining);
+    return () => clearTimeout(timeout);
+  }, [active, minMs]);
+
+  return held;
+}
+
+/**
+ * Builds an outward-spreading set of highlighted node ids while the assistant
+ * is working — a simulated "spreading activation" that starts at the most
+ * connected node and ripples across the graph along its edges, visualizing the
+ * model searching and connecting campaign context.
  */
 function useGraphActivityHighlights(
-  nodeIds: string[],
+  graph: CampaignGraphFlow | null,
   active: boolean,
+  seedIds?: string[],
 ): Set<string> {
   const [highlighted, setHighlighted] = React.useState<Set<string>>(
     () => new Set(),
   );
 
+  const seedKey = (seedIds ?? []).join(",");
+
+  // Order nodes by BFS distance from the seed node(s), following edges. The
+  // seeds default to the most-connected node, but a chat topic can re-seed the
+  // ripple at the relevant cluster so activation visibly starts there.
+  const waves = React.useMemo<string[][]>(() => {
+    if (!graph || graph.nodes.length === 0) return [];
+
+    const adjacency = new Map<string, string[]>();
+    for (const node of graph.nodes) adjacency.set(node.id, []);
+    for (const edge of graph.edges) {
+      adjacency.get(edge.source)?.push(edge.target);
+      adjacency.get(edge.target)?.push(edge.source);
+    }
+
+    const nodeIds = new Set(graph.nodes.map((n) => n.id));
+    const requestedSeeds = (seedIds ?? []).filter((id) => nodeIds.has(id));
+    const seeds =
+      requestedSeeds.length > 0
+        ? requestedSeeds
+        : [
+            [...graph.nodes].sort(
+              (a, b) => (b.data.degree ?? 0) - (a.data.degree ?? 0),
+            )[0].id,
+          ];
+
+    const visited = new Set<string>(seeds);
+    const layers: string[][] = [[...seeds]];
+    let frontier = [...seeds];
+    while (frontier.length > 0) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        for (const neighbor of adjacency.get(id) ?? []) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            next.push(neighbor);
+          }
+        }
+      }
+      if (next.length > 0) layers.push(next);
+      frontier = next;
+    }
+
+    // Catch any disconnected nodes so they still participate.
+    const stragglers = graph.nodes
+      .map((n) => n.id)
+      .filter((id) => !visited.has(id));
+    if (stragglers.length > 0) layers.push(stragglers);
+
+    return layers;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph, seedKey]);
+
   React.useEffect(() => {
-    if (!active || nodeIds.length === 0) {
+    if (!active || waves.length === 0) {
       if (highlighted.size === 0) return;
-      const timeout = setTimeout(() => setHighlighted(new Set()), 350);
+      const timeout = setTimeout(() => setHighlighted(new Set()), 320);
       return () => clearTimeout(timeout);
     }
 
-    let step = 0;
+    let wave = 0;
     const tick = () => {
       const picks = new Set<string>();
-      const count = Math.min(3, nodeIds.length);
-      for (let k = 0; k < count; k += 1) {
-        picks.add(nodeIds[(step + k * 2) % nodeIds.length]);
-      }
+      // Current wave plus a trailing wave, so activation visibly ripples out.
+      for (const id of waves[wave % waves.length] ?? []) picks.add(id);
+      const trailing = waves[(wave - 1 + waves.length) % waves.length] ?? [];
+      for (const id of trailing) picks.add(id);
       setHighlighted(picks);
-      step = (step + 1) % nodeIds.length;
+      wave += 1;
     };
 
     tick();
-    const interval = setInterval(tick, 460);
+    const interval = setInterval(tick, 520);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, nodeIds]);
+  }, [active, waves]);
 
   return highlighted;
+}
+
+/**
+ * The node ids whose cluster matches the most recent user chat message — so the
+ * relevant part of the graph lights up when the user asks about a topic.
+ */
+function useChatTopicNodeIds(
+  graph: CampaignGraphFlow | null,
+  messages: { role: "user" | "assistant"; content: string }[],
+): string[] {
+  const lastUserContent = React.useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "user") return messages[i].content;
+    }
+    return null;
+  }, [messages]);
+
+  return React.useMemo(() => {
+    if (!graph || !lastUserContent) return [];
+    const folders = foldersForText(lastUserContent);
+    if (folders.length === 0) return [];
+    return [...nodeIdsForFolders(graph.nodes, folders)];
+  }, [graph, lastUserContent]);
 }
 
 export function WorkspaceHome({
@@ -77,8 +197,10 @@ export function WorkspaceHome({
   edgeCount,
   metrics,
   onboardingData,
+  liveSeed = null,
+  growthSteps = [],
 }: WorkspaceHomeProps) {
-  const { isSending } = useChat();
+  const { isSending, activeThread } = useChat();
   const { toggleRailMobile } = useWorkspaceShell();
   const [selectedNode, setSelectedNode] =
     React.useState<CampaignGraphNodeData | null>(null);
@@ -87,12 +209,48 @@ export function WorkspaceHome({
   );
   const [panelOpen, setPanelOpen] = React.useState(true);
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
+  const growthStepRef = React.useRef(0);
 
-  const nodeIds = React.useMemo(
-    () => (graph ? graph.nodes.map((n) => n.id) : []),
-    [graph],
+  // Live (client-side, growable) graph. Seeded only in live mode; otherwise the
+  // server-provided `graph` prop is the source of truth.
+  const liveController = useDynamicCampaignGraph({
+    campaignId: campaign?.id ?? "campaign",
+    nodes: liveSeed?.nodes ?? [],
+    edges: liveSeed?.edges ?? [],
+  });
+  const liveMode = liveSeed !== null;
+  const activeGraph = liveMode ? liveController.graph : graph;
+  const activeEdgeCount = liveMode
+    ? liveController.graph.edges.length
+    : edgeCount;
+
+  const messages = React.useMemo(
+    () => activeThread?.messages ?? [],
+    [activeThread],
   );
-  const highlightedNodeIds = useGraphActivityHighlights(nodeIds, isSending);
+
+  // Hold the "thinking" pass on long enough to be visible even for fast replies.
+  const thinkingActive = useMinimumActive(isSending, 1800);
+  const topicNodeIds = useChatTopicNodeIds(activeGraph, messages);
+  const activationIds = useGraphActivityHighlights(
+    activeGraph,
+    thinkingActive,
+    topicNodeIds,
+  );
+
+  // While thinking, ripple from the topic cluster; otherwise keep the matched
+  // cluster gently lit so the user sees which part of the graph is relevant.
+  const highlightedNodeIds = React.useMemo(() => {
+    if (thinkingActive) return activationIds;
+    return new Set(topicNodeIds);
+  }, [thinkingActive, activationIds, topicNodeIds]);
+
+  const handleAddKnowledge = React.useCallback(() => {
+    if (growthSteps.length === 0) return;
+    const step = growthSteps[growthStepRef.current % growthSteps.length];
+    growthStepRef.current += 1;
+    liveController.syncFromKnowledgeFile(step);
+  }, [growthSteps, liveController]);
 
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
@@ -144,26 +302,43 @@ export function WorkspaceHome({
 
   return (
     <div className="flex min-h-0 flex-1">
-      {/* Center: ever-present knowledge graph + docked composer */}
-      <section className="flex min-w-0 flex-1 flex-col">
-        <WorkspaceTopBar
-          onToggleRail={toggleRailMobile}
-          onTogglePanel={() => setPanelOpen((v) => !v)}
-          panelOpen={panelOpen}
-          showPanelToggle
-        />
-        <div className="relative min-h-0 flex-1">
+      {/* Center: full-bleed knowledge graph with floating glass overlays */}
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* The graph fills the entire center compartment and sits behind the
+            floating top bar and composer — Cursor/Codex style. */}
+        <div className="absolute inset-0 z-0">
           <WorkspaceGraphCanvas
-            graph={graph}
-            edgeCount={edgeCount}
+            graph={activeGraph}
+            edgeCount={activeEdgeCount}
             selectedNodeId={selectedNodeId}
             highlightedNodeIds={highlightedNodeIds}
-            searching={isSending}
+            searching={thinkingActive}
             onSelectNode={handleSelectNode}
             onFocusComposer={focusComposer}
+            onAddKnowledge={
+              liveMode && growthSteps.length > 0
+                ? handleAddKnowledge
+                : undefined
+            }
           />
         </div>
-        <ChatDock composerRef={composerRef} />
+
+        {/* Floating frosted breadcrumb bar — graph shows faintly through it. */}
+        <div className="pointer-events-none relative z-20 p-2.5">
+          <WorkspaceTopBar
+            onToggleRail={toggleRailMobile}
+            onTogglePanel={() => setPanelOpen((v) => !v)}
+            panelOpen={panelOpen}
+            showPanelToggle
+          />
+        </div>
+
+        {/* Floating glass composer docked at the bottom. The wrapper lets
+            pointer events fall through to the graph everywhere except the
+            card itself, which opts back in. */}
+        <div className="pointer-events-none relative z-20 mt-auto">
+          <ChatDock composerRef={composerRef} />
+        </div>
       </section>
 
       {/* Right rail: preview + accessibility (collapsible) */}

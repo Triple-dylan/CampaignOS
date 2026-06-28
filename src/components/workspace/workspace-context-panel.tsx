@@ -52,8 +52,8 @@ export function WorkspaceContextPanel({
   onClearSelection,
 }: WorkspaceContextPanelProps) {
   return (
-    <aside className="hidden w-80 shrink-0 flex-col border-l border-border bg-background md:flex">
-      <div className="flex h-12 items-center justify-between gap-2 border-b border-border px-4">
+    <aside className="glass-frost hidden w-80 shrink-0 flex-col md:flex">
+      <div className="flex h-12 items-center justify-between gap-2 border-b border-border/60 px-4">
         <h2 className="text-sm font-semibold">
           {selectedNode ? "Preview" : "Campaign"}
         </h2>

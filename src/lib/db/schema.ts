@@ -297,6 +297,43 @@ export type DbComplianceRecordWithAsset = DbComplianceRecord & {
   asset: DbComplianceRecordAssetSummary | null;
 };
 
+export type DbWorkflowSchedule = {
+  id: string;
+  campaign_id: string;
+  name: string;
+  description: string | null;
+  prompt: string;
+  agent_mode: string;
+  schedule_type: string;
+  cron_expression: string | null;
+  schedule_config: Record<string, unknown> | null;
+  enabled: boolean;
+  status: string;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_by: string | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DbWorkflowRun = {
+  id: string;
+  schedule_id: string;
+  campaign_id: string;
+  status: string;
+  prompt_snapshot: string | null;
+  agent_mode: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  output_text: string | null;
+  output_json: Record<string, unknown> | null;
+  error_message: string | null;
+  ai_generation_log_id: string | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: string;
+};
+
 /** App-level campaign summary (camelCase). */
 export type Campaign = {
   id: string;

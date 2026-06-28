@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { ensureOrganizationSynced } from "@/actions/organizations";
 import { generateAssetContent } from "@/lib/ai/generate-asset";
 import { isOpenAiConfigured } from "@/lib/ai/config";
+import { getSocialAssetTemplate } from "@/lib/assets/social-templates";
 import { canApproveAssets } from "@/lib/auth/permissions";
 import {
   createAsset,
@@ -50,6 +51,7 @@ export type AssetActionResult =
         | "forbidden"
         | "not_found"
         | "validation"
+        | "integration_not_connected"
         | "generation_failed";
     };
 
@@ -66,7 +68,9 @@ type AssetContext =
     }
   | {
       ok: true;
-      campaign: NonNullable<Awaited<ReturnType<typeof getCampaignByOrganizationId>>>;
+      campaign: NonNullable<
+        Awaited<ReturnType<typeof getCampaignByOrganizationId>>
+      >;
       profile: Awaited<ReturnType<typeof getCampaignProfile>>;
       userId: string | null;
       dbUserId: string | null;
@@ -137,7 +141,10 @@ async function finalizeNewAsset(input: {
     contentType: input.assetType,
     aiGenerated: input.aiGenerated,
     distributionChannel: input.channel ?? undefined,
-    reviewStatus: complianceStatusForAssetType(input.assetType, input.aiGenerated),
+    reviewStatus: complianceStatusForAssetType(
+      input.assetType,
+      input.aiGenerated,
+    ),
   });
 
   const existingNodes = await listGraphNodes(input.campaignId);
@@ -331,6 +338,48 @@ export async function generateAsset(
   }
 }
 
+export async function generateAssetFromTemplate(input: {
+  templateId: string;
+  provider: "canva" | "higgsfield";
+  theme?: string;
+  issue?: string;
+}): Promise<AssetActionResult> {
+  const context = await requireAssetContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: context.code };
+  }
+
+  const template = getSocialAssetTemplate(input.templateId);
+  if (!template) {
+    return {
+      ok: false,
+      error: "Choose a valid social media template.",
+      code: "validation",
+    };
+  }
+
+  if (input.provider !== template.provider) {
+    return {
+      ok: false,
+      error: `${template.label} is configured for ${template.provider}.`,
+      code: "validation",
+    };
+  }
+
+  // Expected production flow:
+  // Canva: load the user's OAuth token, map campaign/profile fields to the
+  // brand template dataset, create an autofill job, poll it, export the design,
+  // then save the Canva design/export URLs on the CampaignOS asset.
+  // Higgsfield: call the configured MCP generation tool with campaign context,
+  // template dimensions, and prompt fields, then save returned image/video URLs.
+  return {
+    ok: false,
+    error:
+      "Template generation is not connected yet. Connect Canva or Higgsfield in Settings, then map template IDs and output storage.",
+    code: "integration_not_connected",
+  };
+}
+
 export async function updateAssetContent(input: {
   assetId: string;
   title?: string;
@@ -438,7 +487,9 @@ export async function submitAssetForApproval(
   }
 }
 
-export async function approveAsset(assetId: string): Promise<AssetActionResult> {
+export async function approveAsset(
+  assetId: string,
+): Promise<AssetActionResult> {
   const context = await requireAssetContext();
   if (!context.ok) {
     return { ok: false, error: context.error, code: context.code };

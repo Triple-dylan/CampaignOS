@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 export default async function SettingsPage() {
@@ -173,7 +174,9 @@ export default async function SettingsPage() {
                     : "—"}
                 </p>
                 {tonePrefs?.notes ? (
-                  <p className="mt-1 text-muted-foreground">{tonePrefs.notes}</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {tonePrefs.notes}
+                  </p>
                 ) : null}
               </div>
               <Separator />
@@ -193,6 +196,38 @@ export default async function SettingsPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Asset generation integrations</CardTitle>
+            <CardDescription>
+              Connect a design provider before CampaignOS can render social
+              templates or export finished creative.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <IntegrationSetupCard
+              title="Canva Connect"
+              description="Best for reusable brand templates, campaign-safe layouts, and exportable social graphics."
+              cta="Connect Canva"
+              steps={[
+                "Create a Canva developer app and configure OAuth with PKCE.",
+                "Publish Canva brand templates for each social format and store their template IDs.",
+                "Map CampaignOS fields to each template dataset, then run Autofill and Export jobs.",
+              ]}
+            />
+            <IntegrationSetupCard
+              title="Higgsfield MCP"
+              description="Best for AI-generated image or short-video variations when a rendered design template is not required."
+              cta="Connect Higgsfield"
+              steps={[
+                "Add the Higgsfield MCP server to Cursor or the CampaignOS runtime when supported.",
+                "Authenticate through Higgsfield OAuth instead of storing API keys in the app.",
+                "Map template metadata to MCP generation prompts and save returned media URLs.",
+              ]}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Coming soon</CardTitle>
             <CardDescription>
               Additional settings will ship in later milestones.
@@ -207,6 +242,37 @@ export default async function SettingsPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+function IntegrationSetupCard({
+  title,
+  description,
+  cta,
+  steps,
+}: {
+  title: string;
+  description: string;
+  cta: string;
+  steps: string[];
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </div>
+        <Button type="button" variant="outline" disabled>
+          {cta}
+        </Button>
+      </div>
+      <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+        {steps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

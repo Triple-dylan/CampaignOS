@@ -22,7 +22,7 @@ export function WorkspaceTopBar({
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+    <header className="glass-bar pointer-events-auto flex h-11 items-center gap-2 rounded-xl px-3">
       <button
         type="button"
         onClick={onToggleRail}

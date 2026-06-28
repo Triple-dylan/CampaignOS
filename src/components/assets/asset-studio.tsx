@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { FolderOpen, Loader2, Plus } from "lucide-react";
+import { FolderOpen, Loader2, Plus, WandSparkles } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   approveAsset,
+  generateAssetFromTemplate,
   rejectAsset,
   submitAssetForApproval,
   updateAssetContent,
@@ -32,6 +34,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import {
+  SOCIAL_ASSET_TEMPLATES,
+  type SocialAssetTemplateId,
+} from "@/lib/assets/social-templates";
 import type { DbAsset } from "@/lib/db/schema";
 import {
   ASSET_STATUS_LABELS,
@@ -95,12 +102,28 @@ export function AssetStudio({
   });
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [templateId, setTemplateId] = useState<SocialAssetTemplateId>(
+    SOCIAL_ASSET_TEMPLATES[0].id,
+  );
+  const [templateTheme, setTemplateTheme] = useState("");
+  const [templateIssue, setTemplateIssue] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const selectedTemplate = useMemo(
+    () =>
+      SOCIAL_ASSET_TEMPLATES.find((template) => template.id === templateId) ??
+      SOCIAL_ASSET_TEMPLATES[0],
+    [templateId],
+  );
 
   const filteredAssets = useMemo(() => {
     return assets.filter((asset) => {
-      if (filters.assetType !== "all" && asset.asset_type !== filters.assetType) {
+      if (
+        filters.assetType !== "all" &&
+        asset.asset_type !== filters.assetType
+      ) {
         return false;
       }
       if (filters.status !== "all" && asset.status !== filters.status) {
@@ -145,15 +168,36 @@ export function AssetStudio({
     });
   }
 
+  function handleGenerateFromTemplate() {
+    setTemplateMessage(null);
+    startTransition(async () => {
+      const result = await generateAssetFromTemplate({
+        templateId: selectedTemplate.id,
+        provider: selectedTemplate.provider,
+        theme: templateTheme.trim() || undefined,
+        issue: templateIssue.trim() || undefined,
+      });
+
+      if (!result.ok) {
+        setTemplateMessage(result.error);
+        return;
+      }
+
+      refresh();
+    });
+  }
+
   const selectedEditable =
-    selectedAsset?.status === "draft" || selectedAsset?.status === "needs_review";
+    selectedAsset?.status === "draft" ||
+    selectedAsset?.status === "needs_review";
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
-            {assets.length} asset{assets.length === 1 ? "" : "s"} in this campaign
+            {assets.length} asset{assets.length === 1 ? "" : "s"} in this
+            campaign
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -161,6 +205,107 @@ export function AssetStudio({
           Create asset
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <WandSparkles className="size-4 text-primary" />
+                Generate from template
+              </CardTitle>
+              <CardDescription>
+                Pick a standard social format now; connect Canva or Higgsfield
+                to render designs from Campaign Brain context.
+              </CardDescription>
+            </div>
+            <Button variant="outline" render={<Link href="/settings" />}>
+              Connect integrations
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.6fr)]">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-2 sm:col-span-3">
+              <Label htmlFor="template-picker">Template</Label>
+              <Select
+                id="template-picker"
+                value={templateId}
+                onChange={(event) =>
+                  setTemplateId(event.target.value as SocialAssetTemplateId)
+                }
+              >
+                {SOCIAL_ASSET_TEMPLATES.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="template-theme">Theme</Label>
+              <Input
+                id="template-theme"
+                value={templateTheme}
+                onChange={(event) => setTemplateTheme(event.target.value)}
+                placeholder="Accountability"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="template-issue">Issue</Label>
+              <Input
+                id="template-issue"
+                value={templateIssue}
+                onChange={(event) => setTemplateIssue(event.target.value)}
+                placeholder="Housing"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button
+                type="button"
+                className="w-full"
+                disabled={isPending}
+                onClick={handleGenerateFromTemplate}
+              >
+                {isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  "Generate"
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+            <p className="font-medium">{selectedTemplate.label}</p>
+            <p className="mt-1 text-muted-foreground">
+              {selectedTemplate.description}
+            </p>
+            <dl className="mt-4 grid grid-cols-2 gap-3">
+              <div>
+                <dt className="text-xs text-muted-foreground">Provider</dt>
+                <dd className="capitalize">{selectedTemplate.provider}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Size</dt>
+                <dd>{selectedTemplate.dimensions}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Platform</dt>
+                <dd>{selectedTemplate.platform}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Channel</dt>
+                <dd>{selectedTemplate.channel}</dd>
+              </div>
+            </dl>
+            {templateMessage ? (
+              <p className="mt-4 text-sm text-muted-foreground" role="status">
+                {templateMessage}
+              </p>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
       <section className="flex flex-wrap gap-3">
         <FilterSelect
@@ -300,7 +445,9 @@ export function AssetStudio({
                   {formatDate(selectedAsset.updated_at)}
                 </DialogDescription>
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <AssetStatusBadge status={selectedAsset.status as AssetStatus} />
+                  <AssetStatusBadge
+                    status={selectedAsset.status as AssetStatus}
+                  />
                   <ComplianceStatusBadge
                     status={
                       selectedAsset.compliance_status as ComplianceReviewStatus
@@ -343,7 +490,9 @@ export function AssetStudio({
                   </div>
                 )}
 
-                {(selectedAsset.theme || selectedAsset.issue || selectedAsset.channel) && (
+                {(selectedAsset.theme ||
+                  selectedAsset.issue ||
+                  selectedAsset.channel) && (
                   <dl className="grid gap-2 text-sm sm:grid-cols-3">
                     {selectedAsset.theme ? (
                       <div>
@@ -359,7 +508,9 @@ export function AssetStudio({
                     ) : null}
                     {selectedAsset.channel ? (
                       <div>
-                        <dt className="text-xs text-muted-foreground">Channel</dt>
+                        <dt className="text-xs text-muted-foreground">
+                          Channel
+                        </dt>
                         <dd>{selectedAsset.channel}</dd>
                       </div>
                     ) : null}

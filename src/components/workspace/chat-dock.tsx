@@ -1,7 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, CalendarClock, ChevronDown, Sparkles } from "lucide-react";
+import {
+  ArrowUp,
+  AtSign,
+  CalendarClock,
+  ChevronDown,
+  Paperclip,
+  Sparkles,
+} from "lucide-react";
 import { useChat } from "@/components/chat/chat-provider";
 import { useAutomations } from "@/components/automations/automations-provider";
 import { cn } from "@/lib/utils";
@@ -96,9 +103,9 @@ export function ChatDock({ composerRef }: ChatDockProps) {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="shrink-0 bg-background">
+    <div className="pointer-events-none">
       {hasMessages && !collapsed ? (
-        <div className="mx-auto w-full max-w-3xl px-4">
+        <div className="glass-frost pointer-events-auto mx-auto mb-2 w-full max-w-3xl rounded-2xl px-4 pb-2">
           <div className="flex items-center justify-between pb-1 pt-3">
             <span className="text-xs font-medium text-muted-foreground">
               {AGENT_LABELS[agentMode]}
@@ -154,7 +161,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
         </div>
       ) : null}
 
-      <div className="mx-auto w-full max-w-3xl px-4 pb-4 pt-2">
+      <div className="pointer-events-auto mx-auto w-full max-w-3xl px-4 pb-4 pt-2">
         {!hasMessages ? (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {SUGGESTIONS.map((suggestion) => (
@@ -173,7 +180,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
           </div>
         ) : null}
 
-        <div className="rounded-2xl border border-border bg-card shadow-[var(--shadow-panel)] transition-shadow focus-within:border-brand-blue/60 focus-within:shadow-[var(--shadow-pop)]">
+        <div className="glass-composer rounded-2xl transition-shadow focus-within:border-brand-blue/60">
           <textarea
             ref={textareaRef}
             value={draft}
@@ -181,16 +188,42 @@ export function ChatDock({ composerRef }: ChatDockProps) {
             onKeyDown={handleKeyDown}
             rows={1}
             placeholder={`Ask the ${AGENT_LABELS[agentMode]}…`}
-            className="block max-h-[200px] min-h-[24px] w-full resize-none bg-transparent px-4 pt-3 text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
+            className="block max-h-[200px] min-h-[24px] w-full resize-none bg-transparent px-3.5 pt-3 text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
           />
-          <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5 pt-1.5">
-            <span className="badge-blue inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[0.7rem] font-medium">
-              <Sparkles className="size-3" aria-hidden />
-              {AGENT_LABELS[agentMode]}
-            </span>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                title="Attach files (coming soon)"
+                aria-label="Attach files"
+                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <Paperclip className="size-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                title="Add campaign context (coming soon)"
+                className="hidden items-center gap-1 rounded-lg px-1.5 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:inline-flex"
+              >
+                <AtSign className="size-3.5" aria-hidden />
+                Context
+              </button>
+              <button
+                type="button"
+                title="Switch agent from the left rail"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[0.7rem] font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <Sparkles className="size-3.5 text-brand-blue" aria-hidden />
+                {AGENT_LABELS[agentMode]}
+                <ChevronDown
+                  className="size-3 text-muted-foreground"
+                  aria-hidden
+                />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
               {aiConfigured === false ? (
-                <span className="hidden text-[0.7rem] text-muted-foreground sm:inline">
+                <span className="hidden text-[0.7rem] text-muted-foreground md:inline">
                   AI key off · guided help
                 </span>
               ) : null}
@@ -210,13 +243,21 @@ export function ChatDock({ composerRef }: ChatDockProps) {
                 onClick={() => void submit()}
                 disabled={!draft.trim() || isSending}
                 aria-label="Send message"
-                className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ArrowUp className="size-4" aria-hidden />
               </button>
             </div>
           </div>
         </div>
+        <p className="mt-1.5 px-1 text-center text-[0.7rem] text-muted-foreground">
+          <kbd className="font-sans font-medium text-foreground/70">Enter</kbd>{" "}
+          to send ·{" "}
+          <kbd className="font-sans font-medium text-foreground/70">
+            Shift+Enter
+          </kbd>{" "}
+          for a new line
+        </p>
       </div>
     </div>
   );

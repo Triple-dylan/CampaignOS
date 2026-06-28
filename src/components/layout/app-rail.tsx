@@ -90,7 +90,7 @@ export function AppRail() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-sidebar">
+    <div className="flex h-full w-full flex-col bg-transparent">
       {/* Brand / campaign context */}
       <div className="flex items-center gap-2.5 px-3.5 py-3.5">
         <Link

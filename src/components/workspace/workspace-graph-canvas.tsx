@@ -1,17 +1,18 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Background,
   BackgroundVariant,
   Controls,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
   type Edge,
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Plus, Sparkles } from "lucide-react";
 import { GraphNodeCard } from "@/components/brain/graph-node-card";
 import { GraphFloatingEdge } from "@/components/brain/graph-floating-edge";
 import {
@@ -30,6 +31,18 @@ const edgeTypes = {
 
 const EMPTY_SET: Set<string> = new Set();
 
+/** Shared easing duration (ms) for all camera moves — calm, never jarring. */
+const CAMERA_EASE_MS = 620;
+/**
+ * Asymmetric padding so the constellation stays clear of the floating overlays:
+ * the frosted breadcrumb bar at the top and the glass composer docked at the
+ * bottom. Without the extra bottom space, nodes would hide behind the composer.
+ */
+const FIT_VIEW_OPTIONS = {
+  padding: { top: "88px", right: "88px", bottom: "216px", left: "88px" },
+  duration: CAMERA_EASE_MS,
+} as const;
+
 type WorkspaceGraphCanvasProps = {
   graph: CampaignGraphFlow | null;
   edgeCount: number;
@@ -38,6 +51,9 @@ type WorkspaceGraphCanvasProps = {
   searching?: boolean;
   onSelectNode: (node: CampaignGraphNodeData | null, id: string | null) => void;
   onFocusComposer?: () => void;
+  /** When provided, renders a "grow the graph" affordance (demo / live mode). */
+  onAddKnowledge?: () => void;
+  addKnowledgeLabel?: string;
 };
 
 export function WorkspaceGraphCanvas(props: WorkspaceGraphCanvasProps) {
@@ -56,8 +72,11 @@ function WorkspaceGraphCanvasInner({
   searching = false,
   onSelectNode,
   onFocusComposer,
+  onAddKnowledge,
+  addKnowledgeLabel = "Add knowledge",
 }: WorkspaceGraphCanvasProps) {
   const highlighted = highlightedNodeIds ?? EMPTY_SET;
+  const { fitView, setCenter, getNode, getZoom } = useReactFlow();
 
   const nodes = useMemo<Node[]>(() => {
     if (!graph) return [];
@@ -93,6 +112,39 @@ function WorkspaceGraphCanvasInner({
   const onPaneClick = useCallback(() => {
     onSelectNode(null, null);
   }, [onSelectNode]);
+
+  // Smooth re-frame whenever the graph grows: keep the whole constellation in
+  // view, easing the camera out instead of snapping.
+  const nodeCountRef = useRef(graph?.totalNodeCount ?? 0);
+  useEffect(() => {
+    const count = graph?.totalNodeCount ?? 0;
+    if (count !== nodeCountRef.current) {
+      const grew = count > nodeCountRef.current;
+      nodeCountRef.current = count;
+      if (grew) {
+        // Let the new node mount before fitting so it's included in the frame.
+        const raf = requestAnimationFrame(() => {
+          fitView(FIT_VIEW_OPTIONS);
+        });
+        return () => cancelAnimationFrame(raf);
+      }
+    }
+  }, [graph?.totalNodeCount, fitView]);
+
+  // Glide to the selected node (clicked on canvas, or chosen from chat / rail)
+  // without changing the zoom — a gentle recenter, not a teleport.
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    const node = getNode(selectedNodeId);
+    if (!node) return;
+    const width = node.measured?.width ?? 0;
+    const height = node.measured?.height ?? 0;
+    const targetZoom = Math.min(Math.max(getZoom(), 0.85), 1.25);
+    setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+      zoom: targetZoom,
+      duration: CAMERA_EASE_MS,
+    });
+  }, [selectedNodeId, getNode, setCenter, getZoom]);
 
   const isEmpty = !graph || graph.totalNodeCount === 0;
 
@@ -131,40 +183,34 @@ function WorkspaceGraphCanvasInner({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={0.2}
-        maxZoom={1.5}
+        maxZoom={1.8}
+        nodesConnectable={false}
+        edgesFocusable={false}
+        edgesReconnectable={false}
+        elevateNodesOnSelect
         proOptions={{ hideAttribution: true }}
         className="bg-transparent"
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={26}
+          gap={28}
           size={1}
           color="var(--border)"
         />
         <Controls
           showInteractive={false}
+          position="bottom-right"
           className="!rounded-lg !border !border-border !bg-card !shadow-[var(--shadow-panel)] [&_button]:!border-border [&_button]:!bg-card [&_button]:!text-foreground"
-        />
-        <MiniMap
-          pannable
-          zoomable
-          nodeColor={(node) =>
-            getMinimapNodeColor(
-              (node.data as CampaignFlowNode["data"]).nodeType,
-            )
-          }
-          maskColor="color-mix(in oklch, var(--muted) 70%, transparent)"
-          bgColor="var(--card)"
-          className="!rounded-lg !border !border-border !shadow-[var(--shadow-panel)]"
         />
       </ReactFlow>
 
-      <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-2">
+      <div className="pointer-events-none absolute left-3 top-16 z-10 flex items-center gap-2">
         {searching ? (
           <span className="badge-blue inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.7rem] font-medium">
             <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -173,7 +219,18 @@ function WorkspaceGraphCanvasInner({
         ) : null}
       </div>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full border border-border bg-card/90 px-2.5 py-1 text-[0.7rem] text-muted-foreground backdrop-blur-sm">
+      {onAddKnowledge ? (
+        <button
+          type="button"
+          onClick={onAddKnowledge}
+          className="glass-bar absolute right-3 top-16 z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          <Plus className="size-3.5 text-brand-blue" aria-hidden />
+          {addKnowledgeLabel}
+        </button>
+      ) : null}
+
+      <div className="glass-bar pointer-events-none absolute bottom-3 left-3 z-10 rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
         {graph.totalNodeCount} nodes · {edgeCount} edges
       </div>
     </div>
