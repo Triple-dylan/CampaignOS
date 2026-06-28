@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s | CampaignOS",
   },
   description:
-    "The operating system for modern political campaigns — strategy, field, fundraising, and compliance in one workspace.",
+    "A calm workspace for political campaigns — your campaign knowledge graph and an AI assistant in one place.",
 };
 
 export default function RootLayout({
@@ -39,8 +39,8 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <ClerkProvider appearance={clerkAppearance}>

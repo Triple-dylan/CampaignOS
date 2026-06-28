@@ -1,10 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { ChevronRight, PanelLeft } from "lucide-react";
 import { useCampaign } from "@/components/campaign/campaign-context";
-import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { campaignDisplayName } from "@/lib/db/schema";
 
@@ -24,22 +21,20 @@ export function AppHeader({
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/50 bg-background/45 px-4 backdrop-blur-xl backdrop-saturate-150">
-      <Button
+    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur-sm">
+      <button
         type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="glass-hover -ml-1 md:hidden"
-        aria-label="Open navigation"
         onClick={toggleRailMobile}
+        aria-label="Open navigation"
+        className="-ml-1 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden"
       >
-        <PanelLeft aria-hidden />
-      </Button>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <PanelLeft className="size-4" aria-hidden />
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col">
         {showCampaignContext && (orgName || campaignName) ? (
           <nav
             aria-label="Campaign breadcrumb"
-            className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+            className="flex min-w-0 items-center gap-1 text-[0.7rem] text-muted-foreground"
           >
             <span className="truncate">{orgName}</span>
             {campaignName ? (
@@ -50,22 +45,17 @@ export function AppHeader({
             ) : null}
           </nav>
         ) : null}
-        <div className="flex min-w-0 flex-col">
-          <h1 className="truncate text-sm font-semibold leading-none">{title}</h1>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h1 className="truncate text-sm font-semibold leading-tight">
+            {title}
+          </h1>
           {description ? (
-            <p className="truncate text-xs text-muted-foreground">{description}</p>
+            <p className="hidden truncate text-xs text-muted-foreground sm:block">
+              {description}
+            </p>
           ) : null}
         </div>
       </div>
-      {showCampaignContext && campaign?.office_sought?.trim() ? (
-        <Link
-          href="/settings"
-          className="hidden shrink-0 text-xs text-muted-foreground hover:text-foreground sm:inline"
-        >
-          {campaign.office_sought}
-        </Link>
-      ) : null}
-      <ThemeToggle className="shrink-0" />
     </header>
   );
 }

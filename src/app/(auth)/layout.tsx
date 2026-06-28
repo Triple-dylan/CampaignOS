@@ -8,18 +8,21 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <div className="brand-mark flex size-8 items-center justify-center rounded-lg text-white">
-              <Flag className="size-4" />
-            </div>
-            CampaignOS
-          </Link>
-          <ThemeToggle />
-        </div>
-      </header>
+    <div className="relative flex min-h-svh flex-col">
+      <div className="absolute right-5 top-5">
+        <ThemeToggle />
+      </div>
+      <div className="absolute left-5 top-5">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-sm font-semibold outline-hidden"
+        >
+          <span className="brand-mark flex size-7 items-center justify-center rounded-lg">
+            <Flag className="size-3.5" aria-hidden />
+          </span>
+          CampaignOS
+        </Link>
+      </div>
       <main className="flex flex-1 flex-col">{children}</main>
     </div>
   );

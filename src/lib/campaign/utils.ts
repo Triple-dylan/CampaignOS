@@ -6,16 +6,21 @@ export function daysUntilElection(electionDate: string | null): number | null {
     return null;
   }
 
-  const election = new Date(`${electionDate}T00:00:00`);
-  if (Number.isNaN(election.getTime())) {
+  // Compute everything in UTC so the server and client always agree (avoids
+  // React hydration mismatches from timezone differences).
+  const election = Date.parse(`${electionDate}T00:00:00Z`);
+  if (Number.isNaN(election)) {
     return null;
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const todayUtc = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
 
-  const diffMs = election.getTime() - today.getTime();
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  return Math.ceil((election - todayUtc) / (1000 * 60 * 60 * 24));
 }
 
 export function formatElectionCountdown(days: number | null): string {
@@ -45,11 +50,14 @@ export function formatElectionDate(electionDate: string | null): string {
     return electionDate;
   }
 
-  return date.toLocaleDateString(undefined, {
+  // Use a fixed locale + timezone so server and client render identically
+  // (avoids React hydration mismatches from locale/timezone differences).
+  return date.toLocaleDateString("en-US", {
     weekday: "short",
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -58,7 +66,7 @@ export function formatFundraisingGoal(goal: number | null | undefined): string {
     return "Not set";
   }
 
-  return `$${Number(goal).toLocaleString()}`;
+  return `$${Number(goal).toLocaleString("en-US")}`;
 }
 
 export function getToneSummary(

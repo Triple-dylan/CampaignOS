@@ -12,6 +12,10 @@ export type CampaignGraphNodeData = {
   sourceObjectType: string | null;
   sourceObjectId: string | null;
   metadata: Record<string, unknown> | null;
+  /** Number of edges touching this node — drives node size (Obsidian feel). */
+  degree: number;
+  /** Transient UI flag: node is being "searched" by the assistant. */
+  highlighted?: boolean;
 };
 
 export type CampaignFlowNode = {
@@ -25,8 +29,7 @@ export type CampaignFlowEdge = {
   id: string;
   source: string;
   target: string;
-  label?: string;
-  type?: "default";
+  type?: "floating";
   data?: {
     relationshipType: string;
   };
@@ -39,12 +42,12 @@ export type CampaignGraphFlow = {
   truncated: boolean;
 };
 
-const NODE_WIDTH = 240;
-const NODE_HEIGHT = 110;
-const HORIZONTAL_GAP = 48;
-const VERTICAL_GAP = 100;
-
-const LAYER_BY_TYPE: Record<GraphNodeType, number> = {
+/**
+ * Concentric "rings" by node type, radiating out from the candidate at the
+ * center. This produces the airy, organic web that reads like an Obsidian
+ * context graph rather than a rigid top-down tree.
+ */
+const RING_BY_TYPE: Record<GraphNodeType, number> = {
   candidate: 0,
   strategic_priority: 1,
   issue: 1,
@@ -60,6 +63,18 @@ const LAYER_BY_TYPE: Record<GraphNodeType, number> = {
   donor: 3,
   compliance: 3,
 };
+
+const RING_RADIUS = 260;
+const MIN_NODE_SPACING = 150;
+
+/** Deterministic pseudo-random in [-1, 1] from a string seed. */
+function seededOffset(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+  return ((hash % 1000) / 1000) * 2 - 1;
+}
 
 function readPositionFromMetadata(
   metadata: Record<string, unknown> | null,
@@ -80,7 +95,7 @@ function readPositionFromMetadata(
 
 function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
-  const layers = new Map<number, DbGraphNode[]>();
+  const rings = new Map<number, DbGraphNode[]>();
 
   for (const node of nodes) {
     const fromMetadata = readPositionFromMetadata(node.metadata_json);
@@ -89,36 +104,44 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
       continue;
     }
 
-    const layer = LAYER_BY_TYPE[node.node_type] ?? 4;
-    const bucket = layers.get(layer) ?? [];
+    const ring = RING_BY_TYPE[node.node_type] ?? 3;
+    const bucket = rings.get(ring) ?? [];
     bucket.push(node);
-    layers.set(layer, bucket);
+    rings.set(ring, bucket);
   }
 
-  const sortedLayers = [...layers.entries()].sort(([a], [b]) => a - b);
+  const sortedRings = [...rings.entries()].sort(([a], [b]) => a - b);
 
-  for (const [layer, layerNodes] of sortedLayers) {
-    const rowWidth =
-      layerNodes.length * NODE_WIDTH +
-      Math.max(0, layerNodes.length - 1) * HORIZONTAL_GAP;
-    let x = -rowWidth / 2;
-
-    for (const node of layerNodes) {
-      if (!positions.has(node.id)) {
-        positions.set(node.id, {
-          x,
-          y: layer * (NODE_HEIGHT + VERTICAL_GAP),
-        });
-        x += NODE_WIDTH + HORIZONTAL_GAP;
-      }
+  for (const [ring, ringNodes] of sortedRings) {
+    if (ring === 0) {
+      // Center the root node(s) at the origin.
+      ringNodes.forEach((node, index) => {
+        if (!positions.has(node.id)) {
+          positions.set(node.id, { x: index * MIN_NODE_SPACING, y: 0 });
+        }
+      });
+      continue;
     }
+
+    const count = ringNodes.length;
+    // Grow the radius if a ring is crowded so labels stay readable.
+    const circumferenceRadius = (count * MIN_NODE_SPACING) / (2 * Math.PI);
+    const radius = Math.max(ring * RING_RADIUS, circumferenceRadius);
+    // Offset every other ring so spokes don't visually align.
+    const angleOffset = ring * 0.6;
+
+    ringNodes.forEach((node, index) => {
+      if (positions.has(node.id)) return;
+      const angle = angleOffset + (index / count) * Math.PI * 2;
+      const jitter = 1 + seededOffset(node.id) * 0.12;
+      positions.set(node.id, {
+        x: Math.cos(angle) * radius * jitter,
+        y: Math.sin(angle) * radius * jitter,
+      });
+    });
   }
 
   return positions;
-}
-
-function formatRelationshipLabel(value: string): string {
-  return value.replace(/_/g, " ");
 }
 
 export function toReactFlowGraph(input: {
@@ -134,6 +157,24 @@ export function toReactFlowGraph(input: {
   const displayNodeIds = new Set(displayNodes.map((node) => node.id));
   const positions = layoutNodes(displayNodes);
 
+  const visibleEdges = input.edges.filter(
+    (edge) =>
+      displayNodeIds.has(edge.source_node_id) &&
+      displayNodeIds.has(edge.target_node_id),
+  );
+
+  const degreeById = new Map<string, number>();
+  for (const edge of visibleEdges) {
+    degreeById.set(
+      edge.source_node_id,
+      (degreeById.get(edge.source_node_id) ?? 0) + 1,
+    );
+    degreeById.set(
+      edge.target_node_id,
+      (degreeById.get(edge.target_node_id) ?? 0) + 1,
+    );
+  }
+
   const flowNodes: CampaignFlowNode[] = displayNodes.map((node) => ({
     id: node.id,
     type: "graphNode",
@@ -146,24 +187,19 @@ export function toReactFlowGraph(input: {
       sourceObjectType: node.source_object_type,
       sourceObjectId: node.source_object_id,
       metadata: node.metadata_json,
+      degree: degreeById.get(node.id) ?? 0,
     },
   }));
 
-  const flowEdges: CampaignFlowEdge[] = input.edges
-    .filter(
-      (edge) =>
-        displayNodeIds.has(edge.source_node_id) &&
-        displayNodeIds.has(edge.target_node_id),
-    )
-    .map((edge) => ({
-      id: edge.id,
-      source: edge.source_node_id,
-      target: edge.target_node_id,
-      label: formatRelationshipLabel(edge.relationship_type),
-      data: {
-        relationshipType: edge.relationship_type,
-      },
-    }));
+  const flowEdges: CampaignFlowEdge[] = visibleEdges.map((edge) => ({
+    id: edge.id,
+    source: edge.source_node_id,
+    target: edge.target_node_id,
+    type: "floating",
+    data: {
+      relationshipType: edge.relationship_type,
+    },
+  }));
 
   return {
     nodes: flowNodes,
@@ -175,4 +211,14 @@ export function toReactFlowGraph(input: {
 
 export function getMinimapNodeColor(nodeType: GraphNodeType): string {
   return GRAPH_NODE_MINIMAP_COLORS[nodeType] ?? "#94a3b8";
+}
+
+/** Accent color (hex) for a node's dot, used by the Obsidian-style node. */
+export function getNodeAccentColor(nodeType: GraphNodeType): string {
+  return GRAPH_NODE_MINIMAP_COLORS[nodeType] ?? "#94a3b8";
+}
+
+/** Diameter (px) of a node's dot, scaled gently by its connection count. */
+export function getNodeDiameter(degree: number): number {
+  return Math.round(Math.min(56, Math.max(18, 18 + degree * 6)));
 }

@@ -1,5 +1,6 @@
 import {
   Brain,
+  CalendarClock,
   ClipboardCheck,
   FolderOpen,
   LayoutDashboard,
@@ -9,6 +10,29 @@ import {
   ShieldCheck,
   SquareCheckBig,
 } from "lucide-react";
+
+/**
+ * Left-rail grouping, modeled on the Cursor desktop app: work folders
+ * (the "Repositories" analog), agents, automations, and customize.
+ */
+export const workFolders = [
+  { title: "Workspace", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Knowledge graph", href: "/brain", icon: Brain },
+  { title: "Assets", href: "/assets", icon: FolderOpen },
+  { title: "Research", href: "/research", icon: Lightbulb },
+  { title: "Fundraising", href: "/fundraising", icon: PiggyBank },
+] as const;
+
+export const automationItems = [
+  { title: "Scheduled runs", href: "/automations", icon: CalendarClock },
+  { title: "Planner", href: "/planner", icon: ClipboardCheck },
+  { title: "Tasks", href: "/tasks", icon: SquareCheckBig },
+  { title: "Compliance", href: "/compliance", icon: ShieldCheck },
+] as const;
+
+export const customizeItems = [
+  { title: "Settings", href: "/settings", icon: Settings },
+] as const;
 
 export const appNavItems = [
   {
@@ -103,6 +127,12 @@ export const modulePages = {
     title: "Compliance",
     description: "Content review queue, flags, and compliance recordkeeping.",
     phase: 7,
+  },
+  automations: {
+    title: "Scheduled runs",
+    description:
+      "Recurring agent workflows — weekly plans, compliance checks, and outreach drafts.",
+    phase: 4,
   },
   settings: {
     title: "Settings",
