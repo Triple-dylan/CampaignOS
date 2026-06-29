@@ -12,16 +12,19 @@ import {
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Loader2, Plus, Sparkles } from "lucide-react";
+import { Loader2, Plus, Sparkles, X } from "lucide-react";
 import { GraphNodeCard } from "@/components/brain/graph-node-card";
 import { GraphFloatingEdge } from "@/components/brain/graph-floating-edge";
 import {
+  computeFolderFocusLevels,
   filterNodesByViewMode,
   type CampaignFlowNode,
   type CampaignGraphFlow,
   type CampaignGraphNodeData,
   type GraphViewMode,
 } from "@/lib/graph/to-react-flow";
+import { getCampaignFolder } from "@/lib/campaign-knowledge/folders";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import { cn } from "@/lib/utils";
 
 const nodeTypes = {
@@ -92,6 +95,12 @@ function WorkspaceGraphCanvasInner({
   const viewMode = controlledViewMode ?? internalViewMode;
   const setViewMode = onViewModeChange ?? setInternalViewMode;
 
+  // Obsidian-style local-graph focus: clicking a folder hub pops its children
+  // to the foreground while everything else dims to ambient context.
+  const [focusFolderId, setFocusFolderId] = useState<CampaignFolderId | null>(
+    null,
+  );
+
   const visibleFlowNodes = useMemo(() => {
     if (!graph) return [];
     return filterNodesByViewMode(graph.nodes, viewMode);
@@ -102,43 +111,108 @@ function WorkspaceGraphCanvasInner({
     [visibleFlowNodes],
   );
 
+  const visibleEdges = useMemo<CampaignGraphFlow["edges"]>(() => {
+    if (!graph) return [];
+    return graph.edges.filter(
+      (edge) =>
+        visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target),
+    );
+  }, [graph, visibleNodeIds]);
+
+  // Map every visible node to its focus level (focus / foreground / midground /
+  // background). Null when no folder is focused — the global graph.
+  const focusLevels = useMemo(() => {
+    if (!focusFolderId) return null;
+    const levels = computeFolderFocusLevels({
+      nodes: visibleFlowNodes,
+      edges: visibleEdges,
+      focusFolderId,
+    });
+    return levels.size > 0 ? levels : null;
+  }, [focusFolderId, visibleFlowNodes, visibleEdges]);
+
+  // Derived (never stored) so a focused folder that vanishes — graph changed or
+  // the view mode hid every member — silently drops its breadcrumb and dimming
+  // without a state-resetting effect.
+  const activeFocusFolderId = focusLevels ? focusFolderId : null;
+
   const nodes = useMemo<Node[]>(() => {
     return visibleFlowNodes.map((node) => ({
       ...node,
       selected: node.id === selectedNodeId,
-      data: { ...node.data, highlighted: highlighted.has(node.id) },
+      data: {
+        ...node.data,
+        highlighted: highlighted.has(node.id),
+        focusLevel: focusLevels?.get(node.id),
+      },
     })) as Node[];
-  }, [visibleFlowNodes, selectedNodeId, highlighted]);
+  }, [visibleFlowNodes, selectedNodeId, highlighted, focusLevels]);
 
   const edges = useMemo<Edge[]>(() => {
-    if (!graph) return [];
-    return graph.edges
-      .filter(
-        (edge) =>
-          visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target),
-      )
-      .map((edge) => ({
+    return visibleEdges.map((edge) => {
+      const classes: string[] = [];
+      if (highlighted.has(edge.source) && highlighted.has(edge.target)) {
+        classes.push("is-active");
+      }
+      if (focusLevels) {
+        const sourceLevel = focusLevels.get(edge.source);
+        const targetLevel = focusLevels.get(edge.target);
+        const inside = (level: string | undefined) =>
+          level === "focus" || level === "foreground";
+        if (inside(sourceLevel) && inside(targetLevel)) {
+          classes.push("is-focus-path");
+        } else if (
+          sourceLevel === "background" ||
+          targetLevel === "background"
+        ) {
+          classes.push("is-shadowed");
+        }
+      }
+      return {
         ...edge,
         selectable: false,
         focusable: false,
         interactionWidth: 0,
-        className:
-          highlighted.has(edge.source) && highlighted.has(edge.target)
-            ? "is-active"
-            : undefined,
-      })) as Edge[];
-  }, [graph, visibleNodeIds, highlighted]);
+        className: classes.length > 0 ? classes.join(" ") : undefined,
+      };
+    }) as Edge[];
+  }, [visibleEdges, highlighted, focusLevels]);
+
+  const exitFocus = useCallback(() => {
+    setFocusFolderId(null);
+  }, []);
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      onSelectNode(node.data as CampaignFlowNode["data"], node.id);
+      const data = node.data as CampaignFlowNode["data"];
+      // Clicking a folder hub commits folder focus; clicking elsewhere keeps
+      // any active focus so children can be inspected without losing context.
+      if (data.isFolderHub && data.folder) {
+        setFocusFolderId(data.folder);
+      }
+      onSelectNode(data, node.id);
     },
     [onSelectNode],
   );
 
   const onPaneClick = useCallback(() => {
+    setFocusFolderId(null);
     onSelectNode(null, null);
   }, [onSelectNode]);
+
+  // Escape exits focus (and clears the selected node when nothing is focused).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeFocusFolderId) {
+        setFocusFolderId(null);
+      } else if (selectedNodeId) {
+        onSelectNode(null, null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeFocusFolderId, selectedNodeId, onSelectNode]);
 
   // Smooth re-frame whenever the graph grows: keep the whole constellation in
   // view, easing the camera out instead of snapping.
@@ -267,6 +341,33 @@ function WorkspaceGraphCanvasInner({
                 {label}
               </button>
             ))}
+          </div>
+        ) : null}
+
+        {activeFocusFolderId ? (
+          <div className="glass-bar pointer-events-auto inline-flex items-center gap-1.5 rounded-full py-1 pl-2.5 pr-1 text-[0.7rem]">
+            <button
+              type="button"
+              onClick={exitFocus}
+              className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              All folders
+            </button>
+            <span aria-hidden className="text-muted-foreground/60">
+              ›
+            </span>
+            <span className="font-semibold text-foreground">
+              {getCampaignFolder(activeFocusFolderId).label}/
+            </span>
+            <button
+              type="button"
+              onClick={exitFocus}
+              aria-label="Reset graph focus"
+              title="Reset focus (Esc)"
+              className="ml-0.5 inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
           </div>
         ) : null}
       </div>

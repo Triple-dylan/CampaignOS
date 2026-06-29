@@ -7,6 +7,7 @@ import {
   getNodeDiameter,
   getNodeVisualAccent,
   type CampaignGraphNodeData,
+  type GraphFocusLevel,
 } from "@/lib/graph/to-react-flow";
 import { graphNodeTooltip } from "@/lib/graph/node-metadata";
 
@@ -16,6 +17,22 @@ const HIDDEN_HANDLE =
   "!h-px !w-px !min-h-0 !min-w-0 !border-0 !bg-transparent !opacity-0";
 
 /**
+ * Obsidian-style folder focus: the focused folder's hub and children pop out at
+ * full opacity (and slightly scaled up), while unrelated context dims back so
+ * the user reads a clear local neighbourhood. Transitions are CSS-driven and
+ * respect `prefers-reduced-motion` (see `.graph-node-focusable` in globals.css).
+ */
+const FOCUS_LEVEL_STYLE: Record<
+  GraphFocusLevel,
+  { opacity: number; scale: number }
+> = {
+  focus: { opacity: 1, scale: 1.12 },
+  foreground: { opacity: 1, scale: 1.06 },
+  midground: { opacity: 0.7, scale: 1 },
+  background: { opacity: 0.26, scale: 0.92 },
+};
+
+/**
  * Wiki-llm knowledge graph node. Folder hubs are larger containers with a dashed
  * ring and folder icon; documents and entities are smaller dots with labels.
  */
@@ -23,11 +40,22 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
   const accent = getNodeVisualAccent(data);
   const diameter = getNodeDiameter(data.degree ?? 0, data.isFolderHub);
   const tooltip = graphNodeTooltip(data);
+  const focus = data.focusLevel ? FOCUS_LEVEL_STYLE[data.focusLevel] : null;
 
   return (
     <div
-      className="group relative flex items-center justify-center"
-      style={{ width: diameter, height: diameter }}
+      className={cn(
+        "group relative flex items-center justify-center",
+        data.focusLevel && "graph-node-focusable",
+        data.focusLevel === "background" && "graph-node-shadowed",
+      )}
+      style={{
+        width: diameter,
+        height: diameter,
+        ...(focus
+          ? { opacity: focus.opacity, transform: `scale(${focus.scale})` }
+          : null),
+      }}
       title={tooltip}
     >
       <Handle type="target" position={Position.Top} className={HIDDEN_HANDLE} />

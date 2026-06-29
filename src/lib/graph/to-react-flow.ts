@@ -34,9 +34,27 @@ export type CampaignGraphNodeData = {
   degree: number;
   /** Transient UI flag: node is being "searched" by the assistant. */
   highlighted?: boolean;
+  /**
+   * Transient UI flag: Obsidian-style folder-focus relevance level. Undefined
+   * when no folder is focused (the global graph).
+   */
+  focusLevel?: GraphFocusLevel;
 };
 
 export type GraphViewMode = "all" | "folders" | "entities";
+
+/**
+ * Obsidian-style local-graph focus level. When a folder hub is focused, every
+ * node is assigned a relevance level that drives its opacity, scale, and edge
+ * treatment: the hub pops to `focus`, its children to `foreground`, direct
+ * cross-folder neighbours to `midground`, and unrelated context dims to
+ * `background`.
+ */
+export type GraphFocusLevel =
+  | "focus"
+  | "foreground"
+  | "midground"
+  | "background";
 
 export type CampaignFlowNode = {
   id: string;
@@ -273,6 +291,75 @@ export function getNodeVisualAccent(data: CampaignGraphNodeData): string {
     return folderAccentColor(data.folder);
   }
   return getNodeAccentColor(data.nodeType);
+}
+
+/**
+ * Compute Obsidian-style focus levels for a folder hub focus.
+ *
+ * - The folder's hub node(s) become `focus`.
+ * - Other nodes in the folder become `foreground` (the "popped out" children).
+ * - Direct cross-folder neighbours of the focused folder become `midground`.
+ * - Everything else dims to `background`.
+ *
+ * Pure + deterministic so it can be reused by any canvas and unit-tested.
+ */
+export function computeFolderFocusLevels(input: {
+  nodes: CampaignFlowNode[];
+  edges: CampaignFlowEdge[];
+  focusFolderId: CampaignFolderId;
+}): Map<string, GraphFocusLevel> {
+  const { nodes, edges, focusFolderId } = input;
+  const levels = new Map<string, GraphFocusLevel>();
+
+  const visibleIds = new Set(nodes.map((node) => node.id));
+  const folderMembers = new Set<string>();
+  const hubIds = new Set<string>();
+
+  for (const node of nodes) {
+    if (folderForNode(node.data) === focusFolderId) {
+      folderMembers.add(node.id);
+      if (node.data.isFolderHub) hubIds.add(node.id);
+    }
+  }
+
+  // Nothing in this folder is visible — caller should treat focus as inactive.
+  if (folderMembers.size === 0) return levels;
+
+  const adjacency = new Map<string, Set<string>>();
+  const link = (a: string, b: string) => {
+    let set = adjacency.get(a);
+    if (!set) {
+      set = new Set<string>();
+      adjacency.set(a, set);
+    }
+    set.add(b);
+  };
+  for (const edge of edges) {
+    if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) continue;
+    link(edge.source, edge.target);
+    link(edge.target, edge.source);
+  }
+
+  const midground = new Set<string>();
+  for (const memberId of folderMembers) {
+    for (const neighbor of adjacency.get(memberId) ?? []) {
+      if (!folderMembers.has(neighbor)) midground.add(neighbor);
+    }
+  }
+
+  for (const node of nodes) {
+    if (hubIds.has(node.id)) {
+      levels.set(node.id, "focus");
+    } else if (folderMembers.has(node.id)) {
+      levels.set(node.id, "foreground");
+    } else if (midground.has(node.id)) {
+      levels.set(node.id, "midground");
+    } else {
+      levels.set(node.id, "background");
+    }
+  }
+
+  return levels;
 }
 
 /** Filter nodes by folder-hub / entity view mode. */
