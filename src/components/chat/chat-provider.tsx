@@ -6,6 +6,8 @@ import {
   type AgentMode,
   type ChatTurn,
 } from "@/actions/chat";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
+import { resolveGraphFoldersClient } from "@/lib/harness/resolver-client";
 
 export type ChatMessage = {
   id: string;
@@ -40,6 +42,11 @@ type ChatContextValue = {
   toggleChatRail: () => void;
   createThread: () => string;
   selectThread: (id: string) => void;
+  /**
+   * Resolver-driven graph folder highlights from the latest chat turn.
+   * Falls back to client resolver while a message is in flight.
+   */
+  graphFoldersToHighlight: CampaignFolderId[];
   setAgentMode: (mode: AgentMode) => void;
   sendMessage: (text: string) => Promise<void>;
 };
@@ -85,6 +92,9 @@ export function ChatProvider({
   const [aiConfigured, setAiConfigured] = React.useState<boolean | null>(
     initialAiConfigured,
   );
+  const [graphFoldersToHighlight, setGraphFoldersToHighlight] = React.useState<
+    CampaignFolderId[]
+  >([]);
   const [isChatRailOpen, setChatRailOpen] = React.useState(true);
   const toggleChatRail = React.useCallback(
     () => setChatRailOpen((open) => !open),
@@ -157,12 +167,16 @@ export function ChatProvider({
       );
 
       setIsSending(true);
+      setGraphFoldersToHighlight(
+        resolveGraphFoldersClient(trimmed, agentMode),
+      );
       try {
         const result = await sendChatMessage({
           messages: historyForRequest,
           agentMode,
         });
         setAiConfigured(result.configured);
+        setGraphFoldersToHighlight(result.graphFoldersToHighlight);
         setThreads((prev) =>
           prev.map((thread) => {
             if (thread.id !== threadId) return thread;
@@ -214,6 +228,7 @@ export function ChatProvider({
       agentMode,
       isSending,
       aiConfigured,
+      graphFoldersToHighlight,
       isChatRailOpen,
       setChatRailOpen,
       toggleChatRail,
@@ -229,6 +244,7 @@ export function ChatProvider({
       agentMode,
       isSending,
       aiConfigured,
+      graphFoldersToHighlight,
       isChatRailOpen,
       toggleChatRail,
       createThread,

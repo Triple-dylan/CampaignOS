@@ -45,6 +45,8 @@ export type SkillFrontmatter = {
   triggers?: string[];
   tools?: string[];
   mutating?: boolean;
+  /** Campaign-knowledge folder paths (wiki-llm). */
+  campaignKnowledgePaths?: string[];
 };
 
 export type SkillDefinition = {
@@ -60,6 +62,15 @@ export type ResolverMatch = {
   skillPath: string;
   trigger: string;
   confidence: "exact" | "keyword" | "agent-mode" | "fallback";
+  scripts?: string[];
+};
+
+export type HarnessResolverPlan = {
+  skillId: string;
+  scripts: string[];
+  contextPaths: string[];
+  graphFoldersToHighlight: import("@/lib/campaign-knowledge/types").CampaignFolderId[];
+  workflowId?: import("@/lib/workflows/registry").CampaignWorkflowId | null;
 };
 
 export type ResolverInput = {
@@ -74,6 +85,10 @@ export type ResolverOutput = {
   matches: ResolverMatch[];
   contextChunks: ContextChunk[];
   alwaysOnSkillIds: string[];
+  /** Structured routing plan (Gbrain resolver → skill → scripts). */
+  plan: HarnessResolverPlan;
+  /** Shortcut for graph UI — folders to highlight on the knowledge graph. */
+  graphFoldersToHighlight: HarnessResolverPlan["graphFoldersToHighlight"];
 };
 
 export type HarnessTurnInput = {

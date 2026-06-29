@@ -6,21 +6,32 @@ Pattern source: [Gbrain RESOLVER.md](https://github.com/garrytan/gbrain/blob/mas
 
 ## Always-on (every message)
 
-| Trigger | Skill |
-|---------|-------|
-| Every inbound message (parallel, non-blocking) | `skills/campaign-signals/SKILL.md` |
-| Any outbound copy or compliance-sensitive output | `skills/conventions/compliance.md` |
+| Trigger | Skill | Scripts |
+|---------|-------|---------|
+| Every inbound message (parallel, non-blocking) | `skills/campaign-signals/SKILL.md` | `list-campaign-context` |
+| Any outbound copy or compliance-sensitive output | `skills/conventions/compliance.md` | — |
 
 ## Campaign modules
 
-| Trigger | Skill |
-|---------|-------|
-| "draft", "social post", "script", "stump speech", "asset", "copy" | `skills/asset-studio/SKILL.md` |
-| "research", "opposition", "district", "intel", "brief", "voter segment" | `skills/research-brief/SKILL.md` |
-| "donor", "fundraising", "call time", "ask", "prospect" | `skills/fundraising-outreach/SKILL.md` |
-| "compliance", "disclaimer", "disclosure", "FEC", "recordkeeping" | `skills/compliance-review/SKILL.md` |
-| "schedule", "automate", "cron", "/schedule" | `skills/automations/SKILL.md` |
-| "prioritize", "this week", "focus", "plan", "strategy" | `skills/campaign-manager/SKILL.md` |
+| Trigger | Skill | Scripts |
+|---------|-------|---------|
+| "draft", "social post", "script", "stump speech", "asset", "copy", "message" | `skills/asset-studio/SKILL.md` | `list-campaign-context`, `generate-from-skill` |
+| "research", "opposition", "district", "intel", "brief", "voter segment" | `skills/research-brief/SKILL.md` | `list-research-context`, `generate-from-skill` |
+| "donor", "fundraising", "call time", "ask", "prospect", "pipeline" | `skills/fundraising-outreach/SKILL.md` | `list-campaign-context`, `generate-from-skill` |
+| "compliance", "disclaimer", "disclosure", "FEC", "recordkeeping" | `skills/compliance-review/SKILL.md` | `list-campaign-context` |
+| "schedule", "automate", "cron", "/schedule" | `skills/automations/SKILL.md` | `list-campaign-context` |
+| "prioritize", "this week", "focus", "plan", "strategy" | `skills/campaign-manager/SKILL.md` | `list-campaign-context`, `sync-folder-to-graph` |
+
+## Workflows (registry)
+
+Maps user chat intents to `src/lib/workflows/registry.ts` entries and graph folder highlights.
+
+| Workflow | Trigger phrases | Skill | Graph folders |
+|----------|-----------------|-------|---------------|
+| `event-research` | "event research", "town hall prep", "event brief", "prepare for event" | `research-brief` | research, events |
+| `content-creation` | "content creation", "create content", "write a post", "draft content" | `asset-studio` | assets, messaging, social-media |
+| `campaign-structure` | "campaign structure", "campaign timeline", "build a plan", "voter segments" | `campaign-manager` | campaign, initiatives, field |
+| `incumbent-research` | "incumbent research", "compare candidates", "opponent comparison", "incumbent report" | `research-brief` | research, people, polling |
 
 ## Agent mode defaults
 

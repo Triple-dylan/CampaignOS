@@ -7,9 +7,24 @@ triggers:
   - donor
   - fundraising
   - call time
+campaignKnowledgePaths:
+  - campaign-knowledge/templates/fundraising/
+  - campaign-knowledge/templates/people/
+tools:
+  - generateProspectOutreachContent
+mutating: true
 ---
 
 # Fundraising Outreach Skill
+
+## Contract
+
+- Match ask level to relationship and jurisdiction limits.
+- Never give legal advice on contribution limits — flag for counsel.
+
+## Triggers
+
+- RESOLVER: "donor", "fundraising", "call time", "ask", "prospect", "pipeline"
 
 ## Phases
 
@@ -24,3 +39,8 @@ Use `generateProspectOutreachContent` for structured drafts; match ask level to 
 ### Phase 3: Compliance
 
 Contribution limits and disclaimers per jurisdiction — flag, don't adjudicate.
+
+## Anti-patterns
+
+- Generic asks with no tie to campaign issues.
+- Skipping recordkeeping reminders for pledged amounts.

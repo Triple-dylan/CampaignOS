@@ -4,8 +4,10 @@ import { getOpenAiClient } from "@/lib/ai/client";
 import { getOpenAiModel, isOpenAiConfigured } from "@/lib/ai/config";
 import { logAiGeneration } from "@/lib/ai/log-generation";
 import { requireCampaignContext } from "@/lib/auth/require-campaign-context";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import { countGraphNodes } from "@/lib/db/campaigns";
 import { campaignDisplayName } from "@/lib/db/schema";
+import { planHarnessTurn } from "@/lib/harness/loop";
 
 export type ChatRole = "user" | "assistant";
 
@@ -41,6 +43,10 @@ export type SendChatMessageResult = {
   ok: true;
   reply: string;
   configured: boolean;
+  /** Resolver-driven graph cluster highlights (not keyword guess). */
+  graphFoldersToHighlight: CampaignFolderId[];
+  harnessSkillId?: string;
+  workflowId?: string | null;
 };
 
 function buildSystemPrompt(input: {
@@ -117,6 +123,7 @@ export async function sendChatMessage(input: {
     return {
       ok: true,
       configured: isOpenAiConfigured(),
+      graphFoldersToHighlight: [],
       reply:
         "I can't read your campaign yet — finish setting up your campaign so I can ground my answers in your race, issues, and audiences.",
     };
@@ -124,10 +131,20 @@ export async function sendChatMessage(input: {
 
   const campaignName = campaignDisplayName(context.campaign);
 
+  const harnessPlan = await planHarnessTurn({
+    campaignId: context.campaign.id,
+    userMessage: userText,
+    agentMode,
+    campaignPath: "workspace",
+  });
+
   if (!isOpenAiConfigured()) {
     return {
       ok: true,
       configured: false,
+      graphFoldersToHighlight: harnessPlan.resolver.graphFoldersToHighlight,
+      harnessSkillId: harnessPlan.resolver.plan.skillId,
+      workflowId: harnessPlan.resolver.plan.workflowId ?? null,
       reply: cannedReply({ agentMode, campaignName, userText }),
     };
   }
@@ -137,6 +154,9 @@ export async function sendChatMessage(input: {
     return {
       ok: true,
       configured: false,
+      graphFoldersToHighlight: harnessPlan.resolver.graphFoldersToHighlight,
+      harnessSkillId: harnessPlan.resolver.plan.skillId,
+      workflowId: harnessPlan.resolver.plan.workflowId ?? null,
       reply: cannedReply({ agentMode, campaignName, userText }),
     };
   }
@@ -151,7 +171,7 @@ export async function sendChatMessage(input: {
 
   const nodeCount = await countGraphNodes(context.campaign.id).catch(() => 0);
 
-  const systemPrompt = buildSystemPrompt({
+  const baseSystemPrompt = buildSystemPrompt({
     agentMode,
     campaignName,
     office: context.campaign.office_sought,
@@ -161,6 +181,15 @@ export async function sendChatMessage(input: {
     toneSummary,
     nodeCount,
   });
+
+  const systemPrompt = [
+    baseSystemPrompt,
+    "",
+    harnessPlan.systemPreamble,
+    "",
+    "## Loaded skills",
+    harnessPlan.skillContext,
+  ].join("\n");
 
   const model = getOpenAiModel();
 
@@ -188,7 +217,13 @@ export async function sendChatMessage(input: {
       prompt: userText,
       systemPrompt,
       model,
-      inputJson: { agentMode, turns: history.length },
+      inputJson: {
+        agentMode,
+        turns: history.length,
+        harnessSkillId: harnessPlan.resolver.plan.skillId,
+        workflowId: harnessPlan.resolver.plan.workflowId,
+        graphFolders: harnessPlan.resolver.graphFoldersToHighlight,
+      },
       outputText: reply,
       tokensInput: response.usage?.prompt_tokens ?? null,
       tokensOutput: response.usage?.completion_tokens ?? null,
@@ -197,5 +232,12 @@ export async function sendChatMessage(input: {
     console.error("[sendChatMessage] failed to log generation", error);
   }
 
-  return { ok: true, reply, configured: true };
+  return {
+    ok: true,
+    reply,
+    configured: true,
+    graphFoldersToHighlight: harnessPlan.resolver.graphFoldersToHighlight,
+    harnessSkillId: harnessPlan.resolver.plan.skillId,
+    workflowId: harnessPlan.resolver.plan.workflowId ?? null,
+  };
 }

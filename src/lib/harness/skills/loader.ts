@@ -64,6 +64,9 @@ function parseSimpleYaml(block: string): SkillFrontmatter {
       : undefined,
     tools: Array.isArray(result.tools) ? (result.tools as string[]) : undefined,
     mutating: typeof result.mutating === "boolean" ? result.mutating : undefined,
+    campaignKnowledgePaths: Array.isArray(result.campaignKnowledgePaths)
+      ? (result.campaignKnowledgePaths as string[])
+      : undefined,
   };
 }
 

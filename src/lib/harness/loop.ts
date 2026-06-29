@@ -12,9 +12,6 @@ const HARNESS_PREAMBLE = [
 /**
  * Plan a single agent turn: resolve → load skills → run deterministic scripts.
  * Pattern: Gbrain harness loop without embedding the full OpenClaw runtime.
- *
- * Callers (e.g. chat action) merge `skillContext` into the system prompt and
- * pass script results as structured user context.
  */
 export async function planHarnessTurn(
   input: HarnessTurnInput,
@@ -26,9 +23,7 @@ export async function planHarnessTurn(
   });
 
   const skillPaths = [
-    ...resolver.alwaysOnSkillIds.map(
-      (id) => `skills/${id}/SKILL.md`,
-    ),
+    ...resolver.alwaysOnSkillIds.map((id) => `skills/${id}/SKILL.md`),
     ...resolver.matches.map((m) => m.skillPath),
   ];
 
@@ -41,23 +36,39 @@ export async function planHarnessTurn(
       const description = skill.frontmatter.description
         ? `\n${skill.frontmatter.description}`
         : "";
-      return `${header}${description}\n\n${skill.body}`;
+      const knowledgePaths = skill.frontmatter.campaignKnowledgePaths?.length
+        ? `\nCampaign knowledge: ${skill.frontmatter.campaignKnowledgePaths.join(", ")}`
+        : "";
+      return `${header}${description}${knowledgePaths}\n\n${skill.body}`;
     })
     .join("\n\n---\n\n");
 
-  const scriptIds = ["list-campaign-context"];
+  const scriptIds = resolver.plan.scripts.length
+    ? resolver.plan.scripts
+    : ["list-campaign-context"];
+
   const scriptResults = await runHarnessScripts({
     scriptIds,
     campaignId: input.campaignId,
     resolver,
   });
 
+  const folderHighlight = resolver.graphFoldersToHighlight.join(", ");
+
   const systemPreamble = [
     HARNESS_PREAMBLE,
     "",
+    `Active skill: ${resolver.plan.skillId}`,
+    resolver.plan.workflowId
+      ? `Workflow: ${resolver.plan.workflowId}`
+      : null,
+    `Graph folders: ${folderHighlight}`,
+    "",
     "## Deterministic context",
     scriptResults.map((r) => `- ${r.scriptId}: ${r.summary}`).join("\n"),
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return {
     resolver,

@@ -18,7 +18,7 @@ import type {
   CampaignGraphNodeData,
 } from "@/lib/graph/to-react-flow";
 import { useDynamicCampaignGraph } from "@/lib/graph/dynamic-graph";
-import { foldersForText, nodeIdsForFolders } from "@/lib/graph/folder-clusters";
+import { nodeIdsForFolders } from "@/lib/graph/folder-clusters";
 import type {
   DbCampaign,
   DbCampaignProfile,
@@ -167,26 +167,16 @@ function useGraphActivityHighlights(
 }
 
 /**
- * The node ids whose cluster matches the most recent user chat message — so the
- * relevant part of the graph lights up when the user asks about a topic.
+ * Node ids for resolver-driven graph folder highlights from chat.
  */
-function useChatTopicNodeIds(
+function useResolverGraphNodeIds(
   graph: CampaignGraphFlow | null,
-  messages: { role: "user" | "assistant"; content: string }[],
+  graphFolders: import("@/lib/campaign-knowledge/types").CampaignFolderId[],
 ): string[] {
-  const lastUserContent = React.useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i].role === "user") return messages[i].content;
-    }
-    return null;
-  }, [messages]);
-
   return React.useMemo(() => {
-    if (!graph || !lastUserContent) return [];
-    const folders = foldersForText(lastUserContent);
-    if (folders.length === 0) return [];
-    return [...nodeIdsForFolders(graph.nodes, folders)];
-  }, [graph, lastUserContent]);
+    if (!graph || graphFolders.length === 0) return [];
+    return [...nodeIdsForFolders(graph.nodes, graphFolders)];
+  }, [graph, graphFolders]);
 }
 
 export function WorkspaceHome({
@@ -200,7 +190,7 @@ export function WorkspaceHome({
   liveSeed = null,
   growthSteps = [],
 }: WorkspaceHomeProps) {
-  const { isSending, activeThread } = useChat();
+  const { isSending, activeThread, graphFoldersToHighlight } = useChat();
   const { toggleRailMobile } = useWorkspaceShell();
   const [selectedNode, setSelectedNode] =
     React.useState<CampaignGraphNodeData | null>(null);
@@ -224,14 +214,12 @@ export function WorkspaceHome({
     ? liveController.graph.edges.length
     : edgeCount;
 
-  const messages = React.useMemo(
-    () => activeThread?.messages ?? [],
-    [activeThread],
-  );
-
   // Hold the "thinking" pass on long enough to be visible even for fast replies.
   const thinkingActive = useMinimumActive(isSending, 1800);
-  const topicNodeIds = useChatTopicNodeIds(activeGraph, messages);
+  const topicNodeIds = useResolverGraphNodeIds(
+    activeGraph,
+    graphFoldersToHighlight,
+  );
   const activationIds = useGraphActivityHighlights(
     activeGraph,
     thinkingActive,
@@ -347,6 +335,7 @@ export function WorkspaceHome({
           campaign={campaign}
           profile={profile}
           metrics={metrics}
+          graph={activeGraph}
           selectedNode={selectedNode}
           onClose={() => setPanelOpen(false)}
           onClearSelection={() => handleSelectNode(null, null)}

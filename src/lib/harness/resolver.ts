@@ -1,120 +1,42 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
+import {
+  contextPathsForSkill,
+  graphFoldersForSkill,
+  WORKFLOW_GRAPH_FOLDERS,
+} from "@/lib/harness/skill-folders";
+import {
+  parseResolverMarkdown,
+  type ParsedResolver,
+  type ParsedResolverRow,
+} from "@/lib/harness/parse-resolver-md";
 import type {
   CampaignPath,
   ContextChunk,
   HarnessAgentMode,
+  HarnessResolverPlan,
   ResolverInput,
   ResolverOutput,
 } from "@/lib/harness/types";
+import type { CampaignWorkflowId } from "@/lib/workflows/registry";
 
-/**
- * Static routing table inspired by Gbrain's RESOLVER.md.
- * Markdown source of truth: skills/RESOLVER.md (human-editable).
- * This module is the deterministic runtime mirror for server-side context injection.
- */
+const HARNESS_ROOT = path.join(process.cwd(), "src/lib/harness");
+const RESOLVER_MD_PATH = path.join(HARNESS_ROOT, "skills/RESOLVER.md");
 
-type ResolverRow = {
-  triggers: string[];
-  skillId: string;
-  skillPath: string;
-};
+let cachedParsed: ParsedResolver | null = null;
 
-const ALWAYS_ON: ResolverRow[] = [
-  {
-    triggers: ["*"],
-    skillId: "campaign-signals",
-    skillPath: "skills/campaign-signals/SKILL.md",
-  },
-];
+function loadParsedResolver(): ParsedResolver {
+  if (cachedParsed) return cachedParsed;
+  const markdown = readFileSync(RESOLVER_MD_PATH, "utf8");
+  cachedParsed = parseResolverMarkdown(markdown);
+  return cachedParsed;
+}
 
-const ROUTING_TABLE: ResolverRow[] = [
-  {
-    triggers: [
-      "draft",
-      "social post",
-      "script",
-      "stump speech",
-      "asset",
-      "copy",
-      "message",
-    ],
-    skillId: "asset-studio",
-    skillPath: "skills/asset-studio/SKILL.md",
-  },
-  {
-    triggers: [
-      "research",
-      "opposition",
-      "district",
-      "intel",
-      "brief",
-      "voter segment",
-    ],
-    skillId: "research-brief",
-    skillPath: "skills/research-brief/SKILL.md",
-  },
-  {
-    triggers: [
-      "donor",
-      "fundraising",
-      "call time",
-      "ask",
-      "prospect",
-      "pipeline",
-    ],
-    skillId: "fundraising-outreach",
-    skillPath: "skills/fundraising-outreach/SKILL.md",
-  },
-  {
-    triggers: [
-      "compliance",
-      "disclaimer",
-      "disclosure",
-      "fec",
-      "legal",
-      "recordkeeping",
-    ],
-    skillId: "compliance-review",
-    skillPath: "skills/compliance-review/SKILL.md",
-  },
-  {
-    triggers: ["schedule", "automate", "cron", "weekly", "daily"],
-    skillId: "automations",
-    skillPath: "skills/automations/SKILL.md",
-  },
-  {
-    triggers: ["prioritize", "this week", "focus", "plan", "strategy"],
-    skillId: "campaign-manager",
-    skillPath: "skills/campaign-manager/SKILL.md",
-  },
-];
-
-const AGENT_MODE_DEFAULTS: Record<HarnessAgentMode, ResolverRow> = {
-  "campaign-manager": {
-    triggers: [],
-    skillId: "campaign-manager",
-    skillPath: "skills/campaign-manager/SKILL.md",
-  },
-  "content-strategist": {
-    triggers: [],
-    skillId: "asset-studio",
-    skillPath: "skills/asset-studio/SKILL.md",
-  },
-  researcher: {
-    triggers: [],
-    skillId: "research-brief",
-    skillPath: "skills/research-brief/SKILL.md",
-  },
-  fundraiser: {
-    triggers: [],
-    skillId: "fundraising-outreach",
-    skillPath: "skills/fundraising-outreach/SKILL.md",
-  },
-  "compliance-reviewer": {
-    triggers: [],
-    skillId: "compliance-review",
-    skillPath: "skills/compliance-review/SKILL.md",
-  },
-};
+/** Client-safe resolver table (no fs) — mirrors last parsed RESOLVER.md. */
+export function getResolverTable(): ParsedResolver {
+  return loadParsedResolver();
+}
 
 const PATH_CONTEXT: Record<
   CampaignPath,
@@ -189,7 +111,7 @@ function matchTriggers(message: string, triggers: string[]): string | null {
 }
 
 function rowToMatch(
-  row: ResolverRow,
+  row: ParsedResolverRow,
   trigger: string,
   confidence: ResolverOutput["matches"][number]["confidence"],
 ): ResolverOutput["matches"][number] {
@@ -198,6 +120,7 @@ function rowToMatch(
     skillPath: row.skillPath,
     trigger,
     confidence,
+    scripts: row.scripts,
   };
 }
 
@@ -210,16 +133,62 @@ function pathContextChunk(path: CampaignPath): ContextChunk {
   };
 }
 
+function matchWorkflow(
+  message: string,
+  parsed: ParsedResolver,
+): CampaignWorkflowId | null {
+  for (const row of parsed.workflows) {
+    if (matchTriggers(message, row.triggers)) {
+      return row.workflowId as CampaignWorkflowId;
+    }
+  }
+  return null;
+}
+
+function buildPlan(
+  primarySkillId: string,
+  scripts: string[],
+  workflowId: CampaignWorkflowId | null,
+): HarnessResolverPlan {
+  const workflowFolders = workflowId
+    ? WORKFLOW_GRAPH_FOLDERS[workflowId]
+    : null;
+  const skillFolders = graphFoldersForSkill(primarySkillId);
+  const graphFoldersToHighlight = dedupeFolders([
+    ...(workflowFolders ?? []),
+    ...skillFolders,
+  ]);
+
+  return {
+    skillId: primarySkillId,
+    scripts: dedupeStrings(scripts),
+    contextPaths: contextPathsForSkill(primarySkillId),
+    graphFoldersToHighlight,
+    workflowId,
+  };
+}
+
+function dedupeFolders(folders: CampaignFolderId[]): CampaignFolderId[] {
+  return [...new Set(folders)];
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
 /**
- * Resolve user intent + campaign path to skill matches and context chunks.
- * Pattern: Gbrain RESOLVER.md → load skills + conventions on demand.
+ * Resolve user intent + campaign path to skill matches, context chunks, and
+ * a structured plan (Gbrain RESOLVER.md → skill → scripts → graph folders).
  */
 export function resolveCampaignContext(input: ResolverInput): ResolverOutput {
+  const parsed = loadParsedResolver();
   const message = normalizeMessage(input.userMessage);
   const matches: ResolverOutput["matches"] = [];
   const seenSkills = new Set<string>();
 
-  for (const row of ROUTING_TABLE) {
+  const workflowId = matchWorkflow(message, parsed);
+
+  for (const row of parsed.routing) {
     const trigger = matchTriggers(message, row.triggers);
     if (trigger && !seenSkills.has(row.skillId)) {
       matches.push(rowToMatch(row, trigger, "keyword"));
@@ -228,10 +197,40 @@ export function resolveCampaignContext(input: ResolverInput): ResolverOutput {
   }
 
   if (matches.length === 0) {
-    const fallback = AGENT_MODE_DEFAULTS[input.agentMode];
-    matches.push(rowToMatch(fallback, input.agentMode, "agent-mode"));
-    seenSkills.add(fallback.skillId);
+    const fallback =
+      parsed.agentModeDefaults[input.agentMode] ??
+      parsed.agentModeDefaults["campaign-manager"];
+    if (fallback) {
+      matches.push(rowToMatch(fallback, input.agentMode, "agent-mode"));
+      seenSkills.add(fallback.skillId);
+    }
   }
+
+  if (workflowId) {
+    const workflowRow = parsed.workflows.find((row) => row.workflowId === workflowId);
+    if (workflowRow) {
+      const workflowMatch = {
+        skillId: workflowRow.skillId,
+        skillPath: `skills/${workflowRow.skillId}/SKILL.md`,
+        trigger: workflowId,
+        confidence: "exact" as const,
+        scripts:
+          parsed.routing.find((row) => row.skillId === workflowRow.skillId)
+            ?.scripts ?? ["list-campaign-context"],
+      };
+      matches.unshift(workflowMatch);
+      seenSkills.add(workflowRow.skillId);
+    }
+  }
+
+  const primaryMatch = matches[0];
+  const primarySkillId = primaryMatch?.skillId ?? "campaign-manager";
+  const defaultScripts =
+    primaryMatch?.scripts && primaryMatch.scripts.length > 0
+      ? primaryMatch.scripts
+      : ["list-campaign-context"];
+
+  const plan = buildPlan(primarySkillId, defaultScripts, workflowId);
 
   const contextChunks: ContextChunk[] = [
     {
@@ -239,7 +238,8 @@ export function resolveCampaignContext(input: ResolverInput): ResolverOutput {
       kind: "convention",
       source: "skills/conventions/compliance.md",
       title: "Compliance conventions",
-      summary: "Non-negotiable disclaimer and recordkeeping rules for all outbound content.",
+      summary:
+        "Non-negotiable disclaimer and recordkeeping rules for all outbound content.",
       priority: 100,
     },
   ];
@@ -248,12 +248,24 @@ export function resolveCampaignContext(input: ResolverInput): ResolverOutput {
     contextChunks.push(pathContextChunk(input.campaignPath));
   }
 
+  for (const contextPath of plan.contextPaths) {
+    contextChunks.push({
+      id: `ctx-path-${contextPath.replace(/\W+/g, "-")}`,
+      kind: "module-doc",
+      source: contextPath,
+      title: contextPath.split("/").slice(-2, -1)[0] ?? "campaign-knowledge",
+      summary: `Wiki-llm folder context for ${primarySkillId}.`,
+      priority: 85,
+    });
+  }
+
   contextChunks.push({
     id: "ctx-campaign-profile",
     kind: "campaign-profile",
     source: "db:campaign_profile",
     title: "Campaign profile",
-    summary: "Candidate, office, jurisdiction, message framework, and top issues.",
+    summary:
+      "Candidate, office, jurisdiction, message framework, and top issues.",
     priority: 90,
   });
 
@@ -282,14 +294,30 @@ export function resolveCampaignContext(input: ResolverInput): ResolverOutput {
   return {
     matches,
     contextChunks,
-    alwaysOnSkillIds: ALWAYS_ON.map((row) => row.skillId),
+    alwaysOnSkillIds: parsed.alwaysOn.map((row) => row.skillId),
+    plan,
+    graphFoldersToHighlight: plan.graphFoldersToHighlight,
   };
+}
+
+/** Client-safe: resolve graph folder highlights from message + agent mode. */
+export function resolveGraphFoldersFromMessage(
+  userMessage: string,
+  agentMode: HarnessAgentMode = "campaign-manager",
+): CampaignFolderId[] {
+  return resolveCampaignContext({ userMessage, agentMode })
+    .graphFoldersToHighlight;
 }
 
 /** List all registered skill paths (for validation tooling). */
 export function listRegisteredSkillPaths(): string[] {
+  const parsed = loadParsedResolver();
   const paths = new Set<string>();
-  for (const row of [...ALWAYS_ON, ...ROUTING_TABLE, ...Object.values(AGENT_MODE_DEFAULTS)]) {
+  for (const row of [
+    ...parsed.alwaysOn,
+    ...parsed.routing,
+    ...Object.values(parsed.agentModeDefaults),
+  ]) {
     paths.add(row.skillPath);
   }
   return [...paths].sort();

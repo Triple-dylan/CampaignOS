@@ -7,9 +7,21 @@ triggers:
   - schedule
   - automate
   - cron
+campaignKnowledgePaths:
+  - campaign-knowledge/templates/skills/
+mutating: true
 ---
 
 # Automations Skill
+
+## Contract
+
+- Parse cadence and agent mode before suggesting automation prefill.
+- Document which resolver skill the scheduled run should load.
+
+## Triggers
+
+- RESOLVER: "schedule", "automate", "cron", "/schedule"
 
 ## Phases
 
@@ -29,4 +41,4 @@ Document what the scheduled run should load (resolver row + campaign profile).
 
 - UI: `src/components/automations/create-automation-dialog.tsx`
 - Schema: `src/lib/validators/workflows.ts`
-- Cron stub: `src/lib/workflows/schedule.ts`
+- Registry: `src/lib/workflows/registry.ts`

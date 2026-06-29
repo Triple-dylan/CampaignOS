@@ -8,6 +8,8 @@ type: folder-readme
 
 Reusable agent skills and playbooks for drafting, research, and compliance checks.
 
+Each subdirectory contains a `SKILL.md` mirror of the canonical harness skill under `src/lib/harness/skills/`.
+
 ## What belongs here
 
 - One topic or entity per markdown file (kebab-case slug)
