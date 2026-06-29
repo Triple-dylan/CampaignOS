@@ -26,10 +26,10 @@ const FOCUS_LEVEL_STYLE: Record<
   GraphFocusLevel,
   { opacity: number; scale: number }
 > = {
-  focus: { opacity: 1, scale: 1.12 },
-  foreground: { opacity: 1, scale: 1.06 },
-  midground: { opacity: 0.7, scale: 1 },
-  background: { opacity: 0.26, scale: 0.92 },
+  focus: { opacity: 1, scale: 1.14 },
+  foreground: { opacity: 1, scale: 1.05 },
+  midground: { opacity: 0.55, scale: 0.98 },
+  background: { opacity: 0.18, scale: 0.9 },
 };
 
 /**
@@ -95,17 +95,23 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
 
       <span
         className={cn(
-          "pointer-events-none absolute left-1/2 top-[calc(100%+5px)] -translate-x-1/2 text-center font-medium leading-tight transition-colors",
+          "graph-node-label pointer-events-none absolute left-1/2 top-[calc(100%+6px)] -translate-x-1/2 text-center font-medium leading-tight transition-[color,opacity]",
           data.isFolderHub
-            ? "max-w-[160px] text-[12px] font-semibold"
-            : "max-w-[140px] truncate text-[11px]",
+            ? "max-w-[170px] text-[12px] font-semibold"
+            : "max-w-[132px] truncate text-[10.5px]",
           selected ? "text-foreground" : "text-muted-foreground",
           "group-hover:text-foreground",
+          // Quiet entity labels into ambient context so dense clusters read
+          // cleanly; hub labels (the navigation anchors) always stay legible.
+          !data.isFolderHub &&
+            !selected &&
+            "opacity-70 group-hover:opacity-100",
+          data.focusLevel === "background" && "opacity-0",
         )}
       >
         {data.isFolderHub ? (
           <span className="inline-flex flex-col items-center gap-0.5">
-            <span className="text-[0.65rem] font-normal uppercase tracking-wide text-muted-foreground">
+            <span className="text-[0.62rem] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
               {data.folder}/
             </span>
             <span>{data.title}</span>

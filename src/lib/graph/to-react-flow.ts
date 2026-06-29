@@ -81,14 +81,27 @@ export type CampaignGraphFlow = {
 };
 
 /**
- * Distance from the candidate (centre) to each folder's cluster centre, and the
- * base spacing used to pack nodes within a cluster. Tuned so clusters read as
- * distinct, airy constellations — the Obsidian "folder galaxy" feel.
+ * Spacing used to pack nodes within a cluster, and the centre-cluster radius.
+ * The candidate→folder distance is computed per-graph (see `clusterRadiusFor`)
+ * so clusters stay clear of one another no matter how many folders are present —
+ * the calm, non-overlapping Obsidian "folder galaxy" feel.
  */
-const CLUSTER_RADIUS = 460;
-const INTRA_CLUSTER_SPACING = 118;
-const HUB_MEMBER_SPACING = 148;
-const CENTER_SPACING = 150;
+const BASE_CLUSTER_RADIUS = 460;
+const INTRA_CLUSTER_SPACING = 104;
+const HUB_MEMBER_SPACING = 150;
+/** Members past this count wrap onto a second concentric ring, not a huge one. */
+const MAX_RING_RADIUS = 230;
+const SECOND_RING_GAP = 96;
+const CENTER_SPACING = 168;
+
+/**
+ * Push folder clusters further out as more folders appear so neighbouring
+ * sectors never collide. With few folders the graph stays compact; with the full
+ * taxonomy it opens up into airy, well-separated constellations.
+ */
+function clusterRadiusFor(folderCount: number): number {
+  return BASE_CLUSTER_RADIUS + Math.max(0, folderCount - 6) * 64;
+}
 
 function isFolderHubNode(node: DbGraphNode): boolean {
   return node.metadata_json?.cluster === true;
@@ -164,11 +177,12 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
   });
 
   const angles = folderClusterAngles(byFolder.keys());
+  const clusterRadius = clusterRadiusFor(angles.size);
 
   for (const [folder, clusterAngle] of angles) {
     const clusterNodes = byFolder.get(folder) ?? [];
-    const cx = Math.cos(clusterAngle) * CLUSTER_RADIUS;
-    const cy = Math.sin(clusterAngle) * CLUSTER_RADIUS;
+    const cx = Math.cos(clusterAngle) * clusterRadius;
+    const cy = Math.sin(clusterAngle) * clusterRadius;
 
     const hubs = clusterNodes.filter(isFolderHubNode);
     const members = clusterNodes.filter((node) => !isFolderHubNode(node));
@@ -185,19 +199,28 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
 
     if (members.length === 0) continue;
 
+    // Distribute members on one or two concentric rings around the hub so a
+    // crowded folder never blows up into a single giant, overlapping ring.
     const count = members.length;
-    const ringRadius = Math.max(
-      HUB_MEMBER_SPACING,
-      (count * INTRA_CLUSTER_SPACING) / (2 * Math.PI),
+    const innerCount = count > 12 ? Math.ceil(count / 2) : count;
+    const ringRadius = Math.min(
+      MAX_RING_RADIUS,
+      Math.max(HUB_MEMBER_SPACING, (innerCount * INTRA_CLUSTER_SPACING) / (2 * Math.PI)),
     );
 
     members.forEach((node, index) => {
       if (positions.has(node.id)) return;
-      const spread = (index / count) * Math.PI * 2;
-      const jitter = 1 + seededOffset(node.id) * 0.12;
+      const onSecondRing = index >= innerCount;
+      const ringIndex = onSecondRing ? index - innerCount : index;
+      const ringSize = onSecondRing ? count - innerCount : innerCount;
+      const radius = ringRadius + (onSecondRing ? SECOND_RING_GAP : 0);
+      // Offset the outer ring half a step so its nodes sit in the inner gaps.
+      const stagger = onSecondRing ? Math.PI / Math.max(ringSize, 1) : 0;
+      const spread = (ringIndex / Math.max(ringSize, 1)) * Math.PI * 2 + stagger;
+      const jitter = 1 + seededOffset(node.id) * 0.06;
       positions.set(node.id, {
-        x: hubCenter.x + Math.cos(clusterAngle + spread) * ringRadius * jitter,
-        y: hubCenter.y + Math.sin(clusterAngle + spread) * ringRadius * jitter,
+        x: hubCenter.x + Math.cos(clusterAngle + spread) * radius * jitter,
+        y: hubCenter.y + Math.sin(clusterAngle + spread) * radius * jitter,
       });
     });
   }
@@ -279,10 +302,16 @@ export function getNodeAccentColor(nodeType: GraphNodeType): string {
   return GRAPH_NODE_MINIMAP_COLORS[nodeType] ?? "#94a3b8";
 }
 
-/** Diameter (px) of a node's dot, scaled gently by its connection count. */
+/**
+ * Diameter (px) of a node's dot. Folder hubs are a consistent container size;
+ * entity/document dots scale gently (and with diminishing returns) by their
+ * connection count so a highly-linked node reads as bigger without the graph
+ * turning into a field of wildly different blobs.
+ */
 export function getNodeDiameter(degree: number, isFolderHub = false): number {
-  if (isFolderHub) return 44;
-  return Math.round(Math.min(52, Math.max(16, 16 + degree * 5)));
+  if (isFolderHub) return 46;
+  const scaled = 15 + Math.sqrt(Math.max(0, degree)) * 7;
+  return Math.round(Math.min(36, Math.max(15, scaled)));
 }
 
 /** Accent for a node — folder hubs use their cluster colour. */

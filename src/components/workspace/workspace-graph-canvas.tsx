@@ -151,6 +151,12 @@ function WorkspaceGraphCanvasInner({
   const edges = useMemo<Edge[]>(() => {
     return visibleEdges.map((edge) => {
       const classes: string[] = [];
+      // Structural `belongs_to` links (member → folder hub → candidate) are the
+      // quiet scaffolding of the graph; relationship edges carry the meaning, so
+      // they read a touch stronger. This separation cuts visual noise.
+      if (edge.data?.relationshipType === "belongs_to") {
+        classes.push("is-structural");
+      }
       if (highlighted.has(edge.source) && highlighted.has(edge.target)) {
         classes.push("is-active");
       }
@@ -334,7 +340,7 @@ function WorkspaceGraphCanvasInner({
                 className={cn(
                   "rounded-full px-2.5 py-1 text-[0.7rem] font-medium transition-colors",
                   viewMode === mode
-                    ? "bg-accent text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+                    ? "bg-card text-foreground shadow-[var(--shadow-panel)]"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >

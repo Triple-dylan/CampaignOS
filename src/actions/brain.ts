@@ -5,6 +5,7 @@ import {
   type CampaignActionCode,
 } from "@/lib/auth/require-campaign-context";
 import { listGraphEdges, listGraphNodes } from "@/lib/db/campaigns";
+import { injectFolderHubs } from "@/lib/graph/inject-folder-hubs";
 import { toReactFlowGraph, type CampaignGraphFlow } from "@/lib/graph/to-react-flow";
 
 export type GetCampaignGraphResult =
@@ -34,10 +35,20 @@ export async function getCampaignGraph(): Promise<GetCampaignGraphResult> {
     listGraphEdges(context.campaign.id),
   ]);
 
+  // Real campaigns persist entity rows without folder hubs or `folder`
+  // metadata. Synthesize the wiki-llm folder structure at render time so an
+  // authenticated campaign shows the same coherent folder galaxy as the demo —
+  // not a sparse constellation of peer dots. Purely additive + idempotent.
+  const withHubs = injectFolderHubs({
+    nodes,
+    edges,
+    campaignId: context.campaign.id,
+  });
+
   return {
     ok: true,
-    graph: toReactFlowGraph({ nodes, edges }),
-    edgeCount: edges.length,
+    graph: toReactFlowGraph(withHubs),
+    edgeCount: withHubs.edges.length,
   };
 }
 
