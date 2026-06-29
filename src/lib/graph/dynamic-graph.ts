@@ -279,7 +279,7 @@ export class DynamicCampaignGraph {
       title: folder.label,
       summary: folder.description,
       folder: folderId,
-      metadata: { cluster: true },
+      metadata: { cluster: true, knowledgeKind: "folder_hub" },
     });
     this.linkToCandidate(id, "belongs_to");
     return id;
@@ -316,7 +316,11 @@ export class DynamicCampaignGraph {
       folder: knowledge.folder,
       sourceObjectType: knowledge.sourceObjectType ?? null,
       sourceObjectId: knowledge.sourceObjectId ?? null,
-      metadata: { ...(knowledge.metadata ?? {}), path: knowledge.path },
+      metadata: {
+        ...(knowledge.metadata ?? {}),
+        path: knowledge.path,
+        knowledgeKind: "document",
+      },
       connectTo: { nodeId: hubId, relationship: "belongs_to" },
     });
     return id;

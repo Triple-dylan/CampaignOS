@@ -14,7 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { GraphNodeTypeBadge } from "@/components/brain/graph-node-badge";
 import { getSourceObjectLink } from "@/lib/graph/source-links";
-import type { CampaignGraphNodeData } from "@/lib/graph/to-react-flow";
+import type {
+  CampaignGraphFlow,
+  CampaignGraphNodeData,
+} from "@/lib/graph/to-react-flow";
+import { getCampaignFolder } from "@/lib/campaign-knowledge/folders";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
 import { campaignDisplayName } from "@/lib/db/schema";
 import {
@@ -38,6 +43,7 @@ type WorkspaceContextPanelProps = {
   campaign: DbCampaign | null;
   profile: DbCampaignProfile | null;
   metrics: WorkspaceMetrics;
+  graph: CampaignGraphFlow | null;
   selectedNode: CampaignGraphNodeData | null;
   onClose: () => void;
   onClearSelection: () => void;
@@ -47,6 +53,7 @@ export function WorkspaceContextPanel({
   campaign,
   profile,
   metrics,
+  graph,
   selectedNode,
   onClose,
   onClearSelection,
@@ -81,7 +88,15 @@ export function WorkspaceContextPanel({
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
         {selectedNode ? (
-          <NodeDetail node={selectedNode} />
+          selectedNode.isFolderHub && selectedNode.folder ? (
+            <FolderHubDetail
+              folderId={selectedNode.folder}
+              graph={graph}
+              hubNode={selectedNode}
+            />
+          ) : (
+            <NodeDetail node={selectedNode} />
+          )
         ) : (
           <CampaignOverview
             campaign={campaign}
@@ -96,6 +111,92 @@ export function WorkspaceContextPanel({
   );
 }
 
+function FolderHubDetail({
+  folderId,
+  graph,
+  hubNode,
+}: {
+  folderId: CampaignFolderId;
+  graph: CampaignGraphFlow | null;
+  hubNode: CampaignGraphNodeData;
+}) {
+  const folder = getCampaignFolder(folderId);
+
+  const childDocuments = React.useMemo(() => {
+    if (!graph) return [];
+    return graph.nodes
+      .filter(
+        (node) =>
+          !node.data.isFolderHub &&
+          node.data.folder === folderId &&
+          node.data.knowledgePath,
+      )
+      .map((node) => node.data)
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [graph, folderId]);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+          {folder.slug}/
+        </p>
+        <h3 className="mt-1 text-base font-semibold leading-snug">
+          {folder.label}
+        </h3>
+        <GraphNodeTypeBadge nodeType={hubNode.nodeType} className="mt-2" />
+      </div>
+
+      <div>
+        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+          Folder purpose
+        </p>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {folder.description}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Agents read <code className="text-foreground">{folder.slug}/_context.md</code>{" "}
+          before descending into this folder (wiki-llm pattern).
+        </p>
+      </div>
+
+      <div>
+        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+          Pages in this folder
+        </p>
+        {childDocuments.length > 0 ? (
+          <ul className="mt-2 space-y-2">
+            {childDocuments.map((doc) => (
+              <li
+                key={doc.dbId}
+                className="rounded-lg border border-border bg-card px-3 py-2"
+              >
+                <p className="text-sm font-medium leading-snug">{doc.title}</p>
+                {doc.knowledgePath ? (
+                  <p className="mt-0.5 font-mono text-[0.65rem] text-muted-foreground">
+                    {doc.knowledgePath}
+                  </p>
+                ) : null}
+                {doc.summary?.trim() ? (
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {doc.summary}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">
+            No document pages in this folder yet. Add a markdown page with{" "}
+            <code className="text-foreground">node_type</code> frontmatter to
+            sync it here.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NodeDetail({ node }: { node: CampaignGraphNodeData }) {
   const sourceLink = getSourceObjectLink({
     sourceObjectType: node.sourceObjectType,
@@ -107,6 +208,11 @@ function NodeDetail({ node }: { node: CampaignGraphNodeData }) {
       <div>
         <h3 className="text-base font-semibold leading-snug">{node.title}</h3>
         <GraphNodeTypeBadge nodeType={node.nodeType} className="mt-2" />
+        {node.knowledgePath ? (
+          <p className="mt-2 font-mono text-[0.65rem] text-muted-foreground">
+            {node.knowledgePath}
+          </p>
+        ) : null}
       </div>
 
       <div>

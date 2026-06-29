@@ -380,6 +380,23 @@
       var(--shadow-panel);
   }
 
+  /* Folder hub nodes — wiki-llm cluster containers. */
+  .graph-folder-hub {
+    border-radius: 9999px;
+    border-width: 2px;
+    border-style: dashed;
+    box-shadow: var(--shadow-panel);
+    animation: graph-dot-pop 460ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  }
+
+  .graph-folder-hub-selected {
+    border-color: var(--brand-blue) !important;
+    border-style: solid;
+    box-shadow:
+      0 0 0 5px color-mix(in oklch, var(--brand-blue) 18%, transparent),
+      var(--shadow-panel);
+  }
+
   /*
    * Graph node "thinking" highlight. When the assistant is searching the
    * campaign, nodes light up and pulse with a soft blue ring to visualize the

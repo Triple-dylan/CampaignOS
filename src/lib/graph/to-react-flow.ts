@@ -3,10 +3,15 @@ import type { GraphNodeType } from "@/lib/validators/enums";
 import { GRAPH_NODE_MINIMAP_COLORS } from "@/lib/graph/node-styles";
 import {
   CENTER_FOLDER,
+  folderAccentColor,
   folderClusterAngles,
   folderForNode,
 } from "@/lib/graph/folder-clusters";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
+import {
+  enrichGraphNodeData,
+  type KnowledgeGraphNodeKind,
+} from "@/lib/graph/node-metadata";
 
 export const MAX_DISPLAY_GRAPH_NODES = 200;
 
@@ -18,11 +23,20 @@ export type CampaignGraphNodeData = {
   sourceObjectType: string | null;
   sourceObjectId: string | null;
   metadata: Record<string, unknown> | null;
+  /** Campaign-knowledge folder this node lives in. */
+  folder: CampaignFolderId | null;
+  /** True for wiki-llm folder hub / cluster anchor nodes. */
+  isFolderHub: boolean;
+  /** Relative wiki path (e.g. `research/housing-poll.md`). */
+  knowledgePath: string | null;
+  knowledgeKind: KnowledgeGraphNodeKind | null;
   /** Number of edges touching this node — drives node size (Obsidian feel). */
   degree: number;
   /** Transient UI flag: node is being "searched" by the assistant. */
   highlighted?: boolean;
 };
+
+export type GraphViewMode = "all" | "folders" | "entities";
 
 export type CampaignFlowNode = {
   id: string;
@@ -54,8 +68,13 @@ export type CampaignGraphFlow = {
  * distinct, airy constellations — the Obsidian "folder galaxy" feel.
  */
 const CLUSTER_RADIUS = 460;
-const INTRA_CLUSTER_SPACING = 132;
+const INTRA_CLUSTER_SPACING = 118;
+const HUB_MEMBER_SPACING = 148;
 const CENTER_SPACING = 150;
+
+function isFolderHubNode(node: DbGraphNode): boolean {
+  return node.metadata_json?.cluster === true;
+}
 
 /** Deterministic pseudo-random in [-1, 1] from a string seed. */
 function seededOffset(seed: string): number {
@@ -111,13 +130,15 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
 
   // Centre cluster (candidate + core campaign nodes) sits at the origin.
   const centerNodes = byFolder.get(CENTER_FOLDER) ?? [];
-  centerNodes.forEach((node, index) => {
+  const candidateNode = centerNodes.find((node) => node.node_type === "candidate");
+  if (candidateNode && !positions.has(candidateNode.id)) {
+    positions.set(candidateNode.id, { x: 0, y: 0 });
+  }
+
+  const otherCenter = centerNodes.filter((node) => node.id !== candidateNode?.id);
+  otherCenter.forEach((node, index) => {
     if (positions.has(node.id)) return;
-    if (index === 0) {
-      positions.set(node.id, { x: 0, y: 0 });
-      return;
-    }
-    const angle = (index / Math.max(centerNodes.length - 1, 1)) * Math.PI * 2;
+    const angle = (index / Math.max(otherCenter.length, 1)) * Math.PI * 2;
     positions.set(node.id, {
       x: Math.cos(angle) * CENTER_SPACING,
       y: Math.sin(angle) * CENTER_SPACING,
@@ -131,27 +152,34 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
     const cx = Math.cos(clusterAngle) * CLUSTER_RADIUS;
     const cy = Math.sin(clusterAngle) * CLUSTER_RADIUS;
 
-    if (clusterNodes.length === 1) {
-      const only = clusterNodes[0];
-      if (!positions.has(only.id)) positions.set(only.id, { x: cx, y: cy });
-      continue;
+    const hubs = clusterNodes.filter(isFolderHubNode);
+    const members = clusterNodes.filter((node) => !isFolderHubNode(node));
+
+    // Folder hub sits at the cluster centre — the visible container anchor.
+    for (const hub of hubs) {
+      if (!positions.has(hub.id)) positions.set(hub.id, { x: cx, y: cy });
     }
 
-    // Fan the cluster's nodes around its centre, biased to face outward so the
-    // labels don't collide with the spoke back to the candidate.
-    const count = clusterNodes.length;
+    const hubCenter =
+      hubs.length > 0
+        ? (positions.get(hubs[0].id) ?? { x: cx, y: cy })
+        : { x: cx, y: cy };
+
+    if (members.length === 0) continue;
+
+    const count = members.length;
     const ringRadius = Math.max(
-      INTRA_CLUSTER_SPACING,
+      HUB_MEMBER_SPACING,
       (count * INTRA_CLUSTER_SPACING) / (2 * Math.PI),
     );
 
-    clusterNodes.forEach((node, index) => {
+    members.forEach((node, index) => {
       if (positions.has(node.id)) return;
       const spread = (index / count) * Math.PI * 2;
-      const jitter = 1 + seededOffset(node.id) * 0.14;
+      const jitter = 1 + seededOffset(node.id) * 0.12;
       positions.set(node.id, {
-        x: cx + Math.cos(clusterAngle + spread) * ringRadius * jitter,
-        y: cy + Math.sin(clusterAngle + spread) * ringRadius * jitter,
+        x: hubCenter.x + Math.cos(clusterAngle + spread) * ringRadius * jitter,
+        y: hubCenter.y + Math.sin(clusterAngle + spread) * ringRadius * jitter,
       });
     });
   }
@@ -194,7 +222,7 @@ export function toReactFlowGraph(input: {
     id: node.id,
     type: "graphNode",
     position: positions.get(node.id) ?? { x: 0, y: 0 },
-    data: {
+    data: enrichGraphNodeData({
       dbId: node.id,
       title: node.title,
       summary: node.summary,
@@ -203,7 +231,7 @@ export function toReactFlowGraph(input: {
       sourceObjectId: node.source_object_id,
       metadata: node.metadata_json,
       degree: degreeById.get(node.id) ?? 0,
-    },
+    }),
   }));
 
   const flowEdges: CampaignFlowEdge[] = visibleEdges.map((edge) => ({
@@ -234,6 +262,30 @@ export function getNodeAccentColor(nodeType: GraphNodeType): string {
 }
 
 /** Diameter (px) of a node's dot, scaled gently by its connection count. */
-export function getNodeDiameter(degree: number): number {
-  return Math.round(Math.min(56, Math.max(18, 18 + degree * 6)));
+export function getNodeDiameter(degree: number, isFolderHub = false): number {
+  if (isFolderHub) return 44;
+  return Math.round(Math.min(52, Math.max(16, 16 + degree * 5)));
+}
+
+/** Accent for a node — folder hubs use their cluster colour. */
+export function getNodeVisualAccent(data: CampaignGraphNodeData): string {
+  if (data.isFolderHub && data.folder) {
+    return folderAccentColor(data.folder);
+  }
+  return getNodeAccentColor(data.nodeType);
+}
+
+/** Filter nodes by folder-hub / entity view mode. */
+export function filterNodesByViewMode(
+  nodes: CampaignFlowNode[],
+  mode: GraphViewMode,
+): CampaignFlowNode[] {
+  if (mode === "all") return nodes;
+  if (mode === "folders") {
+    return nodes.filter(
+      (node) =>
+        node.data.isFolderHub || node.data.nodeType === "candidate",
+    );
+  }
+  return nodes.filter((node) => !node.data.isFolderHub);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -16,10 +16,13 @@ import { Loader2, Plus, Sparkles } from "lucide-react";
 import { GraphNodeCard } from "@/components/brain/graph-node-card";
 import { GraphFloatingEdge } from "@/components/brain/graph-floating-edge";
 import {
+  filterNodesByViewMode,
   type CampaignFlowNode,
   type CampaignGraphFlow,
   type CampaignGraphNodeData,
+  type GraphViewMode,
 } from "@/lib/graph/to-react-flow";
+import { cn } from "@/lib/utils";
 
 const nodeTypes = {
   graphNode: GraphNodeCard,
@@ -54,6 +57,11 @@ type WorkspaceGraphCanvasProps = {
   /** When provided, renders a "grow the graph" affordance (demo / live mode). */
   onAddKnowledge?: () => void;
   addKnowledgeLabel?: string;
+  /** Show folder / entity view toggle (default true). */
+  showViewToggle?: boolean;
+  /** Optional controlled view mode. */
+  viewMode?: GraphViewMode;
+  onViewModeChange?: (mode: GraphViewMode) => void;
 };
 
 export function WorkspaceGraphCanvas(props: WorkspaceGraphCanvasProps) {
@@ -74,33 +82,52 @@ function WorkspaceGraphCanvasInner({
   onFocusComposer,
   onAddKnowledge,
   addKnowledgeLabel = "Add knowledge",
+  showViewToggle = true,
+  viewMode: controlledViewMode,
+  onViewModeChange,
 }: WorkspaceGraphCanvasProps) {
   const highlighted = highlightedNodeIds ?? EMPTY_SET;
   const { fitView, setCenter, getNode, getZoom } = useReactFlow();
+  const [internalViewMode, setInternalViewMode] = useState<GraphViewMode>("all");
+  const viewMode = controlledViewMode ?? internalViewMode;
+  const setViewMode = onViewModeChange ?? setInternalViewMode;
+
+  const visibleFlowNodes = useMemo(() => {
+    if (!graph) return [];
+    return filterNodesByViewMode(graph.nodes, viewMode);
+  }, [graph, viewMode]);
+
+  const visibleNodeIds = useMemo(
+    () => new Set(visibleFlowNodes.map((node) => node.id)),
+    [visibleFlowNodes],
+  );
 
   const nodes = useMemo<Node[]>(() => {
-    if (!graph) return [];
-    return graph.nodes.map((node) => ({
+    return visibleFlowNodes.map((node) => ({
       ...node,
       selected: node.id === selectedNodeId,
       data: { ...node.data, highlighted: highlighted.has(node.id) },
     })) as Node[];
-  }, [graph, selectedNodeId, highlighted]);
+  }, [visibleFlowNodes, selectedNodeId, highlighted]);
 
   const edges = useMemo<Edge[]>(() => {
     if (!graph) return [];
-    return graph.edges.map((edge) => ({
-      ...edge,
-      // Edges are visual connectors only — never interaction targets.
-      selectable: false,
-      focusable: false,
-      interactionWidth: 0,
-      className:
-        highlighted.has(edge.source) && highlighted.has(edge.target)
-          ? "is-active"
-          : undefined,
-    })) as Edge[];
-  }, [graph, highlighted]);
+    return graph.edges
+      .filter(
+        (edge) =>
+          visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target),
+      )
+      .map((edge) => ({
+        ...edge,
+        selectable: false,
+        focusable: false,
+        interactionWidth: 0,
+        className:
+          highlighted.has(edge.source) && highlighted.has(edge.target)
+            ? "is-active"
+            : undefined,
+      })) as Edge[];
+  }, [graph, visibleNodeIds, highlighted]);
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
@@ -217,6 +244,31 @@ function WorkspaceGraphCanvasInner({
             Searching campaign…
           </span>
         ) : null}
+        {showViewToggle ? (
+          <div className="glass-bar pointer-events-auto inline-flex rounded-full p-0.5">
+            {(
+              [
+                ["folders", "Folders"],
+                ["entities", "Entities"],
+                ["all", "All"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[0.7rem] font-medium transition-colors",
+                  viewMode === mode
+                    ? "bg-accent text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {onAddKnowledge ? (
@@ -231,7 +283,8 @@ function WorkspaceGraphCanvasInner({
       ) : null}
 
       <div className="glass-bar pointer-events-none absolute bottom-3 left-3 z-10 rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
-        {graph.totalNodeCount} nodes · {edgeCount} edges
+        {visibleFlowNodes.length} visible · {graph.totalNodeCount} nodes ·{" "}
+        {edgeCount} edges
       </div>
     </div>
   );
