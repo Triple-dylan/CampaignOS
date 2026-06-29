@@ -31,18 +31,23 @@ type AssetStudioProps = {
   assets: DbAsset[];
   canApprove: boolean;
   openAiConfigured: boolean;
+  /** Deep-link from graph or external URL — opens the matching asset detail. */
+  initialAssetId?: string | null;
 };
 
 export function AssetStudio({
   assets,
   canApprove,
   openAiConfigured,
+  initialAssetId = null,
 }: AssetStudioProps) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionId>("all");
   const [view, setView] = useState<AssetView>("gallery");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialAssetId ?? null,
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateTemplate, setGenerateTemplate] =

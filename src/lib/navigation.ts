@@ -5,10 +5,14 @@ import {
   FolderOpen,
   LayoutDashboard,
   Lightbulb,
+  Megaphone,
+  PenLine,
   PiggyBank,
+  ScrollText,
   Settings,
   ShieldCheck,
   SquareCheckBig,
+  Telescope,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,8 +54,26 @@ export const customizeNav: ReadonlyArray<NavItem> = [
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
+/** Agent consoles — each links to `/agents/[slug]`. */
+export const agentsNav: ReadonlyArray<NavItem> = [
+  { title: "Campaign Manager", href: "/agents/campaign-manager", icon: Megaphone },
+  {
+    title: "Content Strategist",
+    href: "/agents/content-strategist",
+    icon: PenLine,
+  },
+  { title: "Researcher", href: "/agents/researcher", icon: Telescope },
+  { title: "Fundraiser", href: "/agents/fundraiser", icon: PiggyBank },
+  {
+    title: "Compliance Reviewer",
+    href: "/agents/compliance-reviewer",
+    icon: ScrollText,
+  },
+];
+
 export const navGroups: ReadonlyArray<NavGroup> = [
   { label: "", ariaLabel: "Primary", items: primaryNav },
+  { label: "Agents", ariaLabel: "Agents", items: agentsNav },
   { label: "Workflows", ariaLabel: "Workflows", items: workflowsNav },
   { label: "Customize", ariaLabel: "Customize", items: customizeNav },
 ];
@@ -112,5 +134,10 @@ export const modulePages = {
     title: "Settings",
     description: "Organization, team roles, integrations, and billing.",
     phase: 2,
+  },
+  agents: {
+    title: "Agent consoles",
+    description: "Dedicated surfaces for each campaign agent persona.",
+    phase: 3,
   },
 } as const;

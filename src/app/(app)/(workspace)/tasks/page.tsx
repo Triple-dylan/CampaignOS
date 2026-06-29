@@ -12,8 +12,13 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-export default async function TasksPage() {
+export default async function TasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ taskId?: string }>;
+}) {
   const page = modulePages.tasks;
+  const { taskId } = await searchParams;
   const result = await getTasksForCampaign();
 
   if (!result.ok) {
@@ -39,9 +44,11 @@ export default async function TasksPage() {
   return (
     <WorkPageFrame title={page.title} description={page.description}>
       <TaskBoard
+        key={taskId ?? "default"}
         tasks={result.tasks}
         approvedAssets={result.approvedAssets}
         events={result.events}
+        initialTaskId={taskId}
       />
     </WorkPageFrame>
   );

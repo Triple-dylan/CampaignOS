@@ -57,6 +57,8 @@ type TaskBoardProps = {
   tasks: DbTask[];
   approvedAssets: DbAsset[];
   events: DbCalendarEvent[];
+  /** Deep-link from graph — opens the matching task editor. */
+  initialTaskId?: string | null;
 };
 
 function formatDueDate(value: string | null): string {
@@ -70,11 +72,18 @@ function formatDueDate(value: string | null): string {
   });
 }
 
-export function TaskBoard({ tasks, approvedAssets, events }: TaskBoardProps) {
+export function TaskBoard({
+  tasks,
+  approvedAssets,
+  events,
+  initialTaskId = null,
+}: TaskBoardProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [createOpen, setCreateOpen] = useState(false);
-  const [editTask, setEditTask] = useState<DbTask | null>(null);
+  const [editTask, setEditTask] = useState<DbTask | null>(
+    () => tasks.find((task) => task.id === initialTaskId) ?? null,
+  );
   const [deleteTarget, setDeleteTarget] = useState<DbTask | null>(null);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">(

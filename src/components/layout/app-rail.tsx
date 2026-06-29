@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { MessageSquare, Plus } from "lucide-react";
+import { ChevronDown, MessageSquare, Plus } from "lucide-react";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { useCampaign } from "@/components/campaign/campaign-context";
 import { useChat } from "@/components/chat/chat-provider";
@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { clerkAppearance } from "@/lib/clerk/appearance";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { navGroups } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 
 function useIsActive() {
   const pathname = usePathname();
@@ -27,10 +28,14 @@ function useIsActive() {
 
 export function AppRail() {
   const router = useRouter();
+  const pathname = usePathname();
   const { orgName, campaign } = useCampaign();
   const { closeRailMobile } = useWorkspaceShell();
   const { threads, activeThreadId, createThread, selectThread } = useChat();
   const isActive = useIsActive();
+  const [agentsCollapsed, setAgentsCollapsed] = React.useState(false);
+  const agentsExpanded =
+    pathname.startsWith("/agents/") || !agentsCollapsed;
 
   const candidateName = campaign
     ? campaignDisplayName(campaign)
@@ -94,18 +99,40 @@ export function AppRail() {
             className="flex flex-col gap-0.5"
           >
             {group.label ? (
-              <RailSectionLabel>{group.label}</RailSectionLabel>
+              group.ariaLabel === "Agents" ? (
+                <div className="flex items-center justify-between px-2 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setAgentsCollapsed((collapsed) => !collapsed)}
+                    aria-expanded={agentsExpanded}
+                    className="flex min-w-0 flex-1 items-center gap-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground/70 outline-hidden hover:text-muted-foreground"
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "size-3 shrink-0 transition-transform",
+                        !agentsExpanded && "-rotate-90",
+                      )}
+                      aria-hidden
+                    />
+                    {group.label}
+                  </button>
+                </div>
+              ) : (
+                <RailSectionLabel>{group.label}</RailSectionLabel>
+              )
             ) : null}
-            {group.items.map((item) => (
-              <RailLink
-                key={item.href}
-                href={item.href}
-                icon={<item.icon aria-hidden />}
-                label={item.title}
-                active={isActive(item.href)}
-                onNavigate={closeRailMobile}
-              />
-            ))}
+            {group.ariaLabel === "Agents" && !agentsExpanded
+              ? null
+              : group.items.map((item) => (
+                  <RailLink
+                    key={item.href}
+                    href={item.href}
+                    icon={<item.icon aria-hidden />}
+                    label={item.title}
+                    active={isActive(item.href)}
+                    onNavigate={closeRailMobile}
+                  />
+                ))}
           </nav>
         ))}
 

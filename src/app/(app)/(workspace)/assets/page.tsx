@@ -12,8 +12,13 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-export default async function AssetsPage() {
+export default async function AssetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ assetId?: string }>;
+}) {
   const page = modulePages.assets;
+  const { assetId } = await searchParams;
   const result = await getAssetsForCampaign();
 
   if (!result.ok) {
@@ -39,9 +44,11 @@ export default async function AssetsPage() {
   return (
     <WorkPageFrame title={page.title} description={page.description}>
       <AssetStudio
+        key={assetId ?? "default"}
         assets={result.assets}
         canApprove={result.canApprove}
         openAiConfigured={result.openAiConfigured}
+        initialAssetId={assetId}
       />
     </WorkPageFrame>
   );

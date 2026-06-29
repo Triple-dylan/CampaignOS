@@ -15,8 +15,13 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-export default async function ResearchPage() {
+export default async function ResearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ briefId?: string }>;
+}) {
   const page = modulePages.research;
+  const { briefId } = await searchParams;
   const result = await getResearchBriefsForCampaign();
   const graphLinksByBrief = result.ok ? await getResearchGraphLinks() : {};
 
@@ -43,10 +48,12 @@ export default async function ResearchPage() {
   return (
     <WorkPageFrame title={page.title} description={page.description}>
       <ResearchHub
+        key={briefId ?? "default"}
         briefs={result.briefs}
         openAiConfigured={result.openAiConfigured}
         topIssues={result.topIssues}
         graphLinksByBrief={graphLinksByBrief}
+        initialBriefId={briefId}
       />
     </WorkPageFrame>
   );

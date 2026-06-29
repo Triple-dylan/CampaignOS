@@ -12,8 +12,13 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-export default async function FundraisingPage() {
+export default async function FundraisingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ prospectId?: string }>;
+}) {
   const page = modulePages.fundraising;
+  const { prospectId } = await searchParams;
   const result = await getFundraisingDataForCampaign();
 
   if (!result.ok) {
@@ -39,6 +44,7 @@ export default async function FundraisingPage() {
   return (
     <WorkPageFrame title={page.title} description={page.description}>
       <FundraisingPlanner
+        key={prospectId ?? "default"}
         plan={result.plan}
         prospects={result.prospects}
         taskCounts={result.taskCounts}
@@ -46,6 +52,7 @@ export default async function FundraisingPage() {
         progress={result.progress}
         openAiConfigured={result.openAiConfigured}
         topIssues={result.topIssues}
+        initialProspectId={prospectId}
       />
     </WorkPageFrame>
   );

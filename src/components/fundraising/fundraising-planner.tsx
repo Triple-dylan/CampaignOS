@@ -72,6 +72,8 @@ type FundraisingPlannerProps = {
   progress: FundraisingProgressSummary;
   openAiConfigured: boolean;
   topIssues?: string[];
+  /** Deep-link from graph — opens the matching prospect detail. */
+  initialProspectId?: string | null;
 };
 
 type ProspectFilters = {
@@ -168,12 +170,15 @@ export function FundraisingPlanner({
   progress,
   openAiConfigured,
   topIssues = [],
+  initialProspectId = null,
 }: FundraisingPlannerProps) {
   const router = useRouter();
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedProspect, setSelectedProspect] =
-    useState<DbFundraisingProspect | null>(null);
+    useState<DbFundraisingProspect | null>(
+      () => prospects.find((prospect) => prospect.id === initialProspectId) ?? null,
+    );
   const [filters, setFilters] = useState<ProspectFilters>({
     status: "all",
     capacityTier: "all",

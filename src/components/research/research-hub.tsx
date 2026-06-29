@@ -38,6 +38,8 @@ type ResearchHubProps = {
   openAiConfigured: boolean;
   topIssues?: string[];
   graphLinksByBrief?: Record<string, BriefGraphLink[]>;
+  /** Deep-link from graph — opens the matching brief drawer. */
+  initialBriefId?: string | null;
 };
 
 type ViewMode = "board" | "list";
@@ -47,6 +49,7 @@ export function ResearchHub({
   openAiConfigured,
   topIssues = [],
   graphLinksByBrief = {},
+  initialBriefId = null,
 }: ResearchHubProps) {
   const router = useRouter();
   const { setChatRailOpen } = useChat();
@@ -58,7 +61,7 @@ export function ResearchHub({
     null,
   );
   const [selectedBrief, setSelectedBrief] = useState<DbResearchBrief | null>(
-    null,
+    () => briefs.find((brief) => brief.id === initialBriefId) ?? null,
   );
 
   const refresh = useCallback(() => router.refresh(), [router]);
