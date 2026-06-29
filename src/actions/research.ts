@@ -7,7 +7,7 @@ import {
   requireCampaignContext,
   type ModuleActionResult,
 } from "@/lib/auth/require-campaign-context";
-import { listGraphNodes } from "@/lib/db/campaigns";
+import { listGraphEdges, listGraphNodes } from "@/lib/db/campaigns";
 import { linkResearchToCampaignGraph, linkTaskToCampaignGraph } from "@/lib/db/graph";
 import {
   createResearchBrief,
@@ -83,6 +83,73 @@ export async function getResearchBriefsForCampaign(
     openAiConfigured: isOpenAiConfigured(),
     topIssues: context.profile?.top_issues ?? [],
   };
+}
+
+export type BriefGraphLink = {
+  id: string;
+  title: string;
+  type: string;
+};
+
+/**
+ * Read-only map of brief id → connected graph nodes, computed from existing
+ * graph data so the detail drawer can surface linked issues, candidates, and
+ * tasks. No schema changes: we resolve each brief's research node by
+ * `source_object_type`/`source_object_id`, then follow its edges.
+ */
+export async function getResearchGraphLinks(): Promise<
+  Record<string, BriefGraphLink[]>
+> {
+  const context = await requireCampaignContext();
+  if (!context.ok) {
+    return {};
+  }
+
+  const [nodes, edges] = await Promise.all([
+    listGraphNodes(context.campaign.id),
+    listGraphEdges(context.campaign.id),
+  ]);
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const researchNodes = nodes.filter(
+    (node) =>
+      node.source_object_type === "research_brief" &&
+      Boolean(node.source_object_id),
+  );
+
+  const linksByBrief: Record<string, BriefGraphLink[]> = {};
+
+  for (const researchNode of researchNodes) {
+    const briefId = researchNode.source_object_id;
+    if (!briefId) continue;
+
+    const seen = new Set<string>();
+    const links: BriefGraphLink[] = [];
+
+    for (const edge of edges) {
+      let otherId: string | null = null;
+      if (edge.source_node_id === researchNode.id) {
+        otherId = edge.target_node_id;
+      } else if (edge.target_node_id === researchNode.id) {
+        otherId = edge.source_node_id;
+      }
+      if (!otherId || seen.has(otherId)) continue;
+
+      const other = nodeById.get(otherId);
+      if (!other) continue;
+
+      seen.add(otherId);
+      links.push({
+        id: other.id,
+        title: other.title,
+        type: String(other.node_type).replace(/_/g, " "),
+      });
+    }
+
+    linksByBrief[briefId] = links;
+  }
+
+  return linksByBrief;
 }
 
 export async function createResearchBriefManual(input: {

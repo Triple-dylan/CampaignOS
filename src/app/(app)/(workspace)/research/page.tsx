@@ -1,6 +1,9 @@
 import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { ResearchHub } from "@/components/research/research-hub";
-import { getResearchBriefsForCampaign } from "@/actions/research";
+import {
+  getResearchBriefsForCampaign,
+  getResearchGraphLinks,
+} from "@/actions/research";
 import { modulePages } from "@/lib/navigation";
 import {
   Card,
@@ -15,6 +18,7 @@ import { Button } from "@/components/ui/button";
 export default async function ResearchPage() {
   const page = modulePages.research;
   const result = await getResearchBriefsForCampaign();
+  const graphLinksByBrief = result.ok ? await getResearchGraphLinks() : {};
 
   if (!result.ok) {
     return (
@@ -42,6 +46,7 @@ export default async function ResearchPage() {
         briefs={result.briefs}
         openAiConfigured={result.openAiConfigured}
         topIssues={result.topIssues}
+        graphLinksByBrief={graphLinksByBrief}
       />
     </WorkPageFrame>
   );
