@@ -1,4 +1,4 @@
-import { AppHeader } from "@/components/layout/app-header";
+import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { FundraisingPlanner } from "@/components/fundraising/fundraising-planner";
 import { getFundraisingDataForCampaign } from "@/actions/fundraising";
 import { modulePages } from "@/lib/navigation";
@@ -18,8 +18,7 @@ export default async function FundraisingPage() {
 
   if (!result.ok) {
     return (
-      <>
-        <AppHeader title={page.title} description={page.description} />
+      <WorkPageFrame title={page.title} description={page.description}>
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <Card>
             <CardHeader>
@@ -33,13 +32,12 @@ export default async function FundraisingPage() {
             </CardContent>
           </Card>
         </div>
-      </>
+      </WorkPageFrame>
     );
   }
 
   return (
-    <>
-      <AppHeader title={page.title} description={page.description} />
+    <WorkPageFrame title={page.title} description={page.description}>
       <FundraisingPlanner
         plan={result.plan}
         prospects={result.prospects}
@@ -49,6 +47,6 @@ export default async function FundraisingPage() {
         openAiConfigured={result.openAiConfigured}
         topIssues={result.topIssues}
       />
-    </>
+    </WorkPageFrame>
   );
 }

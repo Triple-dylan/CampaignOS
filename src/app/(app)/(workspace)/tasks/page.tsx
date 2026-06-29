@@ -1,4 +1,4 @@
-import { AppHeader } from "@/components/layout/app-header";
+import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { TaskBoard } from "@/components/tasks/task-board";
 import { getTasksForCampaign } from "@/actions/tasks";
 import { modulePages } from "@/lib/navigation";
@@ -18,8 +18,7 @@ export default async function TasksPage() {
 
   if (!result.ok) {
     return (
-      <>
-        <AppHeader title={page.title} description={page.description} />
+      <WorkPageFrame title={page.title} description={page.description}>
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <Card>
             <CardHeader>
@@ -33,18 +32,17 @@ export default async function TasksPage() {
             </CardContent>
           </Card>
         </div>
-      </>
+      </WorkPageFrame>
     );
   }
 
   return (
-    <>
-      <AppHeader title={page.title} description={page.description} />
+    <WorkPageFrame title={page.title} description={page.description}>
       <TaskBoard
         tasks={result.tasks}
         approvedAssets={result.approvedAssets}
         events={result.events}
       />
-    </>
+    </WorkPageFrame>
   );
 }

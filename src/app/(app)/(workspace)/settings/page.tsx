@@ -1,5 +1,5 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { AppHeader } from "@/components/layout/app-header";
+import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import {
   getCampaignByOrganizationId,
   getCampaignProfile,
@@ -56,8 +56,7 @@ export default async function SettingsPage() {
   }>;
 
   return (
-    <>
-      <AppHeader title={page.title} description={page.description} />
+    <WorkPageFrame title={page.title} description={page.description}>
       <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
         <section className="grid gap-4 lg:grid-cols-2">
           <Card>
@@ -241,7 +240,7 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       </div>
-    </>
+    </WorkPageFrame>
   );
 }
 

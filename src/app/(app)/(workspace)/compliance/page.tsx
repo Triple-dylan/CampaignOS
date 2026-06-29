@@ -1,4 +1,4 @@
-import { AppHeader } from "@/components/layout/app-header";
+import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { ComplianceDashboard } from "@/components/compliance/compliance-dashboard";
 import { getComplianceDataForCampaign } from "@/actions/compliance";
 import { modulePages } from "@/lib/navigation";
@@ -18,8 +18,7 @@ export default async function CompliancePage() {
 
   if (!result.ok) {
     return (
-      <>
-        <AppHeader title={page.title} description={page.description} />
+      <WorkPageFrame title={page.title} description={page.description}>
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <Card>
             <CardHeader>
@@ -33,19 +32,18 @@ export default async function CompliancePage() {
             </CardContent>
           </Card>
         </div>
-      </>
+      </WorkPageFrame>
     );
   }
 
   return (
-    <>
-      <AppHeader title={page.title} description={page.description} />
+    <WorkPageFrame title={page.title} description={page.description}>
       <ComplianceDashboard
         records={result.records}
         counts={result.counts}
         canReview={result.canReview}
         campaignState={result.campaignState}
       />
-    </>
+    </WorkPageFrame>
   );
 }

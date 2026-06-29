@@ -3,16 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  Megaphone,
-  MessageSquare,
-  PenLine,
-  PiggyBank,
-  Plus,
-  ScrollText,
-  Telescope,
-  type LucideIcon,
-} from "lucide-react";
+import { MessageSquare, Plus } from "lucide-react";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { useCampaign } from "@/components/campaign/campaign-context";
 import { useChat } from "@/components/chat/chat-provider";
@@ -21,24 +12,7 @@ import { RailButton, RailLink, RailSectionLabel } from "@/components/layout/rail
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { clerkAppearance } from "@/lib/clerk/appearance";
 import { campaignDisplayName } from "@/lib/db/schema";
-import {
-  automationItems,
-  customizeItems,
-  workFolders,
-} from "@/lib/navigation";
-import type { AgentMode } from "@/actions/chat";
-
-const AGENT_MODES: ReadonlyArray<{
-  id: AgentMode;
-  label: string;
-  icon: LucideIcon;
-}> = [
-  { id: "campaign-manager", label: "Campaign Manager", icon: Megaphone },
-  { id: "content-strategist", label: "Content Strategist", icon: PenLine },
-  { id: "researcher", label: "Researcher", icon: Telescope },
-  { id: "fundraiser", label: "Fundraiser", icon: PiggyBank },
-  { id: "compliance-reviewer", label: "Compliance Reviewer", icon: ScrollText },
-];
+import { navGroups } from "@/lib/navigation";
 
 function useIsActive() {
   const pathname = usePathname();
@@ -55,14 +29,7 @@ export function AppRail() {
   const router = useRouter();
   const { orgName, campaign } = useCampaign();
   const { closeRailMobile } = useWorkspaceShell();
-  const {
-    threads,
-    activeThreadId,
-    agentMode,
-    createThread,
-    selectThread,
-    setAgentMode,
-  } = useChat();
+  const { threads, activeThreadId, createThread, selectThread } = useChat();
   const isActive = useIsActive();
 
   const candidateName = campaign
@@ -76,11 +43,6 @@ export function AppRail() {
 
   function handleNewChat() {
     createThread();
-    goWorkspace();
-  }
-
-  function handleAgent(id: AgentMode) {
-    setAgentMode(id);
     goWorkspace();
   }
 
@@ -112,7 +74,7 @@ export function AppRail() {
         </Link>
       </div>
 
-      {/* New chat (primary action — Cursor's "New Agent") */}
+      {/* New chat (primary action) */}
       <div className="px-2.5 pb-2">
         <button
           type="button"
@@ -124,66 +86,28 @@ export function AppRail() {
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-2.5 pb-3 pt-1">
-        {/* Work folders (Repositories analog) */}
-        <nav aria-label="Work" className="flex flex-col gap-0.5">
-          <RailSectionLabel>Work</RailSectionLabel>
-          {workFolders.map((item) => (
-            <RailLink
-              key={item.href}
-              href={item.href}
-              icon={<item.icon aria-hidden />}
-              label={item.title}
-              active={isActive(item.href)}
-              onNavigate={closeRailMobile}
-            />
-          ))}
-        </nav>
-
-        {/* Agents */}
-        <section aria-label="Agents" className="flex flex-col gap-0.5">
-          <RailSectionLabel>Agents</RailSectionLabel>
-          {AGENT_MODES.map((agent) => (
-            <RailButton
-              key={agent.id}
-              icon={<agent.icon aria-hidden />}
-              label={agent.label}
-              active={agent.id === agentMode}
-              title={`Chat as the ${agent.label}`}
-              onClick={() => handleAgent(agent.id)}
-            />
-          ))}
-        </section>
-
-        {/* Automations */}
-        <nav aria-label="Automations" className="flex flex-col gap-0.5">
-          <RailSectionLabel>Automations</RailSectionLabel>
-          {automationItems.map((item) => (
-            <RailLink
-              key={item.href}
-              href={item.href}
-              icon={<item.icon aria-hidden />}
-              label={item.title}
-              active={isActive(item.href)}
-              onNavigate={closeRailMobile}
-            />
-          ))}
-        </nav>
-
-        {/* Customize */}
-        <nav aria-label="Customize" className="flex flex-col gap-0.5">
-          <RailSectionLabel>Customize</RailSectionLabel>
-          {customizeItems.map((item) => (
-            <RailLink
-              key={item.href}
-              href={item.href}
-              icon={<item.icon aria-hidden />}
-              label={item.title}
-              active={isActive(item.href)}
-              onNavigate={closeRailMobile}
-            />
-          ))}
-        </nav>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2.5 pb-3 pt-1">
+        {navGroups.map((group) => (
+          <nav
+            key={group.ariaLabel}
+            aria-label={group.ariaLabel}
+            className="flex flex-col gap-0.5"
+          >
+            {group.label ? (
+              <RailSectionLabel>{group.label}</RailSectionLabel>
+            ) : null}
+            {group.items.map((item) => (
+              <RailLink
+                key={item.href}
+                href={item.href}
+                icon={<item.icon aria-hidden />}
+                label={item.title}
+                active={isActive(item.href)}
+                onNavigate={closeRailMobile}
+              />
+            ))}
+          </nav>
+        ))}
 
         {/* Recent chats */}
         {threads.length > 0 ? (

@@ -1,26 +1,12 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowUp,
-  AtSign,
-  CalendarClock,
-  ChevronDown,
-  Paperclip,
-  Sparkles,
-} from "lucide-react";
+import { ArrowUp, AtSign, CalendarClock, ChevronDown, Paperclip } from "lucide-react";
 import { useChat } from "@/components/chat/chat-provider";
 import { useAutomations } from "@/components/automations/automations-provider";
+import { AgentPicker } from "@/components/chat/agent-picker";
+import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
-import type { AgentMode } from "@/actions/chat";
-
-const AGENT_LABELS: Record<AgentMode, string> = {
-  "campaign-manager": "Campaign Manager",
-  "content-strategist": "Content Strategist",
-  researcher: "Researcher",
-  fundraiser: "Fundraiser",
-  "compliance-reviewer": "Compliance Reviewer",
-};
 
 const SUGGESTIONS = [
   "What should we focus on this week?",
@@ -208,18 +194,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
                 <AtSign className="size-3.5" aria-hidden />
                 Context
               </button>
-              <button
-                type="button"
-                title="Switch agent from the left rail"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[0.7rem] font-medium text-foreground transition-colors hover:bg-accent"
-              >
-                <Sparkles className="size-3.5 text-brand-blue" aria-hidden />
-                {AGENT_LABELS[agentMode]}
-                <ChevronDown
-                  className="size-3 text-muted-foreground"
-                  aria-hidden
-                />
-              </button>
+              <AgentPicker placement="top" />
             </div>
             <div className="flex items-center gap-1.5">
               {aiConfigured === false ? (

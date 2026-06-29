@@ -1,7 +1,7 @@
 import {
   Brain,
   CalendarClock,
-  ClipboardCheck,
+  ClipboardList,
   FolderOpen,
   LayoutDashboard,
   Lightbulb,
@@ -9,83 +9,57 @@ import {
   Settings,
   ShieldCheck,
   SquareCheckBig,
+  type LucideIcon,
 } from "lucide-react";
 
+export type NavItem = {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+};
+
+export type NavGroup = {
+  /** Section heading shown in the rail. Empty string renders no label. */
+  label: string;
+  ariaLabel: string;
+  items: ReadonlyArray<NavItem>;
+};
+
 /**
- * Left-rail grouping, modeled on the Cursor desktop app: work folders
- * (the "Repositories" analog), agents, automations, and customize.
+ * Flat primary navigation. Every entry is a real destination — no agent
+ * personas (those live in the composer picker) and no fake Work/Agents split.
+ * Planner, Tasks, Compliance and Automations are grouped together under
+ * "Workflows" so the operational tooling lives in one place.
  */
-export const workFolders = [
-  { title: "Workspace", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Knowledge graph", href: "/brain", icon: Brain },
+export const primaryNav: ReadonlyArray<NavItem> = [
+  { title: "Work desk", href: "/dashboard", icon: LayoutDashboard },
   { title: "Assets", href: "/assets", icon: FolderOpen },
   { title: "Research", href: "/research", icon: Lightbulb },
   { title: "Fundraising", href: "/fundraising", icon: PiggyBank },
-] as const;
+  { title: "Knowledge graph", href: "/brain", icon: Brain },
+];
 
-export const automationItems = [
-  { title: "Scheduled runs", href: "/automations", icon: CalendarClock },
-  { title: "Planner", href: "/planner", icon: ClipboardCheck },
+export const workflowsNav: ReadonlyArray<NavItem> = [
+  { title: "Planner", href: "/planner", icon: ClipboardList },
   { title: "Tasks", href: "/tasks", icon: SquareCheckBig },
   { title: "Compliance", href: "/compliance", icon: ShieldCheck },
-] as const;
+  { title: "Automations", href: "/automations", icon: CalendarClock },
+];
 
-export const customizeItems = [
+export const customizeNav: ReadonlyArray<NavItem> = [
   { title: "Settings", href: "/settings", icon: Settings },
-] as const;
+];
 
-export const appNavItems = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Assets",
-    href: "/assets",
-    icon: FolderOpen,
-  },
-  {
-    title: "Planner",
-    href: "/planner",
-    icon: ClipboardCheck,
-  },
-  {
-    title: "Research",
-    href: "/research",
-    icon: Lightbulb,
-  },
-  {
-    title: "Fundraising",
-    href: "/fundraising",
-    icon: PiggyBank,
-  },
-  {
-    title: "Tasks",
-    href: "/tasks",
-    icon: SquareCheckBig,
-  },
-  {
-    title: "Brain",
-    href: "/brain",
-    icon: Brain,
-  },
-  {
-    title: "Compliance",
-    href: "/compliance",
-    icon: ShieldCheck,
-  },
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
-] as const;
+export const navGroups: ReadonlyArray<NavGroup> = [
+  { label: "", ariaLabel: "Primary", items: primaryNav },
+  { label: "Workflows", ariaLabel: "Workflows", items: workflowsNav },
+  { label: "Customize", ariaLabel: "Customize", items: customizeNav },
+];
 
 export const modulePages = {
   dashboard: {
-    title: "Dashboard",
-    description: "Campaign overview, key metrics, and daily priorities.",
+    title: "Work desk",
+    description: "Campaign overview, knowledge graph, and your daily chat.",
     phase: 2,
   },
   onboarding: {
@@ -94,8 +68,8 @@ export const modulePages = {
     phase: 4,
   },
   assets: {
-    title: "Asset Studio",
-    description: "Create, review, and approve campaign content with AI assistance.",
+    title: "Assets",
+    description: "Create, review, and approve campaign content with AI.",
     phase: 3,
   },
   planner: {
@@ -119,8 +93,8 @@ export const modulePages = {
     phase: 4,
   },
   brain: {
-    title: "Brain",
-    description: "Interactive knowledge graph of your campaign strategy and modules.",
+    title: "Knowledge graph",
+    description: "Interactive map of your campaign strategy and modules.",
     phase: 8,
   },
   compliance: {
@@ -129,7 +103,7 @@ export const modulePages = {
     phase: 7,
   },
   automations: {
-    title: "Scheduled runs",
+    title: "Automations",
     description:
       "Recurring agent workflows — weekly plans, compliance checks, and outreach drafts.",
     phase: 4,

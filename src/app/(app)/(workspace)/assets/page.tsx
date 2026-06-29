@@ -1,4 +1,4 @@
-import { AppHeader } from "@/components/layout/app-header";
+import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { AssetStudio } from "@/components/assets/asset-studio";
 import { getAssetsForCampaign } from "@/actions/assets";
 import { modulePages } from "@/lib/navigation";
@@ -18,8 +18,7 @@ export default async function AssetsPage() {
 
   if (!result.ok) {
     return (
-      <>
-        <AppHeader title={page.title} description={page.description} />
+      <WorkPageFrame title={page.title} description={page.description}>
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <Card>
             <CardHeader>
@@ -33,18 +32,17 @@ export default async function AssetsPage() {
             </CardContent>
           </Card>
         </div>
-      </>
+      </WorkPageFrame>
     );
   }
 
   return (
-    <>
-      <AppHeader title={page.title} description={page.description} />
+    <WorkPageFrame title={page.title} description={page.description}>
       <AssetStudio
         assets={result.assets}
         canApprove={result.canApprove}
         openAiConfigured={result.openAiConfigured}
       />
-    </>
+    </WorkPageFrame>
   );
 }

@@ -1,4 +1,4 @@
-import { AppHeader } from "@/components/layout/app-header";
+import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { CampaignPlanner } from "@/components/planner/campaign-planner";
 import { getPlannerData } from "@/actions/planner";
 import { modulePages } from "@/lib/navigation";
@@ -18,8 +18,7 @@ export default async function PlannerPage() {
 
   if (!result.ok) {
     return (
-      <>
-        <AppHeader title={page.title} description={page.description} />
+      <WorkPageFrame title={page.title} description={page.description}>
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <Card>
             <CardHeader>
@@ -33,17 +32,16 @@ export default async function PlannerPage() {
             </CardContent>
           </Card>
         </div>
-      </>
+      </WorkPageFrame>
     );
   }
 
   return (
-    <>
-      <AppHeader title={page.title} description={page.description} />
+    <WorkPageFrame title={page.title} description={page.description}>
       <CampaignPlanner
         events={result.events}
         approvedAssets={result.approvedAssets}
       />
-    </>
+    </WorkPageFrame>
   );
 }

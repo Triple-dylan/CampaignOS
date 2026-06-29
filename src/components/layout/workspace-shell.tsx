@@ -69,7 +69,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             <SheetHeader className="sr-only">
               <SheetTitle>Workspace navigation</SheetTitle>
               <SheetDescription>
-                Work folders, agents, automations, and customize options.
+                Primary navigation, workflows, and settings.
               </SheetDescription>
             </SheetHeader>
             <AppRail />

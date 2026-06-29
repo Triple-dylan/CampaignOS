@@ -30,6 +30,14 @@ type ChatContextValue = {
   isSending: boolean;
   /** null until the first server response is observed. */
   aiConfigured: boolean | null;
+  /**
+   * Whether the right-rail follow-chat is expanded. Lives in the provider so
+   * the panel's open/collapsed state persists as the user moves between the
+   * Work desk and module pages.
+   */
+  isChatRailOpen: boolean;
+  setChatRailOpen: (open: boolean) => void;
+  toggleChatRail: () => void;
   createThread: () => string;
   selectThread: (id: string) => void;
   setAgentMode: (mode: AgentMode) => void;
@@ -59,13 +67,16 @@ function deriveTitle(text: string): string {
 export function ChatProvider({
   children,
   initialAiConfigured = null,
+  initialThreads = [],
 }: {
   children: React.ReactNode;
   initialAiConfigured?: boolean | null;
+  /** Optional seed threads — used only by the dev preview routes. */
+  initialThreads?: ChatThread[];
 }) {
-  const [threads, setThreads] = React.useState<ChatThread[]>([]);
+  const [threads, setThreads] = React.useState<ChatThread[]>(initialThreads);
   const [activeThreadId, setActiveThreadId] = React.useState<string | null>(
-    null,
+    initialThreads[0]?.id ?? null,
   );
   const [agentMode, setAgentMode] = React.useState<AgentMode>(
     "campaign-manager",
@@ -73,6 +84,11 @@ export function ChatProvider({
   const [isSending, setIsSending] = React.useState(false);
   const [aiConfigured, setAiConfigured] = React.useState<boolean | null>(
     initialAiConfigured,
+  );
+  const [isChatRailOpen, setChatRailOpen] = React.useState(true);
+  const toggleChatRail = React.useCallback(
+    () => setChatRailOpen((open) => !open),
+    [],
   );
 
   const createThread = React.useCallback((): string => {
@@ -198,6 +214,9 @@ export function ChatProvider({
       agentMode,
       isSending,
       aiConfigured,
+      isChatRailOpen,
+      setChatRailOpen,
+      toggleChatRail,
       createThread,
       selectThread,
       setAgentMode,
@@ -210,6 +229,8 @@ export function ChatProvider({
       agentMode,
       isSending,
       aiConfigured,
+      isChatRailOpen,
+      toggleChatRail,
       createThread,
       selectThread,
       sendMessage,

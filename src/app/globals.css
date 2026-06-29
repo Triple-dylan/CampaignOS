@@ -5,10 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * CampaignOS theme — rebuilt from scratch to match the Cursor / OpenAI Codex
- * desktop apps in LIGHT mode: a quiet, mostly-neutral surface system
- * (white / gray / near-black) with restrained blue + red accents for the
- * political identity. Flat, airy, professional. No glass, no ambient orbs.
+ * CampaignOS theme — a quiet, mostly-neutral surface system (white / gray /
+ * near-black) with restrained blue + red accents for the political identity.
+ * The chrome (rail, command bars, composer, follow-chat, preview panels) is a
+ * crisp "liquid glass" system: translucent frosted surfaces floating over the
+ * stage / knowledge graph. Solid cards carry dense content inside that chrome.
  */
 
 @theme inline {
@@ -128,22 +129,22 @@
 
   /*
    * Liquid-glass tokens. Translucent frosted surfaces that float over the
-   * knowledge graph (composer) or the stage (rail, bars, preview panel).
-   * Light-first: a high-white translucency with a soft inner highlight reads as
-   * brushed glass while keeping text contrast strong over the graph behind it.
+   * knowledge graph (composer) or the stage (rail, bars, follow-chat, preview).
+   * Tuned for sharpness + legibility: higher white translucency, a crisp 1px
+   * border, and a tight, clean shadow rather than a soft diffuse halo.
    */
-  --glass-blur: 18px;
-  --glass-saturate: 150%;
-  --glass-bar-bg: oklch(1 0 0 / 0.66);
-  --glass-rail-bg: oklch(1 0 0 / 0.55);
-  --glass-panel-bg: oklch(1 0 0 / 0.62);
-  --glass-composer-bg: oklch(1 0 0 / 0.72);
-  --glass-border: oklch(0.205 0 0 / 0.08);
-  --glass-highlight: oklch(1 0 0 / 0.65);
+  --glass-blur: 16px;
+  --glass-saturate: 140%;
+  --glass-bar-bg: oklch(1 0 0 / 0.74);
+  --glass-rail-bg: oklch(1 0 0 / 0.64);
+  --glass-panel-bg: oklch(1 0 0 / 0.72);
+  --glass-composer-bg: oklch(1 0 0 / 0.82);
+  --glass-border: oklch(0.205 0 0 / 0.1);
+  --glass-highlight: oklch(1 0 0 / 0.72);
   --glass-shadow: 0 1px 2px oklch(0.205 0 0 / 0.05),
-    0 8px 24px -12px oklch(0.205 0 0 / 0.18);
-  --glass-shadow-pop: 0 2px 6px oklch(0.205 0 0 / 0.06),
-    0 16px 40px -16px oklch(0.205 0 0 / 0.28);
+    0 6px 16px -10px oklch(0.205 0 0 / 0.16);
+  --glass-shadow-pop: 0 1px 2px oklch(0.205 0 0 / 0.06),
+    0 12px 30px -14px oklch(0.205 0 0 / 0.24);
 }
 
 .dark {
@@ -202,17 +203,17 @@
   --shadow-panel: 0 1px 2px oklch(0 0 0 / 0.3);
   --shadow-pop: 0 6px 16px -4px oklch(0 0 0 / 0.5);
 
-  /* Dark glass: a smoky translucency with a faint top highlight. */
-  --glass-bar-bg: oklch(0.214 0 0 / 0.62);
-  --glass-rail-bg: oklch(0.2 0 0 / 0.55);
-  --glass-panel-bg: oklch(0.214 0 0 / 0.58);
-  --glass-composer-bg: oklch(0.24 0 0 / 0.7);
-  --glass-border: oklch(1 0 0 / 0.1);
-  --glass-highlight: oklch(1 0 0 / 0.08);
+  /* Dark glass: a smoky translucency with a faint top highlight + crisp edge. */
+  --glass-bar-bg: oklch(0.214 0 0 / 0.7);
+  --glass-rail-bg: oklch(0.2 0 0 / 0.64);
+  --glass-panel-bg: oklch(0.214 0 0 / 0.68);
+  --glass-composer-bg: oklch(0.24 0 0 / 0.8);
+  --glass-border: oklch(1 0 0 / 0.12);
+  --glass-highlight: oklch(1 0 0 / 0.06);
   --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.4),
-    0 10px 30px -14px oklch(0 0 0 / 0.6);
-  --glass-shadow-pop: 0 2px 8px oklch(0 0 0 / 0.45),
-    0 20px 48px -18px oklch(0 0 0 / 0.7);
+    0 8px 22px -12px oklch(0 0 0 / 0.55);
+  --glass-shadow-pop: 0 1px 3px oklch(0 0 0 / 0.45),
+    0 16px 38px -16px oklch(0 0 0 / 0.65);
 }
 
 @layer base {
@@ -248,9 +249,9 @@
 
 @layer components {
   /*
-   * Flat surface system. The old `glass-*` class names are retained so that
-   * existing module/dashboard markup keeps working, but they now render as
-   * clean, neutral, lightly-bordered panels — no blur, no ambient color.
+   * Solid content surfaces. These carry dense content (cards, onboarding panel)
+   * inside the glass chrome — clean, neutral, lightly-bordered, sharp. They are
+   * intentionally opaque so text stays crisp on top of the translucent chrome.
    */
   .surface,
   .glass,
