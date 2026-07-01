@@ -93,9 +93,51 @@ export const generateAssetRequestSchema = z.object({
   theme: z.string().trim().max(100).optional(),
   issue: z.string().trim().max(100).optional(),
   channel: z.string().trim().max(100).optional(),
+  audience: z.string().trim().max(200).optional(),
+  contentNeed: z.string().trim().max(300).optional(),
+  variationHint: z.string().trim().max(200).optional(),
 });
 
 export type GenerateAssetRequest = z.infer<typeof generateAssetRequestSchema>;
+
+export const contentDraftBriefSchema = z.object({
+  assetType: z.enum(M7_ASSET_TYPES),
+  contentNeed: z
+    .string()
+    .trim()
+    .min(3, "Describe what you are creating")
+    .max(300),
+  theme: z.string().trim().max(100).optional(),
+  issue: z.string().trim().max(100).optional(),
+  audience: z.string().trim().max(200).optional(),
+  channel: z.string().trim().max(100).optional(),
+});
+
+export type ContentDraftBrief = z.infer<typeof contentDraftBriefSchema>;
+
+export const contentDraftPreviewSchema = z.object({
+  id: z.string().min(1),
+  variantLabel: z.string().min(1).max(100),
+  title: z.string().trim().min(1).max(200),
+  content: z.string().trim().min(1),
+  theme: z.string().trim().max(100).optional(),
+  issue: z.string().trim().max(100).optional(),
+  channel: z.string().trim().max(100).optional(),
+});
+
+export type ContentDraftPreview = z.infer<typeof contentDraftPreviewSchema>;
+
+export const saveContentDraftSchema = z.object({
+  assetType: z.enum(M7_ASSET_TYPES),
+  title: z.string().trim().min(1).max(200),
+  contentText: z.string().trim().min(1),
+  theme: z.string().trim().max(100).optional(),
+  issue: z.string().trim().max(100).optional(),
+  channel: z.string().trim().max(100).optional(),
+  aiGenerated: z.boolean().optional(),
+});
+
+export type SaveContentDraftInput = z.infer<typeof saveContentDraftSchema>;
 
 export const ASSET_TYPE_LABELS: Record<M7AssetType, string> = {
   social_post: "Social post",
