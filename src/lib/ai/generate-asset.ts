@@ -53,6 +53,9 @@ export async function generateAssetContent(input: {
     theme: input.request.theme,
     issue: input.request.issue,
     channel: input.request.channel,
+    audience: input.request.audience,
+    contentNeed: input.request.contentNeed,
+    variationHint: input.request.variationHint,
   });
 
   const { data } = await runLoggedAiCompletion({
@@ -68,6 +71,9 @@ export async function generateAssetContent(input: {
       theme: input.request.theme,
       issue: input.request.issue,
       channel: input.request.channel,
+      audience: input.request.audience,
+      contentNeed: input.request.contentNeed,
+      variationHint: input.request.variationHint,
     },
     createdObjectType: "asset",
     call: async () => {

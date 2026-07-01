@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { FolderOpen, Plus, Search, Sparkles } from "lucide-react";
+import { FolderOpen, PenLine, Plus, Search, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   approveAsset,
@@ -10,6 +10,7 @@ import {
   updateAssetContent,
 } from "@/actions/assets";
 import { AssetFormDialog } from "@/components/assets/asset-form-dialog";
+import { GuidedContentDialog } from "@/components/assets/guided-content-dialog";
 import { AssetDetailSheet } from "@/components/assets/studio/asset-detail-sheet";
 import { AssetViews } from "@/components/assets/studio/asset-views";
 import {
@@ -49,6 +50,7 @@ export function AssetStudio({
     initialAssetId ?? null,
   );
   const [createOpen, setCreateOpen] = useState(false);
+  const [contentWizardOpen, setContentWizardOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateTemplate, setGenerateTemplate] =
     useState<SocialAssetTemplate | null>(null);
@@ -146,6 +148,15 @@ export function AssetStudio({
                 type="button"
                 variant="outline"
                 size="sm"
+                onClick={() => setContentWizardOpen(true)}
+              >
+                <PenLine data-icon="inline-start" className="size-3.5" />
+                New content
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setGenerateTemplate(null);
                   setGenerateOpen(true);
@@ -174,6 +185,15 @@ export function AssetStudio({
                 </p>
               </div>
               <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setContentWizardOpen(true)}
+                >
+                  <PenLine data-icon="inline-start" className="size-3.5" />
+                  New content
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -239,6 +259,16 @@ export function AssetStudio({
         onReject={() => {
           if (!selectedAsset) return;
           runAction(async () => rejectAsset(selectedAsset.id));
+        }}
+      />
+
+      <GuidedContentDialog
+        open={contentWizardOpen}
+        onOpenChange={setContentWizardOpen}
+        openAiConfigured={openAiConfigured}
+        onSaved={(assetId) => {
+          setSelectedId(assetId);
+          refresh();
         }}
       />
 
