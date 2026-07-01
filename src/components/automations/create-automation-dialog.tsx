@@ -95,8 +95,8 @@ function CreateAutomationForm({
       <DialogHeader>
         <DialogTitle>Create scheduled run</DialogTitle>
         <DialogDescription>
-          Run an agent on a recurring schedule — like Cursor Automations.
-          Execution is saved now; the job runner connects later.
+          Run an agent on a recurring schedule — like Cursor Automations. Saved
+          schedules can be executed manually with Run now.
         </DialogDescription>
       </DialogHeader>
 
