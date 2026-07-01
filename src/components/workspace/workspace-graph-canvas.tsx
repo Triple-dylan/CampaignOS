@@ -8,6 +8,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   type Edge,
   type Node,
 } from "@xyflow/react";
@@ -38,7 +39,9 @@ const edgeTypes = {
 const EMPTY_SET: Set<string> = new Set();
 
 /** Shared easing duration (ms) for all camera moves — calm, never jarring. */
-const CAMERA_EASE_MS = 620;
+const CAMERA_EASE_MS = 720;
+/** Entity labels hide below this zoom so zoomed-out views stay readable. */
+const COMPACT_LABEL_ZOOM = 0.62;
 /**
  * Asymmetric padding so the constellation stays clear of the floating overlays:
  * the frosted breadcrumb bar at the top and the glass composer docked at the
@@ -91,6 +94,8 @@ function WorkspaceGraphCanvasInner({
 }: WorkspaceGraphCanvasProps) {
   const highlighted = highlightedNodeIds ?? EMPTY_SET;
   const { fitView, setCenter, getNode, getZoom } = useReactFlow();
+  const zoom = useStore((state) => state.transform[2]);
+  const compactLabels = zoom < COMPACT_LABEL_ZOOM;
   const [internalViewMode, setInternalViewMode] = useState<GraphViewMode>("all");
   const viewMode = controlledViewMode ?? internalViewMode;
   const setViewMode = onViewModeChange ?? setInternalViewMode;
@@ -144,9 +149,10 @@ function WorkspaceGraphCanvasInner({
         ...node.data,
         highlighted: highlighted.has(node.id),
         focusLevel: focusLevels?.get(node.id),
+        compactLabels,
       },
     })) as Node[];
-  }, [visibleFlowNodes, selectedNodeId, highlighted, focusLevels]);
+  }, [visibleFlowNodes, selectedNodeId, highlighted, focusLevels, compactLabels]);
 
   const edges = useMemo<Edge[]>(() => {
     return visibleEdges.map((edge) => {

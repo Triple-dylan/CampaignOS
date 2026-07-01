@@ -18,7 +18,7 @@ export {
   resolveGraphFoldersFromMessage,
 } from "@/lib/harness/resolver";
 
-export { resolveGraphFoldersClient } from "@/lib/harness/resolver-client";
+export { resolveGraphFoldersClient, resolveHarnessPlanClient } from "@/lib/harness/resolver-client";
 
 export { loadSkill, loadSkills } from "@/lib/harness/skills/loader";
 

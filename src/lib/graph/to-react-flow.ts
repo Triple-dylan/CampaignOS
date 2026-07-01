@@ -34,6 +34,8 @@ export type CampaignGraphNodeData = {
   degree: number;
   /** Transient UI flag: node is being "searched" by the assistant. */
   highlighted?: boolean;
+  /** Hide entity labels when zoomed out (hub labels stay visible). */
+  compactLabels?: boolean;
   /**
    * Transient UI flag: Obsidian-style folder-focus relevance level. Undefined
    * when no folder is focused (the global graph).
@@ -88,10 +90,10 @@ export type CampaignGraphFlow = {
  */
 const BASE_CLUSTER_RADIUS = 460;
 const INTRA_CLUSTER_SPACING = 104;
-const HUB_MEMBER_SPACING = 150;
+const HUB_MEMBER_SPACING = 158;
 /** Members past this count wrap onto a second concentric ring, not a huge one. */
-const MAX_RING_RADIUS = 230;
-const SECOND_RING_GAP = 96;
+const MAX_RING_RADIUS = 220;
+const SECOND_RING_GAP = 108;
 const CENTER_SPACING = 168;
 
 /**
@@ -217,7 +219,7 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
       // Offset the outer ring half a step so its nodes sit in the inner gaps.
       const stagger = onSecondRing ? Math.PI / Math.max(ringSize, 1) : 0;
       const spread = (ringIndex / Math.max(ringSize, 1)) * Math.PI * 2 + stagger;
-      const jitter = 1 + seededOffset(node.id) * 0.06;
+      const jitter = 1 + seededOffset(node.id) * 0.04;
       positions.set(node.id, {
         x: hubCenter.x + Math.cos(clusterAngle + spread) * radius * jitter,
         y: hubCenter.y + Math.sin(clusterAngle + spread) * radius * jitter,

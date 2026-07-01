@@ -26,10 +26,10 @@ const FOCUS_LEVEL_STYLE: Record<
   GraphFocusLevel,
   { opacity: number; scale: number }
 > = {
-  focus: { opacity: 1, scale: 1.14 },
-  foreground: { opacity: 1, scale: 1.05 },
-  midground: { opacity: 0.55, scale: 0.98 },
-  background: { opacity: 0.18, scale: 0.9 },
+  focus: { opacity: 1, scale: 1.12 },
+  foreground: { opacity: 1, scale: 1.04 },
+  midground: { opacity: 0.58, scale: 0.98 },
+  background: { opacity: 0.16, scale: 0.9 },
 };
 
 /**
@@ -105,7 +105,13 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
           // cleanly; hub labels (the navigation anchors) always stay legible.
           !data.isFolderHub &&
             !selected &&
+            !data.highlighted &&
             "opacity-70 group-hover:opacity-100",
+          data.compactLabels &&
+            !data.isFolderHub &&
+            !selected &&
+            !data.highlighted &&
+            "opacity-0 group-hover:opacity-100",
           data.focusLevel === "background" && "opacity-0",
         )}
       >

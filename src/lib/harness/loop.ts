@@ -1,6 +1,7 @@
 import { resolveCampaignContext } from "@/lib/harness/resolver";
 import { loadSkills } from "@/lib/harness/skills/loader";
 import { runHarnessScripts } from "@/lib/harness/scripts/run";
+import type { ListResearchContextOutput } from "@/lib/harness/scripts/list-research-context";
 import type { HarnessTurnInput, HarnessTurnPlan } from "@/lib/harness/types";
 
 const HARNESS_PREAMBLE = [
@@ -47,6 +48,11 @@ export async function planHarnessTurn(
     ? resolver.plan.scripts
     : ["list-campaign-context"];
 
+  console.info(
+    "[harness] planHarnessTurn stub execution — scripts that WOULD run:",
+    scriptIds.join(", "),
+  );
+
   const scriptResults = await runHarnessScripts({
     scriptIds,
     campaignId: input.campaignId,
@@ -54,6 +60,20 @@ export async function planHarnessTurn(
   });
 
   const folderHighlight = resolver.graphFoldersToHighlight.join(", ");
+  const researchResult = scriptResults.find(
+    (result) => result.scriptId === "list-research-context",
+  );
+  const researchData = researchResult?.data as
+    | ListResearchContextOutput
+    | undefined;
+  const researchSnippet = researchData?.contextBody
+    ? researchData.contextBody.slice(0, 2400)
+    : null;
+  const researchEntries = researchData?.entries
+    ?.filter((entry) => entry.kind === "document")
+    .slice(0, 6)
+    .map((entry) => `- ${entry.title}: ${entry.summary || entry.path}`)
+    .join("\n");
 
   const systemPreamble = [
     HARNESS_PREAMBLE,
@@ -63,9 +83,18 @@ export async function planHarnessTurn(
       ? `Workflow: ${resolver.plan.workflowId}`
       : null,
     `Graph folders: ${folderHighlight}`,
+    `Context paths: ${resolver.plan.contextPaths.join(", ")}`,
     "",
     "## Deterministic context",
     scriptResults.map((r) => `- ${r.scriptId}: ${r.summary}`).join("\n"),
+    researchEntries
+      ? ["", "## Research folder index", researchEntries].join("\n")
+      : null,
+    researchSnippet
+      ? ["", "## Research folder context (_context.md)", researchSnippet].join(
+          "\n",
+        )
+      : null,
   ]
     .filter(Boolean)
     .join("\n");

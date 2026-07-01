@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/require-campaign-context";
 import { listGraphEdges, listGraphNodes } from "@/lib/db/campaigns";
 import { injectFolderHubs } from "@/lib/graph/inject-folder-hubs";
+import { injectWikiPages } from "@/lib/graph/inject-wiki-pages";
 import { toReactFlowGraph, type CampaignGraphFlow } from "@/lib/graph/to-react-flow";
 
 export type GetCampaignGraphResult =
@@ -39,9 +40,17 @@ export async function getCampaignGraph(): Promise<GetCampaignGraphResult> {
   // metadata. Synthesize the wiki-llm folder structure at render time so an
   // authenticated campaign shows the same coherent folder galaxy as the demo —
   // not a sparse constellation of peer dots. Purely additive + idempotent.
-  const withHubs = injectFolderHubs({
+  const withWiki = injectWikiPages({
     nodes,
     edges,
+    campaignId: context.campaign.id,
+    campaign: context.campaign,
+    profile: context.profile,
+  });
+
+  const withHubs = injectFolderHubs({
+    nodes: withWiki.nodes,
+    edges: withWiki.edges,
     campaignId: context.campaign.id,
   });
 
