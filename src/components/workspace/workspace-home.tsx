@@ -6,7 +6,7 @@ import { useChat } from "@/components/chat/chat-provider";
 import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { WorkspaceTopBar } from "@/components/workspace/workspace-top-bar";
 import { ChatDock } from "@/components/workspace/chat-dock";
-import { WorkspaceGraphCanvas } from "@/components/workspace/workspace-graph-canvas";
+import { WorkspaceGraphCanvasLazy as WorkspaceGraphCanvas } from "@/components/workspace/workspace-graph-canvas.lazy";
 import {
   WorkspaceContextPanel,
   type WorkspaceMetrics,

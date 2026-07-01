@@ -323,7 +323,7 @@ export function TaskBoard({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 snap-x snap-mandatory md:flex-wrap md:overflow-visible md:snap-none md:pb-0">
           {WORKFLOW_TABS.map((tab) => {
             const Icon = tab.icon;
             const count =
@@ -334,7 +334,7 @@ export function TaskBoard({
                 type="button"
                 onClick={() => setWorkflowFilter(tab.id)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  "inline-flex shrink-0 snap-start items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
                   workflowFilter === tab.id
                     ? "border-primary/40 bg-primary/5 text-foreground shadow-sm"
                     : "border-transparent bg-card/60 text-muted-foreground hover:border-border hover:text-foreground",
@@ -386,9 +386,9 @@ export function TaskBoard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
         <select
-          className={`${SELECT_CLASS} max-w-[10rem]`}
+          className={`${SELECT_CLASS} w-full sm:max-w-[10rem]`}
           value={statusFilter}
           onChange={(e) =>
             setStatusFilter(e.target.value as TaskStatus | "all")
@@ -403,7 +403,7 @@ export function TaskBoard({
           ))}
         </select>
         <select
-          className={`${SELECT_CLASS} max-w-[10rem]`}
+          className={`${SELECT_CLASS} w-full sm:max-w-[10rem]`}
           value={priorityFilter}
           onChange={(e) =>
             setPriorityFilter(e.target.value as TaskPriority | "all")
@@ -418,7 +418,7 @@ export function TaskBoard({
           ))}
         </select>
         <select
-          className={`${SELECT_CLASS} max-w-[10rem]`}
+          className={`${SELECT_CLASS} w-full sm:max-w-[10rem]`}
           value={dueFilter}
           onChange={(e) =>
             setDueFilter(e.target.value as "all" | "overdue" | "week")
@@ -523,9 +523,12 @@ export function TaskBoard({
           })}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-4">
           {KANBAN_STATUSES.map((status) => (
-            <div key={status} className="flex flex-col gap-3">
+            <div
+              key={status}
+              className="flex w-[min(85vw,20rem)] shrink-0 snap-start flex-col gap-3 md:w-auto md:shrink"
+            >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium">
                   {TASK_STATUS_LABELS[status]}

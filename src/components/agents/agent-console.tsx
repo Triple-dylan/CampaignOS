@@ -129,19 +129,21 @@ export function AgentConsole({ agent, consoleData }: AgentConsoleProps) {
       {/* Identity */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-brand-blue [&_svg]:size-5">
-              <Icon aria-hidden />
-            </span>
-            <div className="min-w-0 flex-1">
-              <CardTitle className="text-base">{agent.label}</CardTitle>
-              <CardDescription className="mt-1">{agent.purpose}</CardDescription>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-brand-blue [&_svg]:size-5">
+                <Icon aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base">{agent.label}</CardTitle>
+                <CardDescription className="mt-1">{agent.purpose}</CardDescription>
+              </div>
             </div>
             <Button
               type="button"
               size="sm"
               onClick={() => void startChat()}
-              className="shrink-0"
+              className="w-full shrink-0 sm:w-auto"
             >
               <MessageSquarePlus className="size-3.5" aria-hidden />
               Start chat
@@ -194,7 +196,7 @@ export function AgentConsole({ agent, consoleData }: AgentConsoleProps) {
             {agent.quickActions.map((action) => (
               <div
                 key={action.id}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-card/50 px-3 py-2"
+                className="flex flex-col gap-2 rounded-lg border border-border/70 bg-card/50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <span className="text-sm font-medium">{action.label}</span>
                 <div className="flex shrink-0 items-center gap-1">

@@ -13,6 +13,7 @@ import { useChat } from "@/components/chat/chat-provider";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { useAutomations } from "@/components/automations/automations-provider";
 import { AgentPicker } from "@/components/chat/agent-picker";
+import { useVisualViewportOffset } from "@/hooks/use-visual-viewport-offset";
 import { cn } from "@/lib/utils";
 
 const RAIL_SUGGESTIONS = [
@@ -41,6 +42,7 @@ export function WorkspaceChatContent({
     createThread,
   } = useChat();
   const { openCreateDialog } = useAutomations();
+  const keyboardOffset = useVisualViewportOffset();
   const [draft, setDraft] = React.useState("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -170,7 +172,14 @@ export function WorkspaceChatContent({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-border/60 p-3 pb-safe">
+      <div
+        className="shrink-0 border-t border-border/60 p-3 pb-safe"
+        style={
+          keyboardOffset > 0
+            ? { paddingBottom: `calc(var(--safe-area-inset-bottom, 0px) + ${keyboardOffset}px)` }
+            : undefined
+        }
+      >
         <div className="glass-composer rounded-2xl transition-shadow focus-within:border-brand-blue/60">
           <textarea
             ref={textareaRef}

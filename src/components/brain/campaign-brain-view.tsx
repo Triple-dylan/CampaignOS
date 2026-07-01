@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Brain, PanelRight } from "lucide-react";
 import { useCampaign } from "@/components/campaign/campaign-context";
 import { MobileContextSheet } from "@/components/layout/mobile-context-sheet";
-import { WorkspaceGraphCanvas } from "@/components/workspace/workspace-graph-canvas";
+import { WorkspaceGraphCanvasLazy as WorkspaceGraphCanvas } from "@/components/workspace/workspace-graph-canvas.lazy";
 import { WorkspaceContextPanel } from "@/components/workspace/workspace-context-panel";
 import { Button } from "@/components/ui/button";
 import {

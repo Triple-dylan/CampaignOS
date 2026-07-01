@@ -64,6 +64,8 @@ import {
   type ProspectType,
 } from "@/lib/validators/fundraising";
 import type { ProspectOutreachOutput } from "@/lib/ai/schemas/fundraising";
+import { ResponsiveActionGroup } from "@/components/layout/responsive-action-group";
+import { MOBILE_DIALOG_CONTENT_CLASS } from "@/lib/mobile-dialog";
 import { cn } from "@/lib/utils";
 
 const PIPELINE_STAGES = [
@@ -307,23 +309,27 @@ export function FundraisingPlanner({
           {prospects.length} prospect{prospects.length === 1 ? "" : "s"} in
           pipeline
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant={callTimeMode ? "default" : "outline"}
-            onClick={() => {
-              setCallTimeMode((on) => !on);
-              setCallTimeProspect(null);
-            }}
-          >
-            <Phone data-icon="inline-start" className="size-3.5" />
-            Call time
-          </Button>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus data-icon="inline-start" className="size-4" />
-            Add prospect
-          </Button>
-        </div>
+        <ResponsiveActionGroup
+          primary={
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus data-icon="inline-start" className="size-4" />
+              Add prospect
+            </Button>
+          }
+          overflow={
+            <Button
+              variant={callTimeMode ? "default" : "outline"}
+              onClick={() => {
+                setCallTimeMode((on) => !on);
+                setCallTimeProspect(null);
+              }}
+            >
+              <Phone data-icon="inline-start" className="size-3.5" />
+              Call time
+            </Button>
+          }
+          overflowLabel="Fundraising actions"
+        />
       </div>
 
       <section>
@@ -443,11 +449,14 @@ export function FundraisingPlanner({
           <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Pipeline stages
           </p>
-          <div className="flex gap-1 overflow-x-auto pb-1">
+          <div className="flex snap-x snap-mandatory gap-1 overflow-x-auto pb-1">
             {PIPELINE_STAGES.map((stage, index) => {
               const count = pipelineCounts.get(stage) ?? 0;
               return (
-                <div key={stage} className="flex min-w-0 flex-1 items-center">
+                <div
+                  key={stage}
+                  className="flex min-w-[4.75rem] shrink-0 snap-start items-center sm:min-w-0 sm:flex-1"
+                >
                   <button
                     type="button"
                     onClick={() =>
@@ -743,7 +752,7 @@ export function FundraisingPlanner({
           if (!open) closeProspectDetail();
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className={cn("sm:max-w-2xl", MOBILE_DIALOG_CONTENT_CLASS)}>
           {selectedProspect ? (
             <>
               <DialogHeader>

@@ -25,6 +25,7 @@ import type { BriefGraphLink } from "@/components/research/research-stages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ResponsiveActionGroup } from "@/components/layout/responsive-action-group";
 import { cn } from "@/lib/utils";
 import type { DbResearchBrief } from "@/lib/db/schema";
 import {
@@ -53,7 +54,12 @@ export function ResearchHub({
 }: ResearchHubProps) {
   const router = useRouter();
   const { setChatRailOpen } = useChat();
-  const [viewMode, setViewMode] = useState<ViewMode>("board");
+  const [viewMode, setViewMode] = useState<ViewMode>(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 767px)").matches
+      ? "list"
+      : "board",
+  );
   const [typeFilter, setTypeFilter] = useState<ResearchType | "all">("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -255,7 +261,7 @@ function Toolbar({
           onChange={(event) =>
             onTypeFilterChange(event.target.value as ResearchType | "all")
           }
-          className="h-8 max-w-40"
+          className="h-8 w-full max-w-none sm:max-w-40"
           aria-label="Filter by type"
         >
           <option value="all">All types</option>
@@ -272,18 +278,27 @@ function Toolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={onNewReport}>
-          <CalendarRange data-icon="inline-start" className="size-3.5" />
-          New report
-        </Button>
-        <Button size="sm" variant="outline" onClick={onNewComparison}>
-          <Users data-icon="inline-start" className="size-3.5" />
-          New comparison
-        </Button>
-        <Button size="sm" onClick={onNewBrief}>
-          <Plus data-icon="inline-start" className="size-3.5" />
-          New brief
-        </Button>
+        <ResponsiveActionGroup
+          primary={
+            <Button size="sm" onClick={onNewBrief}>
+              <Plus data-icon="inline-start" className="size-3.5" />
+              New brief
+            </Button>
+          }
+          overflow={
+            <>
+              <Button size="sm" variant="outline" onClick={onNewReport}>
+                <CalendarRange data-icon="inline-start" className="size-3.5" />
+                New report
+              </Button>
+              <Button size="sm" variant="outline" onClick={onNewComparison}>
+                <Users data-icon="inline-start" className="size-3.5" />
+                New comparison
+              </Button>
+            </>
+          }
+          overflowLabel="Research actions"
+        />
       </div>
     </div>
   );

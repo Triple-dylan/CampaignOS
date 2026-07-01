@@ -6,6 +6,7 @@ import { useChat } from "@/components/chat/chat-provider";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { useAutomations } from "@/components/automations/automations-provider";
 import { AgentPicker } from "@/components/chat/agent-picker";
+import { useVisualViewportOffset } from "@/hooks/use-visual-viewport-offset";
 import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
   const { activeThread, agentMode, isSending, aiConfigured, sendMessage } =
     useChat();
   const { openCreateDialog } = useAutomations();
+  const keyboardOffset = useVisualViewportOffset();
   const [draft, setDraft] = React.useState("");
   const [collapsed, setCollapsed] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -131,9 +133,16 @@ export function ChatDock({ composerRef }: ChatDockProps) {
         </div>
       ) : null}
 
-      <div className="pointer-events-auto mx-auto w-full max-w-3xl px-4 pt-2 pb-4 pb-safe">
+      <div
+        className="pointer-events-auto mx-auto w-full max-w-3xl px-4 pt-2 pb-4 pb-safe"
+        style={
+          keyboardOffset > 0
+            ? { paddingBottom: `calc(var(--safe-area-inset-bottom, 0px) + ${keyboardOffset}px)` }
+            : undefined
+        }
+      >
         {!hasMessages ? (
-          <div className="mb-2 flex flex-wrap gap-1.5">
+          <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 snap-x snap-mandatory sm:flex-wrap sm:overflow-visible sm:snap-none">
             {SUGGESTIONS.map((suggestion) => (
               <button
                 key={suggestion}
@@ -142,7 +151,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
                   setDraft(suggestion);
                   textareaRef.current?.focus();
                 }}
-                className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="shrink-0 snap-start rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:shrink"
               >
                 {suggestion}
               </button>
