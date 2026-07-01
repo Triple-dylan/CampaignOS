@@ -17,12 +17,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MOBILE_DIALOG_CONTENT_CLASS } from "@/lib/mobile-dialog";
 import {
   fromDatetimeLocalValue,
   SELECT_CLASS,
   TEXTAREA_CLASS,
   toDatetimeLocalValue,
 } from "@/lib/form/datetime";
+import { cn } from "@/lib/utils";
 import type { DbAsset, DbCalendarEvent } from "@/lib/db/schema";
 import {
   CALENDAR_EVENT_TYPE_LABELS,
@@ -269,7 +271,7 @@ export function EventFormDialog({
 }: EventFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={cn("sm:max-w-lg", MOBILE_DIALOG_CONTENT_CLASS)}>
         {open ? (
           <EventFormContent
             key={event?.id ?? "create"}
