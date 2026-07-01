@@ -131,7 +131,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
         </div>
       ) : null}
 
-      <div className="pointer-events-auto mx-auto w-full max-w-3xl px-4 pb-4 pt-2">
+      <div className="pointer-events-auto mx-auto w-full max-w-3xl px-4 pt-2 pb-4 pb-safe">
         {!hasMessages ? (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {SUGGESTIONS.map((suggestion) => (

@@ -4,8 +4,10 @@ import * as React from "react";
 import { ChevronRight, MessageSquare, PanelLeft } from "lucide-react";
 import { useCampaign } from "@/components/campaign/campaign-context";
 import { useChat } from "@/components/chat/chat-provider";
+import { MobileChatSheet } from "@/components/layout/mobile-chat-sheet";
 import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { WorkspaceChatPanel } from "@/components/workspace/workspace-chat-panel";
+import { useIsBelowLg } from "@/hooks/use-media-query";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +24,7 @@ type GlassCommandBarProps = {
 function GlassCommandBar({ title, description, actions }: GlassCommandBarProps) {
   const { orgName, campaign } = useCampaign();
   const { toggleRailMobile } = useWorkspaceShell();
-  const { isChatRailOpen, toggleChatRail } = useChat();
+  const { isChatRailOpen, setChatRailOpen } = useChat();
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
@@ -67,7 +69,20 @@ function GlassCommandBar({ title, description, actions }: GlassCommandBarProps) 
 
       <button
         type="button"
-        onClick={toggleChatRail}
+        onClick={() => setChatRailOpen(!isChatRailOpen)}
+        aria-label={isChatRailOpen ? "Hide chat" : "Show chat"}
+        aria-pressed={isChatRailOpen}
+        className={cn(
+          "flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent lg:hidden",
+          isChatRailOpen ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        <MessageSquare className="size-4" aria-hidden />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setChatRailOpen(!isChatRailOpen)}
         aria-label={isChatRailOpen ? "Hide chat" : "Show chat"}
         aria-pressed={isChatRailOpen}
         className={cn(
@@ -101,6 +116,7 @@ export function WorkPageFrame({
   children,
 }: WorkPageFrameProps) {
   const { isChatRailOpen, setChatRailOpen } = useChat();
+  const isBelowLg = useIsBelowLg();
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -115,9 +131,13 @@ export function WorkPageFrame({
         </div>
       </div>
 
-      {isChatRailOpen ? (
-        <WorkspaceChatPanel />
-      ) : (
+      {isChatRailOpen && !isBelowLg ? <WorkspaceChatPanel /> : null}
+
+      {isChatRailOpen && isBelowLg ? (
+        <MobileChatSheet open={isChatRailOpen} onOpenChange={setChatRailOpen} />
+      ) : null}
+
+      {!isChatRailOpen && !isBelowLg ? (
         <button
           type="button"
           onClick={() => setChatRailOpen(true)}
@@ -126,7 +146,7 @@ export function WorkPageFrame({
         >
           <MessageSquare className="size-4" aria-hidden />
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -5,7 +5,7 @@
 export function ComplianceDisclaimer() {
   return (
     <footer
-      className="flex h-7 shrink-0 items-center gap-1.5 border-t border-border px-3 text-[0.7rem] text-muted-foreground"
+      className="flex h-7 shrink-0 items-center gap-1.5 border-t border-border px-3 pb-safe text-[0.7rem] text-muted-foreground"
       role="note"
       aria-label="Compliance disclaimer"
     >

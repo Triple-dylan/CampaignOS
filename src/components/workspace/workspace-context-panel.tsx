@@ -39,7 +39,7 @@ export type WorkspaceMetrics = {
   prospectCount: number;
 };
 
-type WorkspaceContextPanelProps = {
+export type WorkspaceContextPanelProps = {
   campaign: DbCampaign | null;
   profile: DbCampaignProfile | null;
   metrics: WorkspaceMetrics;
@@ -49,7 +49,7 @@ type WorkspaceContextPanelProps = {
   onClearSelection: () => void;
 };
 
-export function WorkspaceContextPanel({
+export function WorkspaceContextPanelContent({
   campaign,
   profile,
   metrics,
@@ -59,8 +59,8 @@ export function WorkspaceContextPanel({
   onClearSelection,
 }: WorkspaceContextPanelProps) {
   return (
-    <aside className="glass-frost hidden w-80 shrink-0 flex-col md:flex">
-      <div className="flex h-12 items-center justify-between gap-2 border-b border-border/60 px-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4">
         <h2 className="text-sm font-semibold">
           {selectedNode ? "Preview" : "Campaign"}
         </h2>
@@ -107,6 +107,14 @@ export function WorkspaceContextPanel({
       </div>
 
       <AccessibilitySection />
+    </div>
+  );
+}
+
+export function WorkspaceContextPanel(props: WorkspaceContextPanelProps) {
+  return (
+    <aside className="glass-frost hidden w-80 shrink-0 flex-col md:flex">
+      <WorkspaceContextPanelContent {...props} />
     </aside>
   );
 }

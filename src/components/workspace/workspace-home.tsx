@@ -12,6 +12,8 @@ import {
   type WorkspaceMetrics,
 } from "@/components/workspace/workspace-context-panel";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
+import { MobileContextSheet } from "@/components/layout/mobile-context-sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { OnboardingData } from "@/actions/campaigns";
 import type {
   CampaignGraphFlow,
@@ -212,7 +214,8 @@ export function WorkspaceHome({
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     null,
   );
-  const [panelOpen, setPanelOpen] = React.useState(true);
+  const [panelOpen, setPanelOpen] = React.useState(false);
+  const isMobile = useIsMobile();
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
   const growthStepRef = React.useRef(0);
 
@@ -269,6 +272,16 @@ export function WorkspaceHome({
   const focusComposer = React.useCallback(() => {
     composerRef.current?.focus();
   }, []);
+
+  const contextPanelProps = {
+    campaign,
+    profile,
+    metrics,
+    graph: activeGraph,
+    selectedNode,
+    onClose: () => setPanelOpen(false),
+    onClearSelection: () => handleSelectNode(null, null),
+  };
 
   if (!isSetupComplete) {
     return (
@@ -347,17 +360,9 @@ export function WorkspaceHome({
       </section>
 
       {/* Right rail: preview + accessibility (collapsible) */}
-      {panelOpen ? (
-        <WorkspaceContextPanel
-          campaign={campaign}
-          profile={profile}
-          metrics={metrics}
-          graph={activeGraph}
-          selectedNode={selectedNode}
-          onClose={() => setPanelOpen(false)}
-          onClearSelection={() => handleSelectNode(null, null)}
-        />
-      ) : (
+      {panelOpen && !isMobile ? (
+        <WorkspaceContextPanel {...contextPanelProps} />
+      ) : !panelOpen && !isMobile ? (
         <button
           type="button"
           onClick={() => setPanelOpen(true)}
@@ -366,7 +371,13 @@ export function WorkspaceHome({
         >
           <PanelRight className="size-4" aria-hidden />
         </button>
-      )}
+      ) : null}
+
+      <MobileContextSheet
+        open={panelOpen && isMobile}
+        onOpenChange={setPanelOpen}
+        {...contextPanelProps}
+      />
     </div>
   );
 }

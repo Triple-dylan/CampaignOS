@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Brain } from "lucide-react";
+import { Brain, PanelRight } from "lucide-react";
 import { useCampaign } from "@/components/campaign/campaign-context";
+import { MobileContextSheet } from "@/components/layout/mobile-context-sheet";
 import { WorkspaceGraphCanvas } from "@/components/workspace/workspace-graph-canvas";
 import { WorkspaceContextPanel } from "@/components/workspace/workspace-context-panel";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { CampaignGraphFlow, CampaignGraphNodeData } from "@/lib/graph/to-react-flow";
 
 type CampaignBrainViewProps = {
@@ -26,12 +28,13 @@ export function CampaignBrainView({
   edgeCount,
 }: CampaignBrainViewProps) {
   const { campaign, profile } = useCampaign();
+  const isMobile = useIsMobile();
   const [selectedNode, setSelectedNode] =
     React.useState<CampaignGraphNodeData | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     null,
   );
-  const [panelOpen, setPanelOpen] = React.useState(true);
+  const [panelOpen, setPanelOpen] = React.useState(false);
 
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
@@ -41,6 +44,23 @@ export function CampaignBrainView({
     },
     [],
   );
+
+  const contextPanelProps = {
+    campaign,
+    profile,
+    metrics: {
+      graphNodeCount: graph.totalNodeCount,
+      assetCount: 0,
+      taskCount: 0,
+      upcomingEventCount: 0,
+      researchBriefCount: 0,
+      prospectCount: 0,
+    },
+    graph,
+    selectedNode,
+    onClose: () => setPanelOpen(false),
+    onClearSelection: () => handleSelectNode(null, null),
+  };
 
   if (graph.totalNodeCount === 0) {
     return (
@@ -73,13 +93,23 @@ export function CampaignBrainView({
       <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-muted/10">
         {graph.truncated ? (
           <div
-            className="absolute left-3 right-3 top-3 z-20 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+            className="absolute top-3 right-3 left-3 z-20 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
             role="status"
           >
             Displaying the first {graph.nodes.length} of {graph.totalNodeCount}{" "}
             nodes for performance.
           </div>
         ) : null}
+
+        <button
+          type="button"
+          onClick={() => setPanelOpen((open) => !open)}
+          aria-label={panelOpen ? "Hide preview panel" : "Show preview panel"}
+          aria-pressed={panelOpen}
+          className="absolute top-3 right-3 z-30 flex size-9 items-center justify-center rounded-lg border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground md:hidden"
+        >
+          <PanelRight className="size-4" aria-hidden />
+        </button>
 
         <div className="absolute inset-0">
           <WorkspaceGraphCanvas
@@ -92,26 +122,11 @@ export function CampaignBrainView({
         </div>
       </section>
 
-      {panelOpen ? (
+      {panelOpen && !isMobile ? (
         <div className="hidden w-80 shrink-0 md:flex md:flex-col">
-          <WorkspaceContextPanel
-            campaign={campaign}
-            profile={profile}
-            metrics={{
-              graphNodeCount: graph.totalNodeCount,
-              assetCount: 0,
-              taskCount: 0,
-              upcomingEventCount: 0,
-              researchBriefCount: 0,
-              prospectCount: 0,
-            }}
-            graph={graph}
-            selectedNode={selectedNode}
-            onClose={() => setPanelOpen(false)}
-            onClearSelection={() => handleSelectNode(null, null)}
-          />
+          <WorkspaceContextPanel {...contextPanelProps} />
         </div>
-      ) : (
+      ) : !panelOpen && !isMobile ? (
         <button
           type="button"
           onClick={() => setPanelOpen(true)}
@@ -120,7 +135,13 @@ export function CampaignBrainView({
         >
           <Brain className="size-4" aria-hidden />
         </button>
-      )}
+      ) : null}
+
+      <MobileContextSheet
+        open={panelOpen && isMobile}
+        onOpenChange={setPanelOpen}
+        {...contextPanelProps}
+      />
     </div>
   );
 }

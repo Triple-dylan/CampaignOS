@@ -27,6 +27,7 @@ import {
 import { getCampaignFolder } from "@/lib/campaign-knowledge/folders";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const nodeTypes = {
   graphNode: GraphNodeCard,
@@ -47,8 +48,13 @@ const COMPACT_LABEL_ZOOM = 0.62;
  * the frosted breadcrumb bar at the top and the glass composer docked at the
  * bottom. Without the extra bottom space, nodes would hide behind the composer.
  */
-const FIT_VIEW_OPTIONS = {
+const DESKTOP_FIT_VIEW_OPTIONS = {
   padding: { top: "88px", right: "88px", bottom: "216px", left: "88px" },
+  duration: CAMERA_EASE_MS,
+} as const;
+
+const MOBILE_FIT_VIEW_OPTIONS = {
+  padding: { top: "72px", right: "48px", bottom: "148px", left: "48px" },
   duration: CAMERA_EASE_MS,
 } as const;
 
@@ -93,6 +99,10 @@ function WorkspaceGraphCanvasInner({
   onViewModeChange,
 }: WorkspaceGraphCanvasProps) {
   const highlighted = highlightedNodeIds ?? EMPTY_SET;
+  const isMobile = useIsMobile();
+  const fitViewOptions = isMobile
+    ? MOBILE_FIT_VIEW_OPTIONS
+    : DESKTOP_FIT_VIEW_OPTIONS;
   const { fitView, setCenter, getNode, getZoom } = useReactFlow();
   const zoom = useStore((state) => state.transform[2]);
   const compactLabels = zoom < COMPACT_LABEL_ZOOM;
@@ -237,12 +247,12 @@ function WorkspaceGraphCanvasInner({
       if (grew) {
         // Let the new node mount before fitting so it's included in the frame.
         const raf = requestAnimationFrame(() => {
-          fitView(FIT_VIEW_OPTIONS);
+          fitView(fitViewOptions);
         });
         return () => cancelAnimationFrame(raf);
       }
     }
-  }, [graph?.totalNodeCount, fitView]);
+  }, [graph?.totalNodeCount, fitView, fitViewOptions]);
 
   // Glide to the selected node (clicked on canvas, or chosen from chat / rail)
   // without changing the zoom — a gentle recenter, not a teleport.
@@ -291,7 +301,7 @@ function WorkspaceGraphCanvasInner({
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full touch-none">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -300,8 +310,8 @@ function WorkspaceGraphCanvasInner({
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         fitView
-        fitViewOptions={FIT_VIEW_OPTIONS}
-        minZoom={0.2}
+        fitViewOptions={fitViewOptions}
+        minZoom={isMobile ? 0.35 : 0.2}
         maxZoom={1.8}
         nodesConnectable={false}
         edgesFocusable={false}

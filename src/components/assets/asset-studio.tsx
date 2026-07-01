@@ -17,7 +17,10 @@ import {
   type CollectionId,
 } from "@/components/assets/studio/collections";
 import { GenerateDialog } from "@/components/assets/studio/generate-dialog";
-import { StudioCollections } from "@/components/assets/studio/studio-collections";
+import {
+  MobileCollectionPicker,
+  StudioCollections,
+} from "@/components/assets/studio/studio-collections";
 import { TemplateGallery } from "@/components/assets/studio/template-gallery";
 import {
   ViewSwitcher,
@@ -120,12 +123,22 @@ export function AssetStudio({
           <TemplateGallery onUseTemplate={handleUseTemplate} />
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">{activeCollection.label}</h2>
-              <p className="text-xs text-muted-foreground">
-                {filteredAssets.length} asset
-                {filteredAssets.length === 1 ? "" : "s"}
-              </p>
+            <div className="flex min-w-0 flex-col gap-2">
+              <MobileCollectionPicker
+                assets={assets}
+                activeCollection={collection}
+                onSelect={setCollection}
+                onCreate={() => setCreateOpen(true)}
+              />
+              <div>
+                <h2 className="hidden text-sm font-semibold lg:block">
+                  {activeCollection.label}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {filteredAssets.length} asset
+                  {filteredAssets.length === 1 ? "" : "s"}
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative">

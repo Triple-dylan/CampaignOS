@@ -633,3 +633,32 @@
     0 0 0 1px color-mix(in oklch, var(--border) 50%, transparent),
     var(--shadow-panel);
 }
+
+/* iOS safe-area insets for notched devices and home indicators. */
+:root {
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+}
+
+.pt-safe {
+  padding-top: var(--safe-area-inset-top);
+}
+
+.pr-safe {
+  padding-right: var(--safe-area-inset-right);
+}
+
+.pb-safe {
+  padding-bottom: var(--safe-area-inset-bottom);
+}
+
+.pl-safe {
+  padding-left: var(--safe-area-inset-left);
+}
+
+.px-safe {
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
+}
