@@ -1,5 +1,4 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
-import { AppHeader } from "@/components/layout/app-header";
+import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { getOnboardingData } from "@/actions/campaigns";
 import { modulePages } from "@/lib/navigation";
@@ -14,25 +13,10 @@ import {
 export default async function OnboardingPage() {
   const page = modulePages.onboarding;
   const data = await getOnboardingData();
-  const { orgId } = await auth();
-
-  let orgName: string | null = null;
-  if (orgId) {
-    try {
-      const client = await clerkClient();
-      const org = await client.organizations.getOrganization({
-        organizationId: orgId,
-      });
-      orgName = org.name;
-    } catch {
-      orgName = null;
-    }
-  }
 
   if ("error" in data) {
     return (
-      <>
-        <AppHeader title={page.title} description={page.description} />
+      <WorkPageFrame title={page.title} description={page.description}>
         <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
           <Card className="mx-auto w-full max-w-lg">
             <CardHeader>
@@ -45,23 +29,15 @@ export default async function OnboardingPage() {
             </CardContent>
           </Card>
         </div>
-      </>
+      </WorkPageFrame>
     );
   }
 
   return (
-    <>
-      <AppHeader
-        title={page.title}
-        description={
-          orgName
-            ? `Setting up ${orgName} — ${page.description}`
-            : page.description
-        }
-      />
+    <WorkPageFrame title={page.title} description={page.description}>
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <OnboardingWizard initialData={data} />
       </div>
-    </>
+    </WorkPageFrame>
   );
 }

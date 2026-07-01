@@ -16,6 +16,7 @@ import {
   getCollection,
   type CollectionId,
 } from "@/components/assets/studio/collections";
+import { ResponsiveActionGroup } from "@/components/layout/responsive-action-group";
 import { GenerateDialog } from "@/components/assets/studio/generate-dialog";
 import {
   MobileCollectionPicker,
@@ -140,8 +141,8 @@ export function AssetStudio({
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="relative w-full sm:w-auto">
                 <Search
                   className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
                   aria-hidden
@@ -151,26 +152,33 @@ export function AssetStudio({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search assets"
-                  className="h-8 w-40 rounded-lg border border-input bg-background/60 pr-2.5 pl-7 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-8 w-full rounded-lg border border-input bg-background/60 pr-2.5 pl-7 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-40"
                 />
               </div>
               <ViewSwitcher view={view} onChange={setView} />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setGenerateTemplate(null);
-                  setGenerateOpen(true);
-                }}
-              >
-                <Sparkles data-icon="inline-start" className="size-3.5" />
-                Generate
-              </Button>
-              <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
-                <Plus data-icon="inline-start" className="size-3.5" />
-                Create
-              </Button>
+              <ResponsiveActionGroup
+                primary={
+                  <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
+                    <Plus data-icon="inline-start" className="size-3.5" />
+                    Create
+                  </Button>
+                }
+                overflow={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setGenerateTemplate(null);
+                      setGenerateOpen(true);
+                    }}
+                  >
+                    <Sparkles data-icon="inline-start" className="size-3.5" />
+                    Generate
+                  </Button>
+                }
+                overflowLabel="Asset actions"
+              />
             </div>
           </div>
 

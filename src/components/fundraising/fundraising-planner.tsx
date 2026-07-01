@@ -489,7 +489,7 @@ export function FundraisingPlanner({
         </section>
       ) : null}
 
-      <section className="flex flex-wrap gap-3">
+      <section className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <FilterSelect
           label="Status"
           value={filters.status}
@@ -1079,10 +1079,10 @@ function FilterSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <select
-        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-auto"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

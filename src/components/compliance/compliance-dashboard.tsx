@@ -246,12 +246,12 @@ export function ComplianceDashboard({
       </section>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 snap-x snap-mandatory md:flex-wrap md:overflow-visible md:pb-0">
           <button
             type="button"
             onClick={() => setActiveLane("all")}
             className={cn(
-              "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              "shrink-0 snap-start rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
               activeLane === "all"
                 ? "border-primary/40 bg-primary/5 text-foreground"
                 : "border-transparent bg-card/60 text-muted-foreground hover:border-border",
@@ -269,7 +269,7 @@ export function ComplianceDashboard({
                 type="button"
                 onClick={() => setActiveLane(lane.id)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  "inline-flex shrink-0 snap-start items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
                   activeLane === lane.id
                     ? "border-primary/40 bg-primary/5 text-foreground"
                     : "border-transparent bg-card/60 text-muted-foreground hover:border-border",
