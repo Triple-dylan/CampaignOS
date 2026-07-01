@@ -43,6 +43,7 @@ import {
 } from "@/lib/db/compliance";
 import type { DbComplianceRecordWithAsset } from "@/lib/db/schema";
 import { type ComplianceReviewStatus } from "@/lib/validators/assets";
+import { MOBILE_DIALOG_CONTENT_CLASS } from "@/lib/mobile-dialog";
 import {
   COMPLIANCE_RECORD_TYPE_LABELS,
   contentTypeLabel,
