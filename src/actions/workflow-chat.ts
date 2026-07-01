@@ -2,12 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { generateAsset } from "@/actions/assets";
-import { createPlannerEvent } from "@/actions/planner";
 import { generateResearchBrief } from "@/actions/research";
-import { createCampaignTask } from "@/actions/tasks";
 import { generateCampaignTimelineContent } from "@/lib/ai/generate-campaign-timeline";
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { requireCampaignContext } from "@/lib/auth/require-campaign-context";
+import { persistCampaignTimelineItems } from "@/lib/workflows/persist-campaign-timeline";
 import type { CampaignWorkflowId } from "@/lib/workflows/registry";
 import {
   buildEventResearchTopic,
@@ -158,34 +157,10 @@ async function executeCampaignStructure(
       issues,
     });
 
-    const eventIds: string[] = [];
-    const taskIds: string[] = [];
-
-    for (const event of timeline.events) {
-      const created = await createPlannerEvent({
-        title: event.title,
-        description: event.description,
-        eventType: event.event_type,
-        startTime: event.start_time,
-        isMilestone: event.is_milestone ?? false,
-      });
-      if (created.ok && created.id) {
-        eventIds.push(created.id);
-      }
-    }
-
-    for (const task of timeline.tasks) {
-      const created = await createCampaignTask({
-        title: task.title,
-        description: task.description,
-        priority: task.priority,
-        dueDate: task.due_date ?? null,
-        status: "todo",
-      });
-      if (created.ok && created.id) {
-        taskIds.push(created.id);
-      }
-    }
+    const { eventIds, taskIds } = await persistCampaignTimelineItems({
+      events: timeline.events,
+      tasks: timeline.tasks,
+    });
 
     revalidatePath("/planner");
     revalidatePath("/tasks");

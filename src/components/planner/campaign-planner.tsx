@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { deletePlannerEvent } from "@/actions/planner";
 import { useChat } from "@/components/chat/chat-provider";
+import { GuidedTimelineDialog } from "@/components/planner/guided-timeline-dialog";
 import { EventFormDialog } from "@/components/planner/event-form-dialog";
 import {
   EventTypeBadge,
@@ -54,6 +55,12 @@ type ViewMode = "upcoming" | "all" | "milestones";
 type CampaignPlannerProps = {
   events: DbCalendarEvent[];
   approvedAssets: DbAsset[];
+  openAiConfigured: boolean;
+  timelineDefaults?: {
+    districtSegments: string;
+    issues: string;
+    electionDate: string | null;
+  };
 };
 
 function startOfWeek(date: Date): Date {
@@ -124,10 +131,13 @@ function groupEventsByMonth(events: DbCalendarEvent[]) {
 export function CampaignPlanner({
   events,
   approvedAssets,
+  openAiConfigured,
+  timelineDefaults,
 }: CampaignPlannerProps) {
   const router = useRouter();
   const { setChatRailOpen, sendMessage } = useChat();
   const [createOpen, setCreateOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<DbCalendarEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DbCalendarEvent | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("upcoming");
@@ -218,10 +228,10 @@ export function CampaignPlanner({
     });
   }
 
-  async function handleGenerateWeeklyPlan() {
+  async function handleAskInChat() {
     setChatRailOpen(true);
     await sendMessage(
-      "Generate a weekly campaign plan for this week. Include field events, voter contact goals, content deadlines, and fundraising milestones based on what's already on the calendar.",
+      "Generate a campaign timeline with district segments, key issues, and milestones for this race.",
     );
   }
 
@@ -258,9 +268,9 @@ export function CampaignPlanner({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={handleGenerateWeeklyPlan}>
+          <Button size="sm" variant="outline" onClick={() => setTimelineOpen(true)}>
             <Sparkles data-icon="inline-start" className="size-3.5" />
-            Generate weekly plan
+            Generate timeline
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus data-icon="inline-start" className="size-3.5" />
@@ -438,7 +448,7 @@ export function CampaignPlanner({
                 <Plus data-icon="inline-start" className="size-3.5" />
                 Create your first event
               </Button>
-              <Button variant="outline" size="sm" onClick={handleGenerateWeeklyPlan}>
+              <Button variant="outline" size="sm" onClick={handleAskInChat}>
                 <MessageSquarePlus data-icon="inline-start" className="size-3.5" />
                 Ask in chat
               </Button>
@@ -528,6 +538,14 @@ export function CampaignPlanner({
           ))}
         </div>
       )}
+
+      <GuidedTimelineDialog
+        open={timelineOpen}
+        onOpenChange={setTimelineOpen}
+        openAiConfigured={openAiConfigured}
+        defaults={timelineDefaults}
+        onSuccess={refresh}
+      />
 
       <EventFormDialog
         open={createOpen}

@@ -41,6 +41,8 @@ export default async function PlannerPage() {
       <CampaignPlanner
         events={result.events}
         approvedAssets={result.approvedAssets}
+        openAiConfigured={result.openAiConfigured}
+        timelineDefaults={result.defaults}
       />
     </WorkPageFrame>
   );
