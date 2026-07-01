@@ -3,15 +3,17 @@
 import * as React from "react";
 import { ArrowUp, AtSign, CalendarClock, ChevronDown, Paperclip } from "lucide-react";
 import { useChat } from "@/components/chat/chat-provider";
+import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { useAutomations } from "@/components/automations/automations-provider";
 import { AgentPicker } from "@/components/chat/agent-picker";
 import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
-  "What should we focus on this week?",
-  "Draft a stump-speech opener.",
-  "Who are our top voter segments?",
+  "Prepare for a town hall next week",
+  "Create content for our launch event",
+  "Build a campaign timeline for our district",
+  "Compare candidates in this race",
 ];
 
 type ChatDockProps = {
@@ -116,31 +118,13 @@ export function ChatDock({ composerRef }: ChatDockProps) {
                   message.role === "user" ? "justify-end" : "justify-start",
                 )}
               >
-                <div
-                  className={cn(
-                    "max-w-[88%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-card text-foreground",
-                  )}
-                >
-                  {message.pending ? (
-                    <span className="flex items-center gap-1 py-0.5">
-                      {[0, 1, 2].map((i) => (
-                        <span
-                          key={i}
-                          className="size-1.5 rounded-full bg-muted-foreground"
-                          style={{
-                            animation: "typing-bounce 1.2s ease-in-out infinite",
-                            animationDelay: `${i * 0.15}s`,
-                          }}
-                        />
-                      ))}
-                    </span>
-                  ) : (
-                    message.content
-                  )}
-                </div>
+                <ChatMessageBubble
+                  role={message.role}
+                  content={message.content}
+                  pending={message.pending}
+                  workflowProgress={message.workflowProgress}
+                  workflowPhase={message.workflowPhase}
+                />
               </div>
             ))}
           </div>

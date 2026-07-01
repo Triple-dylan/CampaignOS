@@ -5,9 +5,10 @@ import { getOpenAiModel, isOpenAiConfigured } from "@/lib/ai/config";
 import { logAiGeneration } from "@/lib/ai/log-generation";
 import { requireCampaignContext } from "@/lib/auth/require-campaign-context";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
-import { countGraphNodes } from "@/lib/db/campaigns";
+import { countGraphNodes, listGraphNodes } from "@/lib/db/campaigns";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { planHarnessTurn } from "@/lib/harness/loop";
+import { resolveRetrievalNodeIds } from "@/lib/graph/retrieval-highlights";
 
 export type ChatRole = "user" | "assistant";
 
@@ -45,6 +46,8 @@ export type SendChatMessageResult = {
   configured: boolean;
   /** Resolver-driven graph cluster highlights (not keyword guess). */
   graphFoldersToHighlight: CampaignFolderId[];
+  /** Specific node ids from resolver context paths (retrieval-aware). */
+  graphNodeIdsToHighlight: string[];
   harnessSkillId?: string;
   workflowId?: string | null;
 };
@@ -124,6 +127,7 @@ export async function sendChatMessage(input: {
       ok: true,
       configured: isOpenAiConfigured(),
       graphFoldersToHighlight: [],
+      graphNodeIdsToHighlight: [],
       reply:
         "I can't read your campaign yet — finish setting up your campaign so I can ground my answers in your race, issues, and audiences.",
     };
@@ -138,11 +142,19 @@ export async function sendChatMessage(input: {
     campaignPath: "workspace",
   });
 
+  const graphNodes = await listGraphNodes(context.campaign.id).catch(() => []);
+  const graphNodeIdsToHighlight = resolveRetrievalNodeIds({
+    nodes: graphNodes,
+    contextPaths: harnessPlan.resolver.plan.contextPaths,
+    graphFolders: harnessPlan.resolver.graphFoldersToHighlight,
+  });
+
   if (!isOpenAiConfigured()) {
     return {
       ok: true,
       configured: false,
       graphFoldersToHighlight: harnessPlan.resolver.graphFoldersToHighlight,
+      graphNodeIdsToHighlight,
       harnessSkillId: harnessPlan.resolver.plan.skillId,
       workflowId: harnessPlan.resolver.plan.workflowId ?? null,
       reply: cannedReply({ agentMode, campaignName, userText }),
@@ -155,6 +167,7 @@ export async function sendChatMessage(input: {
       ok: true,
       configured: false,
       graphFoldersToHighlight: harnessPlan.resolver.graphFoldersToHighlight,
+      graphNodeIdsToHighlight,
       harnessSkillId: harnessPlan.resolver.plan.skillId,
       workflowId: harnessPlan.resolver.plan.workflowId ?? null,
       reply: cannedReply({ agentMode, campaignName, userText }),
@@ -223,6 +236,7 @@ export async function sendChatMessage(input: {
         harnessSkillId: harnessPlan.resolver.plan.skillId,
         workflowId: harnessPlan.resolver.plan.workflowId,
         graphFolders: harnessPlan.resolver.graphFoldersToHighlight,
+        graphNodeIds: graphNodeIdsToHighlight,
       },
       outputText: reply,
       tokensInput: response.usage?.prompt_tokens ?? null,
@@ -237,6 +251,7 @@ export async function sendChatMessage(input: {
     reply,
     configured: true,
     graphFoldersToHighlight: harnessPlan.resolver.graphFoldersToHighlight,
+    graphNodeIdsToHighlight,
     harnessSkillId: harnessPlan.resolver.plan.skillId,
     workflowId: harnessPlan.resolver.plan.workflowId ?? null,
   };

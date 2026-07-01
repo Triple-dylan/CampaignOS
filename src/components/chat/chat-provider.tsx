@@ -7,7 +7,9 @@ import {
   type ChatTurn,
 } from "@/actions/chat";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
-import { resolveGraphFoldersClient } from "@/lib/harness/resolver-client";
+import { resolveHarnessPlanClient } from "@/lib/harness/resolver-client";
+import type { WorkflowPhase } from "@/lib/workflows/chat-machine";
+import { useWorkflowRun } from "@/hooks/use-workflow-run";
 
 export type ChatMessage = {
   id: string;
@@ -15,6 +17,8 @@ export type ChatMessage = {
   content: string;
   createdAt: number;
   pending?: boolean;
+  workflowProgress?: string;
+  workflowPhase?: WorkflowPhase;
 };
 
 export type ChatThread = {
@@ -47,6 +51,10 @@ type ChatContextValue = {
    * Falls back to client resolver while a message is in flight.
    */
   graphFoldersToHighlight: CampaignFolderId[];
+  /** Resolver-driven specific node ids (retrieval-aware). */
+  graphNodeIdsToHighlight: string[];
+  /** Resolver context paths for optimistic retrieval highlights. */
+  harnessContextPaths: string[];
   setAgentMode: (mode: AgentMode) => void;
   sendMessage: (text: string) => Promise<void>;
 };
@@ -95,7 +103,15 @@ export function ChatProvider({
   const [graphFoldersToHighlight, setGraphFoldersToHighlight] = React.useState<
     CampaignFolderId[]
   >([]);
+  const [graphNodeIdsToHighlight, setGraphNodeIdsToHighlight] = React.useState<
+    string[]
+  >([]);
+  const [harnessContextPaths, setHarnessContextPaths] = React.useState<
+    string[]
+  >([]);
   const [isChatRailOpen, setChatRailOpen] = React.useState(true);
+  const { handleMessage: handleWorkflowMessage } = useWorkflowRun();
+
   const toggleChatRail = React.useCallback(
     () => setChatRailOpen((open) => !open),
     [],
@@ -123,7 +139,6 @@ export function ChatProvider({
       const trimmed = text.trim();
       if (!trimmed || isSending) return;
 
-      // Ensure there is an active thread to append to.
       let threadId = activeThreadId;
       if (!threadId || !threads.some((t) => t.id === threadId)) {
         threadId = createThread();
@@ -142,6 +157,7 @@ export function ChatProvider({
         content: "",
         createdAt: Date.now(),
         pending: true,
+        workflowProgress: "Working…",
       };
 
       let historyForRequest: ChatTurn[] = [];
@@ -167,16 +183,79 @@ export function ChatProvider({
       );
 
       setIsSending(true);
-      setGraphFoldersToHighlight(
-        resolveGraphFoldersClient(trimmed, agentMode),
-      );
+      const optimisticPlan = resolveHarnessPlanClient(trimmed, agentMode);
+      setGraphFoldersToHighlight(optimisticPlan.graphFolders);
+      setHarnessContextPaths(optimisticPlan.contextPaths);
+      setGraphNodeIdsToHighlight([]);
+
+      const updatePending = (patch: Partial<ChatMessage>) => {
+        setThreads((prev) =>
+          prev.map((thread) => {
+            if (thread.id !== threadId) return thread;
+            return {
+              ...thread,
+              messages: thread.messages.map((m) =>
+                m.id === pendingId ? { ...m, ...patch } : m,
+              ),
+            };
+          }),
+        );
+      };
+
       try {
+        const workflowResult = await handleWorkflowMessage({
+          threadId: threadId!,
+          text: trimmed,
+          onProgress: (state) => {
+            updatePending({
+              pending: true,
+              workflowProgress: state.progressLabel,
+              workflowPhase: state.phase,
+            });
+            setGraphFoldersToHighlight(
+              resolveHarnessPlanClient(trimmed, agentMode).graphFolders,
+            );
+          },
+        });
+
+        if (workflowResult.handled) {
+          setGraphFoldersToHighlight(workflowResult.graphFolders);
+          setGraphNodeIdsToHighlight([]);
+          setHarnessContextPaths(
+            resolveHarnessPlanClient(trimmed, agentMode).contextPaths,
+          );
+          setThreads((prev) =>
+            prev.map((thread) => {
+              if (thread.id !== threadId) return thread;
+              return {
+                ...thread,
+                messages: thread.messages.map((m) =>
+                  m.id === pendingId
+                    ? {
+                        ...m,
+                        content: workflowResult.reply,
+                        pending: false,
+                        workflowProgress: workflowResult.state?.progressLabel,
+                        workflowPhase: workflowResult.state?.phase,
+                      }
+                    : m,
+                ),
+              };
+            }),
+          );
+          return;
+        }
+
         const result = await sendChatMessage({
           messages: historyForRequest,
           agentMode,
         });
         setAiConfigured(result.configured);
         setGraphFoldersToHighlight(result.graphFoldersToHighlight);
+        setGraphNodeIdsToHighlight(result.graphNodeIdsToHighlight);
+        setHarnessContextPaths(
+          resolveHarnessPlanClient(trimmed, agentMode).contextPaths,
+        );
         setThreads((prev) =>
           prev.map((thread) => {
             if (thread.id !== threadId) return thread;
@@ -184,7 +263,13 @@ export function ChatProvider({
               ...thread,
               messages: thread.messages.map((m) =>
                 m.id === pendingId
-                  ? { ...m, content: result.reply, pending: false }
+                  ? {
+                      ...m,
+                      content: result.reply,
+                      pending: false,
+                      workflowProgress: undefined,
+                      workflowPhase: undefined,
+                    }
                   : m,
               ),
             };
@@ -202,6 +287,8 @@ export function ChatProvider({
                   ? {
                       ...m,
                       pending: false,
+                      workflowProgress: "Workflow error",
+                      workflowPhase: "error",
                       content:
                         "Something went wrong reaching the assistant. Please try again.",
                     }
@@ -214,7 +301,14 @@ export function ChatProvider({
         setIsSending(false);
       }
     },
-    [activeThreadId, agentMode, createThread, isSending, threads],
+    [
+      activeThreadId,
+      agentMode,
+      createThread,
+      handleWorkflowMessage,
+      isSending,
+      threads,
+    ],
   );
 
   const activeThread =
@@ -229,6 +323,8 @@ export function ChatProvider({
       isSending,
       aiConfigured,
       graphFoldersToHighlight,
+      graphNodeIdsToHighlight,
+      harnessContextPaths,
       isChatRailOpen,
       setChatRailOpen,
       toggleChatRail,
@@ -245,6 +341,8 @@ export function ChatProvider({
       isSending,
       aiConfigured,
       graphFoldersToHighlight,
+      graphNodeIdsToHighlight,
+      harnessContextPaths,
       isChatRailOpen,
       toggleChatRail,
       createThread,

@@ -1,5 +1,6 @@
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import {
+  contextPathsForSkill,
   graphFoldersForSkill,
   WORKFLOW_GRAPH_FOLDERS,
 } from "@/lib/harness/skill-folders";
@@ -77,14 +78,21 @@ function matchTriggers(message: string, triggers: string[]): boolean {
   return triggers.some((trigger) => message.includes(trigger.toLowerCase()));
 }
 
+export type ClientHarnessPlan = {
+  skillId: string;
+  workflowId: CampaignWorkflowId | null;
+  graphFolders: CampaignFolderId[];
+  contextPaths: string[];
+};
+
 /**
- * Client-safe graph folder resolution (no RESOLVER.md fs read).
- * Server-side chat uses resolveCampaignContext for the authoritative plan.
+ * Client-safe harness plan (no RESOLVER.md fs read).
+ * Mirrors server resolver for optimistic graph highlights while a turn is in flight.
  */
-export function resolveGraphFoldersClient(
+export function resolveHarnessPlanClient(
   userMessage: string,
   agentMode: HarnessAgentMode = "campaign-manager",
-): CampaignFolderId[] {
+): ClientHarnessPlan {
   const message = normalizeMessage(userMessage);
 
   let workflowId: CampaignWorkflowId | null = null;
@@ -114,5 +122,21 @@ export function resolveGraphFoldersClient(
     }
   }
 
-  return [...folders];
+  return {
+    skillId,
+    workflowId,
+    graphFolders: [...folders],
+    contextPaths: contextPathsForSkill(skillId),
+  };
+}
+
+/**
+ * Client-safe graph folder resolution (no RESOLVER.md fs read).
+ * Server-side chat uses resolveCampaignContext for the authoritative plan.
+ */
+export function resolveGraphFoldersClient(
+  userMessage: string,
+  agentMode: HarnessAgentMode = "campaign-manager",
+): CampaignFolderId[] {
+  return resolveHarnessPlanClient(userMessage, agentMode).graphFolders;
 }

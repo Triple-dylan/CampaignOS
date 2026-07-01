@@ -19,6 +19,7 @@ import type {
 } from "@/lib/graph/to-react-flow";
 import { useDynamicCampaignGraph } from "@/lib/graph/dynamic-graph";
 import { nodeIdsForFolders } from "@/lib/graph/folder-clusters";
+import { resolveRetrievalNodeIdsFromFlow } from "@/lib/graph/retrieval-highlights";
 import type {
   DbCampaign,
   DbCampaignProfile,
@@ -167,16 +168,30 @@ function useGraphActivityHighlights(
 }
 
 /**
- * Node ids for resolver-driven graph folder highlights from chat.
+ * Node ids for resolver-driven graph highlights from chat.
+ * Prefers specific retrieval node ids over whole-folder BFS seeds.
  */
-function useResolverGraphNodeIds(
+function useResolverGraphSeeds(
   graph: CampaignGraphFlow | null,
   graphFolders: import("@/lib/campaign-knowledge/types").CampaignFolderId[],
+  graphNodeIds: string[],
+  contextPaths: string[],
 ): string[] {
   return React.useMemo(() => {
-    if (!graph || graphFolders.length === 0) return [];
+    if (!graph) return [];
+
+    const nodeIdSet = new Set(graph.nodes.map((node) => node.id));
+    const serverIds = graphNodeIds.filter((id) => nodeIdSet.has(id));
+    if (serverIds.length > 0) return serverIds;
+
+    const retrievalIds = resolveRetrievalNodeIdsFromFlow(graph.nodes, {
+      contextPaths,
+      graphFolders,
+    });
+    if (retrievalIds.length > 0) return retrievalIds;
+
     return [...nodeIdsForFolders(graph.nodes, graphFolders)];
-  }, [graph, graphFolders]);
+  }, [graph, graphFolders, graphNodeIds, contextPaths]);
 }
 
 export function WorkspaceHome({
@@ -190,7 +205,7 @@ export function WorkspaceHome({
   liveSeed = null,
   growthSteps = [],
 }: WorkspaceHomeProps) {
-  const { isSending, activeThread, graphFoldersToHighlight } = useChat();
+  const { isSending, graphFoldersToHighlight, graphNodeIdsToHighlight, harnessContextPaths } = useChat();
   const { toggleRailMobile } = useWorkspaceShell();
   const [selectedNode, setSelectedNode] =
     React.useState<CampaignGraphNodeData | null>(null);
@@ -216,9 +231,11 @@ export function WorkspaceHome({
 
   // Hold the "thinking" pass on long enough to be visible even for fast replies.
   const thinkingActive = useMinimumActive(isSending, 1800);
-  const topicNodeIds = useResolverGraphNodeIds(
+  const topicNodeIds = useResolverGraphSeeds(
     activeGraph,
     graphFoldersToHighlight,
+    graphNodeIdsToHighlight,
+    harnessContextPaths,
   );
   const activationIds = useGraphActivityHighlights(
     activeGraph,
