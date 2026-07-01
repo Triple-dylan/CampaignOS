@@ -3,9 +3,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { ensureOrganizationSynced } from "@/actions/organizations";
-import { generateAssetContent } from "@/lib/ai/generate-asset";
+import { generateAssetContent, generateAssetDraftContents } from "@/lib/ai/generate-asset";
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { getSocialAssetTemplate } from "@/lib/assets/social-templates";
+import { writeAssetToCampaignKnowledge } from "@/lib/campaign-knowledge/asset-sync";
 import { canApproveAssets } from "@/lib/auth/permissions";
 import {
   createAsset,
@@ -27,6 +28,7 @@ import { linkAssetToCampaignGraph } from "@/lib/db/graph";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { getMemberRoleForUser } from "@/lib/db/members";
 import { getUserByClerkId } from "@/lib/db/users";
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
 import {
   createAssetSchema,
   defaultChannelForAssetType,
@@ -352,6 +354,126 @@ export async function generateAsset(
   }
 }
 
+export type AssetDraftPreviewResult =
+  | { ok: true; drafts: AssetGenerationOutput[] }
+  | {
+      ok: false;
+      error: string;
+      code?: "missing_openai" | "validation" | "generation_failed";
+    };
+
+export async function previewAssetDrafts(
+  request: GenerateAssetRequest,
+): Promise<AssetDraftPreviewResult> {
+  const context = await requireAssetContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: "validation" };
+  }
+
+  if (!isOpenAiConfigured()) {
+    return {
+      ok: false,
+      error:
+        "OpenAI is not configured. Add OPENAI_API_KEY to generate assets with AI.",
+      code: "missing_openai",
+    };
+  }
+
+  const parsedRequest = generateAssetRequestSchema.safeParse(request);
+  if (!parsedRequest.success) {
+    return {
+      ok: false,
+      error: parsedRequest.error.issues[0]?.message ?? "Invalid request",
+      code: "validation",
+    };
+  }
+
+  try {
+    const drafts = await generateAssetDraftContents({
+      campaign: context.campaign,
+      profile: context.profile,
+      campaignId: context.campaign.id,
+      userId: context.dbUserId,
+      request: parsedRequest.data,
+      draftCount: 3,
+    });
+    return { ok: true, drafts };
+  } catch (error) {
+    console.error("[previewAssetDrafts]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Asset generation failed. Please try again.",
+      code: "generation_failed",
+    };
+  }
+}
+
+export async function saveAssetFromDraft(input: {
+  draft: AssetGenerationOutput;
+  assetType: M7AssetType;
+  channel?: string;
+  templateId?: string;
+}): Promise<AssetActionResult> {
+  const context = await requireAssetContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: context.code };
+  }
+
+  const channel =
+    input.draft.channel ??
+    input.channel ??
+    defaultChannelForAssetType(input.assetType);
+
+  const assetInput = createAssetSchema.parse({
+    campaignId: context.campaign.id,
+    assetType: input.assetType,
+    title: input.draft.title,
+    contentText: input.draft.content,
+    theme: input.draft.theme,
+    issue: input.draft.issue,
+    channel,
+    status: "draft",
+    aiGenerated: true,
+    createdBy: context.dbUserId,
+  });
+
+  try {
+    const result = await createAsset(assetInput);
+    if (!result.asset) {
+      return {
+        ok: false,
+        error: "Database is not configured. Asset was not saved.",
+        code: "missing_campaign",
+      };
+    }
+
+    await finalizeNewAsset({
+      campaignId: context.campaign.id,
+      candidateName: campaignDisplayName(context.campaign),
+      assetId: result.asset.id,
+      assetTitle: result.asset.title,
+      assetType: input.assetType,
+      aiGenerated: true,
+      channel,
+      theme: input.draft.theme,
+      issue: input.draft.issue,
+      templateUsed: input.templateId ?? null,
+    });
+
+    revalidatePath("/assets");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return { ok: true, assetId: result.asset.id };
+  } catch (error) {
+    console.error("[saveAssetFromDraft]", error);
+    return { ok: false, error: "Failed to save asset draft." };
+  }
+}
+
 export async function generateAssetFromTemplate(input: {
   templateId: string;
   provider: "canva" | "higgsfield";
@@ -552,7 +674,15 @@ export async function approveAsset(
       reviewedBy: context.dbUserId,
     });
 
+    await writeAssetToCampaignKnowledge({
+      organizationId: context.campaign.organization_id,
+      campaignId: context.campaign.id,
+      asset: result.asset,
+      status: "approved",
+    });
+
     revalidatePath("/assets");
+    revalidatePath("/brain");
     return { ok: true, assetId };
   } catch (error) {
     console.error("[approveAsset]", error);

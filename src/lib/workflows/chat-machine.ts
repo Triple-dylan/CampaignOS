@@ -1,3 +1,4 @@
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
 import type { CampaignWorkflowId } from "@/lib/workflows/registry";
 import { getCampaignWorkflow } from "@/lib/workflows/registry";
 import {
@@ -9,6 +10,7 @@ import {
 export type WorkflowPhase =
   | "collecting"
   | "generating"
+  | "previewing"
   | "saving"
   | "complete"
   | "error";
@@ -22,6 +24,8 @@ export type WorkflowRunState = {
   error?: string;
   artifactLink?: string;
   artifactLabel?: string;
+  /** Content-creation draft previews before save. */
+  drafts?: AssetGenerationOutput[];
 };
 
 export type WorkflowAssistantReply = {
@@ -40,7 +44,9 @@ function progressLabelForPhase(
       case "incumbent-research":
         return "Generating report…";
       case "content-creation":
-        return "Generating draft…";
+        return "Generating drafts…";
+      case "content-calendar":
+        return "Generating content calendar…";
       case "campaign-structure":
         return "Generating timeline…";
     }
@@ -52,10 +58,13 @@ function progressLabelForPhase(
         return "Saving to Research…";
       case "content-creation":
         return "Saving to Asset Studio…";
+      case "content-calendar":
+        return "Saving to Planner…";
       case "campaign-structure":
         return "Saving to Planner and Tasks…";
     }
   }
+  if (phase === "previewing") return "Review drafts…";
   if (phase === "complete") return "Workflow complete";
   if (phase === "error") return "Workflow error";
 
@@ -74,6 +83,7 @@ export function startWorkflowRun(
   if (
     workflowId === "event-research" ||
     workflowId === "content-creation" ||
+    workflowId === "content-calendar" ||
     workflowId === "incumbent-research"
   ) {
     fields.intent = initialMessage.trim();
@@ -141,8 +151,59 @@ export function promptForCurrentStep(state: WorkflowRunState): string {
   ].join("\n");
 }
 
+export function markPreviewing(input: {
+  state: WorkflowRunState;
+  drafts: AssetGenerationOutput[];
+}): WorkflowAssistantReply {
+  const lines = [
+    "**Content drafts ready**",
+    "",
+    "Review the options below. Reply **save** for draft 1, **save 2** or **save 3** for another, or **cancel** to exit.",
+    "",
+  ];
+
+  input.drafts.forEach((draft, index) => {
+    lines.push(
+      `### Draft ${index + 1}: ${draft.title}`,
+      draft.content.slice(0, 400) + (draft.content.length > 400 ? "…" : ""),
+      "",
+    );
+  });
+
+  return {
+    content: lines.join("\n"),
+    state: {
+      ...input.state,
+      phase: "previewing",
+      drafts: input.drafts,
+      progressLabel: "Review drafts…",
+    },
+  };
+}
+
+export function parseDraftSelection(message: string): number | null {
+  const normalized = message.trim().toLowerCase();
+  if (normalized === "save" || normalized === "save 1" || normalized === "save draft 1") {
+    return 0;
+  }
+  const match = normalized.match(/save(?: draft)?\s*(\d)/);
+  if (match) {
+    const index = Number(match[1]) - 1;
+    return index >= 0 ? index : null;
+  }
+  return null;
+}
+
+export function isPreviewConfirmMessage(message: string): boolean {
+  return parseDraftSelection(message) !== null;
+}
+
 export function readyToExecute(state: WorkflowRunState): boolean {
   return state.phase === "generating";
+}
+
+export function readyToPreview(state: WorkflowRunState): boolean {
+  return state.phase === "generating" && state.workflowId === "content-creation";
 }
 
 export function markSaving(state: WorkflowRunState): WorkflowRunState {

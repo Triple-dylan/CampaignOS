@@ -5,6 +5,8 @@ import {
   resolveAssetKnowledgeFolder,
   resolveEventKnowledgeFolder,
 } from "@/lib/graph/folder-routing";
+import { buildEntityGraphMetadata } from "@/lib/graph/entity-metadata";
+import { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";
 import type { CalendarEventType } from "@/lib/validators/calendar-events";
 import {
   graphNodeTypeSchema,
@@ -137,12 +139,27 @@ export async function seedCampaignGraphNodes(input: {
   const results = [];
 
   for (const node of nodes) {
+    const folder =
+      node.type === "candidate"
+        ? "campaign"
+        : node.type === "issue"
+          ? "messaging"
+          : "people";
+    const path =
+      node.type === "candidate"
+        ? "campaign/profile.md"
+        : `${folder}/${slugifyKnowledgeTitle(node.title)}.md`;
+
     const result = await createGraphNode({
       campaignId: input.campaignId,
       nodeType: node.type,
       title: node.title,
       summary: node.summary,
-      metadata: { source: "onboarding" },
+      metadata: buildEntityGraphMetadata({
+        folder,
+        path,
+        source: "onboarding",
+      }),
     });
     results.push(result);
   }
@@ -274,7 +291,11 @@ export async function enrichCampaignBrainGraph(input: {
       nodeType: "candidate",
       title: input.candidateName,
       summary: "Campaign candidate",
-      metadata: { source: "onboarding" },
+    metadata: buildEntityGraphMetadata({
+      folder: "campaign",
+      path: "campaign/profile.md",
+      source: "onboarding",
+    }),
     });
     if (created.node) {
       candidateNode = created.node;
@@ -292,7 +313,12 @@ export async function enrichCampaignBrainGraph(input: {
         nodeType: "issue",
         title: entry.issue,
         summary: entry.strategicNotes,
-        metadata: { source: BRAIN_GRAPH_SOURCE },
+        metadata: buildEntityGraphMetadata({
+          folder: "messaging",
+          path: `messaging/${slugifyKnowledgeTitle(entry.issue)}.md`,
+          source: BRAIN_GRAPH_SOURCE,
+          extra: { issue: entry.issue },
+        }),
       });
       if (created.node) {
         issueNode = created.node;
@@ -322,10 +348,12 @@ export async function enrichCampaignBrainGraph(input: {
         nodeType: "message_theme",
         title: message,
         summary: `Priority message for ${entry.issue}`,
-        metadata: {
+        metadata: buildEntityGraphMetadata({
+          folder: "messaging",
+          path: `messaging/${slugifyKnowledgeTitle(message)}.md`,
           source: BRAIN_GRAPH_SOURCE,
-          issue: entry.issue,
-        },
+          extra: { issue: entry.issue },
+        }),
       });
 
       if (messageNodeResult.node) {
@@ -346,7 +374,12 @@ export async function enrichCampaignBrainGraph(input: {
       nodeType: "message_theme",
       title: message,
       summary: "Core campaign message from Campaign Brain",
-      metadata: { source: BRAIN_GRAPH_SOURCE, scope: "key_message" },
+      metadata: buildEntityGraphMetadata({
+        folder: "messaging",
+        path: `messaging/${slugifyKnowledgeTitle(message)}.md`,
+        source: BRAIN_GRAPH_SOURCE,
+        extra: { scope: "key_message" },
+      }),
     });
 
     if (messageNodeResult.node && candidateNode) {
@@ -367,7 +400,11 @@ export async function enrichCampaignBrainGraph(input: {
       nodeType: "strategic_priority",
       title: priority.title,
       summary: priority.description,
-      metadata: { source: BRAIN_GRAPH_SOURCE },
+      metadata: buildEntityGraphMetadata({
+        folder: "initiatives",
+        path: `initiatives/${slugifyKnowledgeTitle(priority.title)}.md`,
+        source: BRAIN_GRAPH_SOURCE,
+      }),
     });
 
     if (priorityNodeResult.node && candidateNode) {
@@ -464,6 +501,8 @@ export async function linkAssetToCampaignGraph(input: {
       source: "asset_studio",
       assetType: input.assetType,
       folder,
+      path: `${folder}/${slugifyKnowledgeTitle(input.assetTitle)}.md`,
+      knowledgeKind: "entity",
       channel: input.channel ?? null,
       templateUsed: input.templateUsed ?? null,
     },
@@ -648,7 +687,8 @@ export async function linkContentCalendarToCampaignGraph(input: {
     metadata: {
       source: "content_calendar",
       folder: "social-media",
-      knowledgePath: "social-media/content-calendar.md",
+      path: "social-media/content-calendar.md",
+      knowledgeKind: "document",
     },
   });
 
@@ -694,7 +734,12 @@ export async function linkTaskToCampaignGraph(input: {
     summary: `Task (${input.status})`,
     sourceObjectType: "task",
     sourceObjectId: input.taskId,
-    metadata: { source: "tasks", status: input.status },
+    metadata: buildEntityGraphMetadata({
+      folder: "initiatives",
+      path: `initiatives/${slugifyKnowledgeTitle(input.taskTitle)}.md`,
+      source: "tasks",
+      extra: { status: input.status },
+    }),
   });
 
   if (!taskNodeResult.node) {
@@ -772,7 +817,12 @@ export async function linkResearchToCampaignGraph(input: {
     summary: `${input.researchType} research brief`,
     sourceObjectType: "research_brief",
     sourceObjectId: input.briefId,
-    metadata: { source: "research_hub", researchType: input.researchType },
+    metadata: buildEntityGraphMetadata({
+      folder: "research",
+      path: `research/${slugifyKnowledgeTitle(input.briefTitle)}.md`,
+      source: "research_hub",
+      extra: { researchType: input.researchType },
+    }),
   });
 
   if (!researchNodeResult.node) {

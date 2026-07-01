@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { generateAsset } from "@/actions/assets";
+import { previewAssetDrafts, saveAssetFromDraft } from "@/actions/assets";
 import { generateResearchBrief } from "@/actions/research";
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
 import { generateContentCalendarContent } from "@/lib/ai/generate-content-calendar";
 import { generateCampaignTimelineContent } from "@/lib/ai/generate-campaign-timeline";
 import { isOpenAiConfigured } from "@/lib/ai/config";
@@ -33,15 +34,55 @@ export type ExecuteWorkflowResult =
       code?: "missing_openai" | "missing_campaign" | "generation_failed";
     };
 
+export type PreviewWorkflowResult =
+  | { ok: true; drafts: AssetGenerationOutput[] }
+  | {
+      ok: false;
+      error: string;
+      code?: "missing_openai" | "missing_campaign" | "generation_failed";
+    };
+
+export async function previewChatWorkflow(input: {
+  workflowId: CampaignWorkflowId;
+  fields: WorkflowFields;
+}): Promise<PreviewWorkflowResult> {
+  if (input.workflowId !== "content-creation") {
+    return { ok: false, error: "Preview is only supported for content creation." };
+  }
+
+  const combined = [input.fields.intent, input.fields.theme].filter(Boolean).join(". ");
+  const assetType = inferAssetTypeFromText(combined);
+  const { theme, issue, channel } = extractThemeAndIssue(input.fields.theme ?? "");
+
+  const result = await previewAssetDrafts({
+    assetType,
+    theme,
+    issue,
+    channel,
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error,
+      code: result.code === "missing_openai" ? "missing_openai" : "generation_failed",
+    };
+  }
+
+  return { ok: true, drafts: result.drafts };
+}
+
 export async function executeChatWorkflow(input: {
   workflowId: CampaignWorkflowId;
   fields: WorkflowFields;
+  draftIndex?: number;
+  drafts?: AssetGenerationOutput[];
 }): Promise<ExecuteWorkflowResult> {
   switch (input.workflowId) {
     case "event-research":
       return executeEventResearch(input.fields);
     case "content-creation":
-      return executeContentCreation(input.fields);
+      return executeContentCreation(input.fields, input.draftIndex, input.drafts);
     case "content-calendar":
       return executeContentCalendar(input.fields);
     case "campaign-structure":
@@ -99,15 +140,29 @@ async function executeIncumbentResearch(
 
 async function executeContentCreation(
   fields: WorkflowFields,
+  draftIndex = 0,
+  drafts?: AssetGenerationOutput[],
 ): Promise<ExecuteWorkflowResult> {
   const combined = [fields.intent, fields.theme].filter(Boolean).join(". ");
   const assetType = inferAssetTypeFromText(combined);
   const { theme, issue, channel } = extractThemeAndIssue(fields.theme ?? "");
 
-  const result = await generateAsset({
+  let selectedDraft = drafts?.[draftIndex];
+  if (!selectedDraft) {
+    const preview = await previewAssetDrafts({ assetType, theme, issue, channel });
+    if (!preview.ok) {
+      return mapActionError(preview);
+    }
+    selectedDraft = preview.drafts[draftIndex] ?? preview.drafts[0];
+  }
+
+  if (!selectedDraft) {
+    return { ok: false, error: "No draft available to save.", code: "generation_failed" };
+  }
+
+  const result = await saveAssetFromDraft({
+    draft: selectedDraft,
     assetType,
-    theme,
-    issue,
     channel,
   });
 
@@ -117,8 +172,11 @@ async function executeContentCreation(
 
   return {
     ok: true,
-    summary:
-      "Your content draft is saved in Asset Studio for review and approval.",
+    summary: [
+      `Saved draft ${draftIndex + 1} to Asset Studio for review and approval.`,
+      selectedDraft.content.slice(0, 280) +
+        (selectedDraft.content.length > 280 ? "…" : ""),
+    ].join("\n\n"),
     artifactLink: `/assets?assetId=${result.assetId}`,
     artifactLabel: "Asset Studio",
     artifactIds: [result.assetId],
@@ -163,6 +221,7 @@ async function executeContentCalendar(
     });
 
     const { eventIds } = await persistContentCalendar({
+      organizationId: context.campaign.organization_id,
       campaign: context.campaign,
       createdBy: context.dbUserId,
       candidateName: campaignDisplayName(context.campaign),

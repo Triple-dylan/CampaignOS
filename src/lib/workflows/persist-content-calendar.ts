@@ -1,4 +1,12 @@
 import type { ContentCalendarOutput } from "@/lib/ai/schemas/content-calendar";
+import {
+  appendKnowledgeLog,
+  buildContentCalendarKnowledgePage,
+  writeKnowledgePage,
+} from "@/lib/campaign-knowledge/write";
+import { buildCampaignKnowledgeRoot } from "@/lib/campaign-knowledge/paths";
+import { syncKnowledgeAfterWrite } from "@/lib/campaign-knowledge/sync-after-write";
+import { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";
 import { listGraphNodes } from "@/lib/db/campaigns";
 import {
   getGraphNodeBySourceObject,
@@ -8,6 +16,7 @@ import type { DbCampaign } from "@/lib/db/schema";
 import { persistPlannerEvent } from "@/lib/planner/persist-event";
 
 export async function persistContentCalendar(input: {
+  organizationId: string;
   campaign: DbCampaign;
   createdBy: string | null;
   candidateName: string;
@@ -15,6 +24,7 @@ export async function persistContentCalendar(input: {
 }) {
   const eventIds: string[] = [];
   const contentEventNodeIds: string[] = [];
+  const slotPaths: string[] = [];
 
   for (const slot of input.calendar.slots) {
     const description = [
@@ -38,6 +48,9 @@ export async function persistContentCalendar(input: {
 
     if (created.ok) {
       eventIds.push(created.eventId);
+      slotPaths.push(
+        `social-media/${slugifyKnowledgeTitle(slot.title)}.md`,
+      );
 
       const graphNode = await getGraphNodeBySourceObject({
         campaignId: input.campaign.id,
@@ -58,6 +71,32 @@ export async function persistContentCalendar(input: {
     candidateName: input.candidateName,
     contentEventNodeIds,
     existingNodes,
+  });
+
+  const root = buildCampaignKnowledgeRoot({
+    organizationId: input.organizationId,
+    campaignId: input.campaign.id,
+  });
+  const calendarPage = buildContentCalendarKnowledgePage({
+    calendarTitle: input.calendar.calendar_title,
+    summary: input.calendar.summary,
+    slotPaths,
+  });
+  const calendarPath = await writeKnowledgePage({
+    root,
+    folder: "social-media",
+    slug: calendarPage.slug,
+    frontmatter: calendarPage.frontmatter,
+    body: calendarPage.body,
+  });
+  await appendKnowledgeLog({
+    root,
+    summary: `Content calendar saved: ${input.calendar.calendar_title}`,
+    pagesTouched: [calendarPath, ...slotPaths],
+  });
+  await syncKnowledgeAfterWrite({
+    organizationId: input.organizationId,
+    campaignId: input.campaign.id,
   });
 
   return { eventIds, contentEventNodeIds };

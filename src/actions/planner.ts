@@ -353,6 +353,7 @@ export async function generatePlannerContentCalendar(input: {
     });
 
     const { eventIds } = await persistContentCalendar({
+      organizationId: context.campaign.organization_id,
       campaign: context.campaign,
       createdBy: context.dbUserId,
       candidateName: campaignDisplayName(context.campaign),

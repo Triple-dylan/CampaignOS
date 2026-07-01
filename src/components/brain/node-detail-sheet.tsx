@@ -69,6 +69,21 @@ export function NodeDetailSheet({
                   </p>
                 </div>
               ) : null}
+              {node.folder || node.knowledgePath ? (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Knowledge
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {node.knowledgePath ?? `${node.folder}/`}
+                  </p>
+                  {node.knowledgeKind ? (
+                    <p className="mt-1 text-xs capitalize text-muted-foreground">
+                      {node.knowledgeKind.replace(/_/g, " ")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {sourceLink ? (
               <SheetFooter>
