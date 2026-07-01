@@ -2,11 +2,17 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import {
+  Calendar,
+  FileText,
   LayoutGrid,
+  Lightbulb,
   List,
   Loader2,
+  MapPin,
   Pencil,
+  PiggyBank,
   Plus,
+  ShieldCheck,
   SquareCheckBig,
   Trash2,
 } from "lucide-react";
@@ -47,17 +53,38 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/validators/tasks";
+import { cn } from "@/lib/utils";
 
 const TASK_STATUSES = taskStatusSchema.options;
 const TASK_PRIORITIES = taskPrioritySchema.options;
 
 type ViewMode = "list" | "kanban";
 
+type WorkflowCategory =
+  | "all"
+  | "field"
+  | "content"
+  | "fundraising"
+  | "compliance"
+  | "research";
+
+const WORKFLOW_TABS: Array<{
+  id: WorkflowCategory;
+  label: string;
+  icon: typeof MapPin;
+}> = [
+  { id: "all", label: "All", icon: SquareCheckBig },
+  { id: "field", label: "Field", icon: MapPin },
+  { id: "content", label: "Content", icon: FileText },
+  { id: "fundraising", label: "Fundraising", icon: PiggyBank },
+  { id: "compliance", label: "Compliance", icon: ShieldCheck },
+  { id: "research", label: "Research", icon: Lightbulb },
+];
+
 type TaskBoardProps = {
   tasks: DbTask[];
   approvedAssets: DbAsset[];
   events: DbCalendarEvent[];
-  /** Deep-link from graph — opens the matching task editor. */
   initialTaskId?: string | null;
 };
 
@@ -72,6 +99,99 @@ function formatDueDate(value: string | null): string {
   });
 }
 
+function inferWorkflowCategory(task: DbTask): Exclude<WorkflowCategory, "all"> {
+  if (task.related_event_id) return "field";
+  if (task.related_asset_id) return "content";
+  if (task.related_prospect_id) return "fundraising";
+  if (task.related_research_id) return "research";
+
+  const text = `${task.title} ${task.description ?? ""}`.toLowerCase();
+  if (/compliance|disclosure|fec|legal|review queue/.test(text)) {
+    return "compliance";
+  }
+  if (/fundraising|donor|call time|pledge|prospect/.test(text)) {
+    return "fundraising";
+  }
+  if (/field|canvass|door|volunteer|gotv|knock/.test(text)) {
+    return "field";
+  }
+  if (/research|brief|opposition|intel/.test(text)) {
+    return "research";
+  }
+  if (/content|asset|post|mailer|graphic|social/.test(text)) {
+    return "content";
+  }
+  return "field";
+}
+
+type TaskSourceLink = {
+  type: "asset" | "event" | "research" | "prospect";
+  label: string;
+};
+
+function getTaskSourceLinks(
+  task: DbTask,
+  assetTitleById: Map<string, string>,
+  eventTitleById: Map<string, string>,
+): TaskSourceLink[] {
+  const links: TaskSourceLink[] = [];
+  if (task.related_asset_id) {
+    links.push({
+      type: "asset",
+      label: assetTitleById.get(task.related_asset_id) ?? "Linked asset",
+    });
+  }
+  if (task.related_event_id) {
+    links.push({
+      type: "event",
+      label: eventTitleById.get(task.related_event_id) ?? "Linked event",
+    });
+  }
+  if (task.related_research_id) {
+    links.push({ type: "research", label: "Research brief" });
+  }
+  if (task.related_prospect_id) {
+    links.push({ type: "prospect", label: "Fundraising prospect" });
+  }
+  return links;
+}
+
+const SOURCE_ICONS = {
+  asset: FileText,
+  event: Calendar,
+  research: Lightbulb,
+  prospect: PiggyBank,
+} as const;
+
+const SOURCE_LABELS = {
+  asset: "Asset",
+  event: "Event",
+  research: "Research",
+  prospect: "Prospect",
+} as const;
+
+function TaskSourceBadges({ links }: { links: TaskSourceLink[] }) {
+  if (links.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {links.map((link) => {
+        const Icon = SOURCE_ICONS[link.type];
+        return (
+          <span
+            key={`${link.type}-${link.label}`}
+            className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-0.5 text-[0.65rem] font-medium text-muted-foreground"
+          >
+            <Icon className="size-3 shrink-0" aria-hidden />
+            <span className="text-foreground/80">{SOURCE_LABELS[link.type]}</span>
+            <span className="truncate text-muted-foreground">· {link.label}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TaskBoard({
   tasks,
   approvedAssets,
@@ -80,6 +200,7 @@ export function TaskBoard({
 }: TaskBoardProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [workflowFilter, setWorkflowFilter] = useState<WorkflowCategory>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [editTask, setEditTask] = useState<DbTask | null>(
     () => tasks.find((task) => task.id === initialTaskId) ?? null,
@@ -103,12 +224,33 @@ export function TaskBoard({
     [events],
   );
 
+  const workflowCounts = useMemo(() => {
+    const counts: Record<WorkflowCategory, number> = {
+      all: tasks.length,
+      field: 0,
+      content: 0,
+      fundraising: 0,
+      compliance: 0,
+      research: 0,
+    };
+    for (const task of tasks) {
+      counts[inferWorkflowCategory(task)] += 1;
+    }
+    return counts;
+  }, [tasks]);
+
   const filteredTasks = useMemo(() => {
     const now = new Date();
     const weekAhead = new Date(now);
     weekAhead.setDate(weekAhead.getDate() + 7);
 
     return tasks.filter((task) => {
+      if (
+        workflowFilter !== "all" &&
+        inferWorkflowCategory(task) !== workflowFilter
+      ) {
+        return false;
+      }
       if (statusFilter !== "all" && task.status !== statusFilter) return false;
       if (priorityFilter !== "all" && task.priority !== priorityFilter) {
         return false;
@@ -127,7 +269,7 @@ export function TaskBoard({
       }
       return true;
     });
-  }, [tasks, statusFilter, priorityFilter, dueFilter]);
+  }, [tasks, workflowFilter, statusFilter, priorityFilter, dueFilter]);
 
   const tasksByStatus = useMemo(() => {
     const map = new Map<TaskStatus, DbTask[]>();
@@ -178,49 +320,70 @@ export function TaskBoard({
     });
   }
 
-  function renderTaskLinks(task: DbTask) {
-    const links: string[] = [];
-    if (task.related_asset_id) {
-      links.push(
-        `Asset: ${assetTitleById.get(task.related_asset_id) ?? "Linked"}`,
-      );
-    }
-    if (task.related_event_id) {
-      links.push(
-        `Event: ${eventTitleById.get(task.related_event_id) ?? "Linked"}`,
-      );
-    }
-    if (links.length === 0) return null;
-    return (
-      <p className="text-xs text-muted-foreground">{links.join(" · ")}</p>
-    );
-  }
-
   return (
-    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant={viewMode === "list" ? "default" : "outline"}
-            onClick={() => setViewMode("list")}
-          >
-            <List data-icon="inline-start" className="size-3.5" />
-            List
-          </Button>
-          <Button
-            size="sm"
-            variant={viewMode === "kanban" ? "default" : "outline"}
-            onClick={() => setViewMode("kanban")}
-          >
-            <LayoutGrid data-icon="inline-start" className="size-3.5" />
-            Kanban
+    <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-1.5">
+          {WORKFLOW_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const count =
+              tab.id === "all" ? workflowCounts.all : workflowCounts[tab.id];
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setWorkflowFilter(tab.id)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  workflowFilter === tab.id
+                    ? "border-primary/40 bg-primary/5 text-foreground shadow-sm"
+                    : "border-transparent bg-card/60 text-muted-foreground hover:border-border hover:text-foreground",
+                )}
+              >
+                <Icon className="size-3.5" aria-hidden />
+                {tab.label}
+                <span className="tabular-nums text-[0.65rem] opacity-70">
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border border-border bg-card/60 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                viewMode === "list"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <List className="size-3.5" aria-hidden />
+              List
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("kanban")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                viewMode === "kanban"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <LayoutGrid className="size-3.5" aria-hidden />
+              Kanban
+            </button>
+          </div>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus data-icon="inline-start" className="size-3.5" />
+            New task
           </Button>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus data-icon="inline-start" className="size-3.5" />
-          New task
-        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -275,81 +438,89 @@ export function TaskBoard({
       ) : null}
 
       {filteredTasks.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <SquareCheckBig className="size-4 text-muted-foreground" />
-              <CardTitle>No tasks yet</CardTitle>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="glass-card w-full max-w-2xl rounded-2xl border border-border p-8 text-center">
+            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl border border-border bg-card/70">
+              <SquareCheckBig className="size-6 text-muted-foreground" aria-hidden />
             </div>
-            <CardDescription>
-              Create tasks for field prep, content reviews, fundraising follow-ups,
-              and other campaign work.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => setCreateOpen(true)}>
+            <h2 className="font-heading text-lg font-semibold">No tasks yet</h2>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+              Create tasks for field prep, content reviews, fundraising
+              follow-ups, and other campaign work.
+            </p>
+            <Button className="mt-6" onClick={() => setCreateOpen(true)}>
               <Plus data-icon="inline-start" className="size-3.5" />
               Create your first task
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : viewMode === "list" ? (
         <div className="grid gap-3">
-          {filteredTasks.map((task) => (
-            <Card key={task.id}>
-              <CardHeader className="pb-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <CardTitle className="text-base">{task.title}</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <TaskStatusBadge status={task.status} />
-                    <TaskPriorityBadge priority={task.priority} />
+          {filteredTasks.map((task) => {
+            const sourceLinks = getTaskSourceLinks(
+              task,
+              assetTitleById,
+              eventTitleById,
+            );
+            return (
+              <Card
+                key={task.id}
+                className="transition-shadow hover:shadow-[var(--glass-shadow-pop)]"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <CardTitle className="text-base">{task.title}</CardTitle>
+                    <div className="flex flex-wrap gap-2">
+                      <TaskStatusBadge status={task.status} />
+                      <TaskPriorityBadge priority={task.priority} />
+                    </div>
                   </div>
-                </div>
-                <CardDescription>Due {formatDueDate(task.due_date)}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {task.description ? (
-                  <p className="text-sm text-muted-foreground">
-                    {task.description}
-                  </p>
-                ) : null}
-                {renderTaskLinks(task)}
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    className={`${SELECT_CLASS} max-w-[10rem]`}
-                    value={task.status}
-                    onChange={(e) =>
-                      changeStatus(task.id, e.target.value as TaskStatus)
-                    }
-                    disabled={isPending}
-                    aria-label={`Change status for ${task.title}`}
-                  >
-                    {TASK_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {TASK_STATUS_LABELS[status]}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setEditTask(task)}
-                  >
-                    <Pencil data-icon="inline-start" className="size-3.5" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setDeleteTarget(task)}
-                  >
-                    <Trash2 data-icon="inline-start" className="size-3.5" />
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <CardDescription>Due {formatDueDate(task.due_date)}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {task.description ? (
+                    <p className="text-sm text-muted-foreground">
+                      {task.description}
+                    </p>
+                  ) : null}
+                  <TaskSourceBadges links={sourceLinks} />
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      className={`${SELECT_CLASS} max-w-[10rem]`}
+                      value={task.status}
+                      onChange={(e) =>
+                        changeStatus(task.id, e.target.value as TaskStatus)
+                      }
+                      disabled={isPending}
+                      aria-label={`Change status for ${task.title}`}
+                    >
+                      {TASK_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {TASK_STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditTask(task)}
+                    >
+                      <Pencil data-icon="inline-start" className="size-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDeleteTarget(task)}
+                    >
+                      <Trash2 data-icon="inline-start" className="size-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -363,49 +534,56 @@ export function TaskBoard({
                   {(tasksByStatus.get(status) ?? []).length}
                 </span>
               </div>
-              <div className="flex min-h-32 flex-col gap-2 rounded-lg border bg-muted/20 p-2">
-                {(tasksByStatus.get(status) ?? []).map((task) => (
-                  <Card key={task.id} className="shadow-sm">
-                    <CardHeader className="gap-1 p-3 pb-2">
-                      <CardTitle className="text-sm leading-snug">
-                        {task.title}
-                      </CardTitle>
-                      <div className="flex flex-wrap gap-1">
-                        <TaskPriorityBadge priority={task.priority} />
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2 p-3 pt-0">
-                      <p className="text-xs text-muted-foreground">
-                        Due {formatDueDate(task.due_date)}
-                      </p>
-                      {renderTaskLinks(task)}
-                      <div className="flex flex-wrap gap-1">
-                        {KANBAN_STATUSES.filter((s) => s !== status).map(
-                          (nextStatus) => (
-                            <Button
-                              key={nextStatus}
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2 text-xs"
-                              disabled={isPending}
-                              onClick={() => changeStatus(task.id, nextStatus)}
-                            >
-                              → {TASK_STATUS_LABELS[nextStatus]}
-                            </Button>
-                          ),
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => setEditTask(task)}
-                        >
-                          Edit
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="glass-card flex min-h-32 flex-col gap-2 rounded-xl border border-border p-2">
+                {(tasksByStatus.get(status) ?? []).map((task) => {
+                  const sourceLinks = getTaskSourceLinks(
+                    task,
+                    assetTitleById,
+                    eventTitleById,
+                  );
+                  return (
+                    <Card key={task.id} className="shadow-sm">
+                      <CardHeader className="gap-1 p-3 pb-2">
+                        <CardTitle className="text-sm leading-snug">
+                          {task.title}
+                        </CardTitle>
+                        <div className="flex flex-wrap gap-1">
+                          <TaskPriorityBadge priority={task.priority} />
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-2 p-3 pt-0">
+                        <p className="text-xs text-muted-foreground">
+                          Due {formatDueDate(task.due_date)}
+                        </p>
+                        <TaskSourceBadges links={sourceLinks} />
+                        <div className="flex flex-wrap gap-1">
+                          {KANBAN_STATUSES.filter((s) => s !== status).map(
+                            (nextStatus) => (
+                              <Button
+                                key={nextStatus}
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={isPending}
+                                onClick={() => changeStatus(task.id, nextStatus)}
+                              >
+                                → {TASK_STATUS_LABELS[nextStatus]}
+                              </Button>
+                            ),
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setEditTask(task)}
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           ))}

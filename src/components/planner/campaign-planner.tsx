@@ -3,8 +3,12 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
   Loader2,
   MapPin,
+  MessageSquarePlus,
   Pencil,
   Plus,
   Sparkles,
@@ -12,6 +16,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { deletePlannerEvent } from "@/actions/planner";
+import { useChat } from "@/components/chat/chat-provider";
 import { EventFormDialog } from "@/components/planner/event-form-dialog";
 import {
   EventTypeBadge,
@@ -40,6 +45,7 @@ import {
   calendarEventTypeSchema,
   type CalendarEventType,
 } from "@/lib/validators/calendar-events";
+import { cn } from "@/lib/utils";
 
 const EVENT_TYPES = calendarEventTypeSchema.options;
 
@@ -49,6 +55,29 @@ type CampaignPlannerProps = {
   events: DbCalendarEvent[];
   approvedAssets: DbAsset[];
 };
+
+function startOfWeek(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
 function formatEventDateTime(start: string, end: string | null): string {
   const startDate = new Date(start);
@@ -97,6 +126,7 @@ export function CampaignPlanner({
   approvedAssets,
 }: CampaignPlannerProps) {
   const router = useRouter();
+  const { setChatRailOpen, sendMessage } = useChat();
   const [createOpen, setCreateOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<DbCalendarEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DbCalendarEvent | null>(null);
@@ -104,12 +134,38 @@ export function CampaignPlanner({
   const [eventTypeFilter, setEventTypeFilter] = useState<CalendarEventType | "all">(
     "all",
   );
+  const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const assetTitleById = useMemo(() => {
     return new Map(approvedAssets.map((asset) => [asset.id, asset.title]));
   }, [approvedAssets]);
+
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekAnchor, i)),
+    [weekAnchor],
+  );
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, DbCalendarEvent[]>();
+    for (const event of events) {
+      const date = new Date(event.start_time);
+      if (Number.isNaN(date.getTime())) continue;
+      const key = date.toDateString();
+      const list = map.get(key) ?? [];
+      list.push(event);
+      map.set(key, list);
+    }
+    return map;
+  }, [events]);
 
   const filteredEvents = useMemo(() => {
     const now = new Date();
@@ -121,17 +177,26 @@ export function CampaignPlanner({
       if (viewMode === "milestones" && !event.is_milestone) {
         return false;
       }
+      if (selectedDay) {
+        const start = new Date(event.start_time);
+        if (!isSameDay(start, selectedDay)) return false;
+      }
       if (viewMode === "upcoming") {
         const start = new Date(event.start_time);
         return !Number.isNaN(start.getTime()) && start >= now;
       }
       return true;
     });
-  }, [events, eventTypeFilter, viewMode]);
+  }, [events, eventTypeFilter, viewMode, selectedDay]);
 
   const groupedEvents = useMemo(
     () => groupEventsByMonth(filteredEvents),
     [filteredEvents],
+  );
+
+  const milestoneEvents = useMemo(
+    () => events.filter((e) => e.is_milestone),
+    [events],
   );
 
   const refresh = useCallback(() => {
@@ -153,40 +218,47 @@ export function CampaignPlanner({
     });
   }
 
+  async function handleGenerateWeeklyPlan() {
+    setChatRailOpen(true);
+    await sendMessage(
+      "Generate a weekly campaign plan for this week. Include field events, voter contact goals, content deadlines, and fundraising milestones based on what's already on the calendar.",
+    );
+  }
+
+  const weekLabel = `${weekDays[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekDays[6].toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+
   return (
-    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant={viewMode === "upcoming" ? "default" : "outline"}
-            onClick={() => setViewMode("upcoming")}
-          >
-            Upcoming
-          </Button>
-          <Button
-            size="sm"
-            variant={viewMode === "all" ? "default" : "outline"}
-            onClick={() => setViewMode("all")}
-          >
-            All events
-          </Button>
-          <Button
-            size="sm"
-            variant={viewMode === "milestones" ? "default" : "outline"}
-            onClick={() => setViewMode("milestones")}
-          >
-            Milestones
-          </Button>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="inline-flex rounded-lg border border-border bg-card/60 p-0.5">
+          {(
+            [
+              ["upcoming", "Upcoming"],
+              ["all", "All events"],
+              ["milestones", "Milestones"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => {
+                setViewMode(mode);
+                setSelectedDay(null);
+              }}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                viewMode === mode
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled
-            title="Coming soon"
-          >
+          <Button size="sm" variant="outline" onClick={handleGenerateWeeklyPlan}>
             <Sparkles data-icon="inline-start" className="size-3.5" />
             Generate weekly plan
           </Button>
@@ -196,6 +268,128 @@ export function CampaignPlanner({
           </Button>
         </div>
       </div>
+
+      <section className="glass-card rounded-xl border border-border p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Week of {weekLabel}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="size-7 p-0"
+              onClick={() => setWeekAnchor((w) => addDays(w, -7))}
+              aria-label="Previous week"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                setWeekAnchor(startOfWeek(new Date()));
+                setSelectedDay(null);
+              }}
+            >
+              Today
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="size-7 p-0"
+              onClick={() => setWeekAnchor((w) => addDays(w, 7))}
+              aria-label="Next week"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {weekDays.map((day) => {
+            const dayEvents = eventsByDay.get(day.toDateString()) ?? [];
+            const isToday = isSameDay(day, today);
+            const isSelected = selectedDay ? isSameDay(day, selectedDay) : false;
+            const hasMilestone = dayEvents.some((e) => e.is_milestone);
+
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() =>
+                  setSelectedDay((current) =>
+                    current && isSameDay(current, day) ? null : day,
+                  )
+                }
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-lg border px-1 py-2 text-center transition-all",
+                  isSelected
+                    ? "border-primary/50 bg-primary/5 shadow-sm"
+                    : "border-transparent hover:border-border hover:bg-card/60",
+                  isToday && !isSelected && "ring-1 ring-primary/30",
+                )}
+              >
+                <span className="text-[0.65rem] font-medium uppercase text-muted-foreground">
+                  {day.toLocaleDateString(undefined, { weekday: "short" })}
+                </span>
+                <span
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                    isToday && "bg-primary text-primary-foreground",
+                  )}
+                >
+                  {day.getDate()}
+                </span>
+                <div className="flex h-3 items-center justify-center gap-0.5">
+                  {dayEvents.length > 0 ? (
+                    <>
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full",
+                          hasMilestone ? "bg-amber-500" : "bg-primary/70",
+                        )}
+                      />
+                      {dayEvents.length > 1 ? (
+                        <span className="text-[0.6rem] text-muted-foreground">
+                          +{dayEvents.length - 1}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="size-1.5" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {milestoneEvents.length > 0 && viewMode !== "milestones" ? (
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <Flag className="size-3.5" aria-hidden />
+            Upcoming milestones
+          </h3>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {milestoneEvents.slice(0, 5).map((event) => (
+              <button
+                key={event.id}
+                type="button"
+                onClick={() => setEditEvent(event)}
+                className="glass-card shrink-0 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-left transition-all hover:-translate-y-px hover:shadow-md"
+              >
+                <p className="text-sm font-medium">{event.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {formatEventDateTime(event.start_time, event.end_time)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-muted-foreground" htmlFor="event-type-filter">
@@ -216,27 +410,41 @@ export function CampaignPlanner({
             </option>
           ))}
         </select>
+        {selectedDay ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs"
+            onClick={() => setSelectedDay(null)}
+          >
+            Clear day filter
+          </Button>
+        ) : null}
       </div>
 
       {filteredEvents.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Calendar className="size-4 text-muted-foreground" />
-              <CardTitle>No events yet</CardTitle>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="glass-card w-full max-w-2xl rounded-2xl border border-border p-8 text-center">
+            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl border border-border bg-card/70">
+              <Calendar className="size-6 text-muted-foreground" aria-hidden />
             </div>
-            <CardDescription>
+            <h2 className="font-heading text-lg font-semibold">No events yet</h2>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
               Add field events, fundraisers, compliance deadlines, and campaign
               milestones to your planner.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus data-icon="inline-start" className="size-3.5" />
-              Create your first event
-            </Button>
-          </CardContent>
-        </Card>
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus data-icon="inline-start" className="size-3.5" />
+                Create your first event
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleGenerateWeeklyPlan}>
+                <MessageSquarePlus data-icon="inline-start" className="size-3.5" />
+                Ask in chat
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="space-y-8">
           {groupedEvents.map(([month, monthEvents]) => (
@@ -246,11 +454,23 @@ export function CampaignPlanner({
               </h3>
               <div className="grid gap-3">
                 {monthEvents.map((event) => (
-                  <Card key={event.id}>
+                  <Card
+                    key={event.id}
+                    className={cn(
+                      "transition-shadow hover:shadow-[var(--glass-shadow-pop)]",
+                      event.is_milestone &&
+                        "border-amber-500/25 bg-amber-500/[0.03]",
+                    )}
+                  >
                     <CardHeader className="pb-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="space-y-1">
-                          <CardTitle className="text-base">{event.title}</CardTitle>
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            {event.is_milestone ? (
+                              <Flag className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                            ) : null}
+                            {event.title}
+                          </CardTitle>
                           <CardDescription>
                             {formatEventDateTime(event.start_time, event.end_time)}
                           </CardDescription>

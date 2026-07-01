@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   Loader2,
   Pencil,
+  Phone,
   PiggyBank,
   Plus,
   Sparkles,
@@ -63,6 +64,16 @@ import {
   type ProspectType,
 } from "@/lib/validators/fundraising";
 import type { ProspectOutreachOutput } from "@/lib/ai/schemas/fundraising";
+import { cn } from "@/lib/utils";
+
+const PIPELINE_STAGES = [
+  "research",
+  "not_contacted",
+  "contacted",
+  "follow_up",
+  "pledged",
+  "donated",
+] as const satisfies readonly ProspectStatus[];
 
 type FundraisingPlannerProps = {
   plan: DbFundraisingPlan | null;
@@ -196,6 +207,9 @@ export function FundraisingPlanner({
   const [editNotes, setEditNotes] = useState("");
   const [editOutreachText, setEditOutreachText] = useState("");
   const [aiDraft, setAiDraft] = useState<string | null>(null);
+  const [callTimeMode, setCallTimeMode] = useState(false);
+  const [callTimeProspect, setCallTimeProspect] =
+    useState<DbFundraisingProspect | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -229,6 +243,18 @@ export function FundraisingPlanner({
   }, [prospects, filters]);
 
   const milestones = milestonesList(plan);
+
+  const pipelineCounts = useMemo(() => {
+    const counts = new Map<ProspectStatus, number>();
+    for (const stage of PIPELINE_STAGES) {
+      counts.set(stage, 0);
+    }
+    for (const prospect of prospects) {
+      const status = prospect.status as ProspectStatus;
+      counts.set(status, (counts.get(status) ?? 0) + 1);
+    }
+    return counts;
+  }, [prospects]);
 
   const refresh = useCallback(() => {
     router.refresh();
@@ -275,9 +301,33 @@ export function FundraisingPlanner({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {prospects.length} prospect{prospects.length === 1 ? "" : "s"} in
+          pipeline
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant={callTimeMode ? "default" : "outline"}
+            onClick={() => {
+              setCallTimeMode((on) => !on);
+              setCallTimeProspect(null);
+            }}
+          >
+            <Phone data-icon="inline-start" className="size-3.5" />
+            Call time
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus data-icon="inline-start" className="size-4" />
+            Add prospect
+          </Button>
+        </div>
+      </div>
+
       <section>
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
               <CardTitle>Fundraising plan</CardTitle>
@@ -321,20 +371,19 @@ export function FundraisingPlanner({
             </dl>
 
             {progress.effectiveGoal != null && progress.effectiveGoal > 0 ? (
-              <div className="space-y-2">
+              <div className="glass-card space-y-2 rounded-xl border border-border p-3">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    {formatCurrency(progress.raisedAmount)} raised
+                  <span>{formatCurrency(progress.raisedAmount)} raised</span>
+                  <span className="font-medium text-foreground">
+                    {progress.progressPercent ?? 0}% of goal
                   </span>
-                  <span>
-                    {formatCurrency(progress.effectiveGoal)} goal
-                  </span>
+                  <span>{formatCurrency(progress.effectiveGoal)} goal</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-2.5 overflow-hidden rounded-full bg-muted/80 ring-1 ring-border/50">
                   <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all"
                     style={{
-                      width: `${progress.progressPercent ?? 0}%`,
+                      width: `${Math.min(progress.progressPercent ?? 0, 100)}%`,
                     }}
                   />
                 </div>
@@ -389,18 +438,47 @@ export function FundraisingPlanner({
         </Card>
       </section>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {prospects.length} prospect{prospects.length === 1 ? "" : "s"} in
-            pipeline
+      {prospects.length > 0 ? (
+        <section className="glass-card rounded-xl border border-border p-3">
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Pipeline stages
           </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus data-icon="inline-start" className="size-4" />
-          Add prospect
-        </Button>
-      </div>
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {PIPELINE_STAGES.map((stage, index) => {
+              const count = pipelineCounts.get(stage) ?? 0;
+              return (
+                <div key={stage} className="flex min-w-0 flex-1 items-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFilters((current) => ({ ...current, status: stage }))
+                    }
+                    className={cn(
+                      "flex min-w-[4.5rem] flex-1 flex-col items-center gap-1 rounded-lg border px-2 py-2 text-center transition-colors",
+                      filters.status === stage
+                        ? "border-primary/40 bg-primary/5"
+                        : "border-transparent hover:border-border hover:bg-card/60",
+                    )}
+                  >
+                    <span className="text-lg font-semibold tabular-nums">
+                      {count}
+                    </span>
+                    <span className="line-clamp-2 text-[0.6rem] font-medium leading-tight text-muted-foreground">
+                      {PROSPECT_STATUS_LABELS[stage]}
+                    </span>
+                  </button>
+                  {index < PIPELINE_STAGES.length - 1 ? (
+                    <div
+                      className="mx-0.5 hidden h-px w-2 shrink-0 bg-border sm:block"
+                      aria-hidden
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="flex flex-wrap gap-3">
         <FilterSelect
@@ -456,25 +534,134 @@ export function FundraisingPlanner({
       </section>
 
       {filteredProspects.length === 0 ? (
-        <Card className="border-dashed">
-          <CardHeader className="items-center text-center">
-            <div className="mb-2 flex size-12 items-center justify-center rounded-full bg-muted">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="glass-card w-full max-w-2xl rounded-2xl border border-border p-8 text-center">
+            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl border border-border bg-card/70">
               <PiggyBank className="size-6 text-muted-foreground" />
             </div>
-            <CardTitle>No prospects yet</CardTitle>
-            <CardDescription>
+            <h2 className="font-heading text-lg font-semibold">No prospects yet</h2>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
               Build your donor pipeline with capacity estimates, issue alignment,
-              and follow-up tasks. Each prospect creates a graph node linked to
-              your campaign.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center pb-6">
-            <Button onClick={() => setCreateOpen(true)}>
+              and follow-up tasks.
+            </p>
+            <Button className="mt-6" onClick={() => setCreateOpen(true)}>
               <Plus data-icon="inline-start" className="size-4" />
               Add your first prospect
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      ) : callTimeMode ? (
+        <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+          <div className="glass-card flex flex-col gap-2 overflow-y-auto rounded-xl border border-border p-2">
+            <p className="px-2 pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Call list
+            </p>
+            {filteredProspects.map((prospect) => (
+              <button
+                key={prospect.id}
+                type="button"
+                onClick={() => setCallTimeProspect(prospect)}
+                className={cn(
+                  "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                  callTimeProspect?.id === prospect.id
+                    ? "border-primary/40 bg-primary/5"
+                    : "border-transparent hover:border-border hover:bg-card/60",
+                )}
+              >
+                <p className="text-sm font-medium">{prospect.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {prospect.phone?.trim() || prospect.email?.trim() || "No contact"}
+                  {prospect.estimated_capacity != null
+                    ? ` · ${formatCurrency(prospect.estimated_capacity)}`
+                    : ""}
+                </p>
+              </button>
+            ))}
+          </div>
+
+          <div className="glass-card flex flex-col rounded-xl border border-border p-4">
+            {callTimeProspect ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-semibold">
+                      {callTimeProspect.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {callTimeProspect.organization_name?.trim() ||
+                        "Individual donor"}
+                    </p>
+                  </div>
+                  <ProspectStatusBadge status={callTimeProspect.status} />
+                </div>
+                <div className="flex-1 space-y-3 rounded-lg border border-dashed border-border bg-muted/20 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Call script (stub)
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    Hi {callTimeProspect.name.split(" ")[0]}, this is [your name]
+                    with the campaign. I wanted to share why we&apos;re running and
+                    ask for your support
+                    {callTimeProspect.related_issue
+                      ? ` on ${callTimeProspect.related_issue}`
+                      : ""}
+                    .
+                  </p>
+                  {callTimeProspect.alignment_reason ? (
+                    <p className="text-sm text-foreground/80">
+                      <span className="font-medium">Talking point: </span>
+                      {callTimeProspect.alignment_reason}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Full AI-generated scripts available in prospect detail. Select
+                    a prospect and use &ldquo;AI draft outreach&rdquo; for a
+                    personalized script.
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openProspectDetail(callTimeProspect)}
+                  >
+                    Open full detail
+                  </Button>
+                  {openAiConfigured ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isPending}
+                      onClick={() => {
+                        openProspectDetail(callTimeProspect);
+                        startTransition(async () => {
+                          const result = await generateProspectOutreach({
+                            prospectId: callTimeProspect.id,
+                            channel: "phone",
+                          });
+                          if (result.ok) {
+                            setAiDraft(formatOutreachDraft(result.outreach));
+                          }
+                        });
+                      }}
+                    >
+                      <Sparkles data-icon="inline-start" className="size-3.5" />
+                      Generate script
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+                <Phone className="size-8 text-muted-foreground/50" aria-hidden />
+                <p className="text-sm font-medium">Select a prospect</p>
+                <p className="max-w-xs text-xs text-muted-foreground">
+                  Choose someone from the call list to see a script panel stub.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
       ) : (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredProspects.map((prospect) => {
@@ -482,7 +669,7 @@ export function FundraisingPlanner({
             return (
               <Card
                 key={prospect.id}
-                className="cursor-pointer transition-colors hover:bg-muted/30"
+                className="cursor-pointer transition-shadow hover:shadow-[var(--glass-shadow-pop)]"
                 onClick={() => openProspectDetail(prospect)}
               >
                 <CardHeader className="pb-3">

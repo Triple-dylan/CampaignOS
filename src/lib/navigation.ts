@@ -47,7 +47,7 @@ export const workflowsNav: ReadonlyArray<NavItem> = [
   { title: "Planner", href: "/planner", icon: ClipboardList },
   { title: "Tasks", href: "/tasks", icon: SquareCheckBig },
   { title: "Compliance", href: "/compliance", icon: ShieldCheck },
-  { title: "Automations", href: "/automations", icon: CalendarClock },
+  { title: "Command center", href: "/automations", icon: CalendarClock },
 ];
 
 export const customizeNav: ReadonlyArray<NavItem> = [
@@ -125,9 +125,9 @@ export const modulePages = {
     phase: 7,
   },
   automations: {
-    title: "Automations",
+    title: "Command center",
     description:
-      "Recurring agent workflows — weekly plans, compliance checks, and outreach drafts.",
+      "Scheduled agent runs, planner summaries, compliance queue, and run history.",
     phase: 4,
   },
   settings: {
