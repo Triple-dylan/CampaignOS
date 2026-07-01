@@ -8,6 +8,25 @@ GitHub repo: **https://github.com/Triple-dylan/CampaignOS**
 
 ---
 
+## Automation status (2026-06-30)
+
+| Step | Status |
+|------|--------|
+| Vercel CLI auth | Logged in as **triple-dylan** (`VERCEL_TOKEN` not set locally; CLI session used) |
+| Production Clerk env on Vercel | **Synced** from `.env.local` via `vercel env add` (keys are still **`pk_test` / `sk_test`**) |
+| `NEXT_PUBLIC_APP_URL` (Production) | **`https://campaignos-sigma.vercel.app`** |
+| Clerk paths on Vercel | `/sign-in`, `/sign-up`, after sign-in/up `/auth/after-sign-in`, sign-out `/` |
+| Clerk Backend API | **`PATCH /v1/instance`** — `allowed_origins` includes `https://campaignos-sigma.vercel.app` |
+| Clerk redirect URLs (API) | Added `https://campaignos-sigma.vercel.app` and `…/auth/after-sign-in` |
+| `CLERK_WEBHOOK_SECRET` (Production) | **Not set** — empty in `.env.local`; configure in Clerk + Vercel when webhooks are needed |
+| Production redeploy | **`vercel deploy --prod`** (deployment `dpl_8TVmpGDmLUBSzkqfjazbxvBsQBQu`) |
+| Post-deploy smoke | `/` **200**, `/sign-in` **200**, `/dashboard` (signed out) **307** → `/sign-in` |
+| Code: `src/proxy.ts` | Uses `NEXT_PUBLIC_CLERK_SIGN_IN_URL` for `auth.protect` redirect (no change required) |
+
+**Auth on production today:** Works for **development** Clerk keys with Vercel hostname allowed via API. For a true production Clerk instance (stricter cookies, live billing, etc.), you still need **`pk_live` / `sk_live`** in Vercel (see below).
+
+---
+
 ## Vercel — Git integration & deploy author
 
 ### GitHub auto-deploy
@@ -37,7 +56,7 @@ Do **not** change global git config (`~/.gitconfig`) unless you intend to for al
 **Alternative:** deploy without Git author checks:
 
 ```bash
-vercel deploy --prod
+npx vercel@latest deploy --prod
 ```
 
 ### Production environment variables
@@ -52,44 +71,46 @@ Confirm in [Vercel → campaignos → Settings → Environment Variables](https:
 | `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | `/auth/after-sign-in` |
 | `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | `/auth/after-sign-in` |
 | `NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL` | `/` |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **`pk_live_…`** (not `pk_test_…`) |
-| `CLERK_SECRET_KEY` | **`sk_live_…`** (not `sk_test_…`) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **`pk_live_…`** for long-term production (currently **`pk_test_…`** if using dev instance) |
+| `CLERK_SECRET_KEY` | **`sk_live_…`** for long-term production (currently **`sk_test_…`** if using dev instance) |
+| `CLERK_WEBHOOK_SECRET` | From Clerk webhook endpoint (not set yet) |
 | Supabase vars | Production project keys |
 
-After changing env vars, redeploy Production (Git push or `vercel deploy --prod`).
+After changing env vars, redeploy Production (Git push or `npx vercel@latest deploy --prod`).
 
 ---
 
 ## Clerk — production domain & keys
 
-### Symptom
+### Symptom (historical)
 
-Unauthenticated `GET /dashboard` returns **404** with headers such as:
+Unauthenticated `GET /dashboard` could return **404** with headers such as:
 
 - `x-clerk-auth-status: signed-out`
 - `x-clerk-auth-reason: protect-rewrite, dev-browser-missing`
 
-This happens when Production uses **development** Clerk keys (`pk_test_` / `sk_test_`) and/or the Vercel hostname is not allowed in Clerk.
+This happened when Production used **development** Clerk keys (`pk_test_` / `sk_test_`) and/or the Vercel hostname was not allowed in Clerk.
 
-### Required dashboard steps
+### Automated via Clerk Backend API (2026-06-30)
 
-1. **Domains** — [Clerk Dashboard → Configure → Domains](https://dashboard.clerk.com/last-active?path=domains):
-   - Add **`campaignos-sigma.vercel.app`** (and any custom domain later).
-   - For development instances, add the hostname under allowed origins / satellite domains per Clerk’s prompt for your plan.
+With a valid `CLERK_SECRET_KEY`, the following were applied programmatically:
 
-2. **Production instance** — [Clerk Dashboard → API Keys](https://dashboard.clerk.com/last-active?path=api-keys):
-   - Switch to **Production**.
-   - Copy **Publishable key** (`pk_live_…`) and **Secret key** (`sk_live_…`).
-   - Update Vercel Production env vars (see table above). Redeploy.
+- Instance `allowed_origins`: `https://campaignos-sigma.vercel.app`
+- Redirect URLs: production origin and `/auth/after-sign-in`
 
-3. **Paths** (usually match `.env.example`):
-   - Sign-in URL: `/sign-in`
-   - Sign-up URL: `/sign-up`
-   - After sign-in / sign-up: `/auth/after-sign-in`
+Re-run only if you create a new Clerk application or change domains.
 
-4. **Webhooks** (org sync) — [Clerk → Webhooks](https://dashboard.clerk.com/last-active?path=webhooks):
-   - Endpoint: `https://campaignos-sigma.vercel.app/api/webhooks/clerk`
-   - Set `CLERK_WEBHOOK_SECRET` in Vercel Production.
+### Still requires Clerk dashboard (minimal)
+
+1. **Production instance (recommended)** — [Clerk → API Keys](https://dashboard.clerk.com/last-active?path=api-keys): switch to **Production**, copy **`pk_live_…`** / **`sk_live_…`**, update Vercel Production env, redeploy.
+2. **Webhooks** (org sync) — [Clerk → Webhooks](https://dashboard.clerk.com/last-active?path=webhooks): endpoint `https://campaignos-sigma.vercel.app/api/webhooks/clerk`, then set `CLERK_WEBHOOK_SECRET` on Vercel.
+3. **Custom domain** (later): add domain in Clerk **Domains** when you attach a non-`*.vercel.app` hostname.
+
+### Paths (match `.env.example`)
+
+- Sign-in URL: `/sign-in`
+- Sign-up URL: `/sign-up`
+- After sign-in / sign-up: `/auth/after-sign-in`
 
 ### Expected behavior after fix
 
@@ -104,7 +125,7 @@ This happens when Production uses **development** Clerk keys (`pk_test_` / `sk_t
 curl -sS -o /dev/null -w "home:%{http_code}\n" https://campaignos-sigma.vercel.app/
 curl -sS -o /dev/null -w "sign-in:%{http_code}\n" https://campaignos-sigma.vercel.app/sign-in
 curl -sS https://campaignos-sigma.vercel.app/api/health
-curl -sSI https://campaignos-sigma.vercel.app/dashboard | grep -E '^(HTTP|x-clerk-auth)'
+curl -sSI https://campaignos-sigma.vercel.app/dashboard | grep -E '^(HTTP|location|x-clerk-auth)'
 ```
 
 ---
