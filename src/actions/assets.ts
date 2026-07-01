@@ -29,13 +29,19 @@ import { getMemberRoleForUser } from "@/lib/db/members";
 import { getUserByClerkId } from "@/lib/db/users";
 import {
   createAssetSchema,
+  contentDraftBriefSchema,
   defaultChannelForAssetType,
   generateAssetRequestSchema,
+  saveContentDraftSchema,
   updateAssetSchema,
   type AssetType,
+  type ContentDraftBrief,
+  type ContentDraftPreview,
   type GenerateAssetRequest,
   type ListAssetsFilter,
   type M7AssetType,
+  ASSET_TYPE_LABELS,
+  type SaveContentDraftInput,
 } from "@/lib/validators/assets";
 
 export type AssetActionResult =
@@ -334,6 +340,226 @@ export async function generateAsset(
           ? error.message
           : "Asset generation failed. Please try again.",
       code: "generation_failed",
+    };
+  }
+}
+
+const CONTENT_DRAFT_VARIANTS = [
+  {
+    id: "direct",
+    label: "Direct & urgent",
+    hint: "Lead with a clear call to action and concise urgency.",
+  },
+  {
+    id: "story",
+    label: "Story-driven",
+    hint: "Lead with a relatable community story and warm, optimistic tone.",
+  },
+  {
+    id: "contrast",
+    label: "Contrast & proof",
+    hint: "Lead with contrast, proof points, or accountability against the status quo.",
+  },
+] as const;
+
+export type ContentDraftVariantsResult =
+  | {
+      ok: true;
+      drafts: ContentDraftPreview[];
+      aiGenerated: boolean;
+    }
+  | {
+      ok: false;
+      error: string;
+      code?: AssetActionCode;
+    };
+
+function scaffoldContentDraft(input: {
+  brief: ContentDraftBrief;
+  variant: (typeof CONTENT_DRAFT_VARIANTS)[number];
+}): ContentDraftPreview {
+  const label = ASSET_TYPE_LABELS[input.brief.assetType];
+  const theme = input.brief.theme?.trim();
+  const issue = input.brief.issue?.trim();
+  const audience = input.brief.audience?.trim();
+  const channel =
+    input.brief.channel?.trim() ||
+    defaultChannelForAssetType(input.brief.assetType);
+
+  const title = [
+    label,
+    theme ? `— ${theme}` : "",
+    ` (${input.variant.label})`,
+  ]
+    .join("")
+    .slice(0, 200);
+
+  const lines = [
+    `${label} draft — ${input.variant.label}`,
+    "",
+    `Content need: ${input.brief.contentNeed}`,
+    theme ? `Theme: ${theme}` : "",
+    issue ? `Issue focus: ${issue}` : "Issue focus: [add issue]",
+    audience ? `Audience: ${audience}` : "Audience: [describe audience]",
+    `Channel: ${channel}`,
+    "",
+    `Angle: ${input.variant.hint}`,
+    "",
+    "Headline: [write a sharp, benefit-led headline]",
+    "Body: [2-3 sentences in the campaign voice]",
+    "Call to action: [what should the voter do next?]",
+  ];
+
+  return {
+    id: input.variant.id,
+    variantLabel: input.variant.label,
+    title,
+    content: lines.filter(Boolean).join("\n"),
+    theme: theme || undefined,
+    issue: issue || undefined,
+    channel,
+  };
+}
+
+export async function generateContentDraftVariants(
+  input: ContentDraftBrief,
+): Promise<ContentDraftVariantsResult> {
+  const context = await requireAssetContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: context.code };
+  }
+
+  const parsed = contentDraftBriefSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid brief",
+      code: "validation",
+    };
+  }
+
+  const brief = parsed.data;
+  const channel =
+    brief.channel?.trim() || defaultChannelForAssetType(brief.assetType);
+
+  if (!isOpenAiConfigured()) {
+    return {
+      ok: true,
+      aiGenerated: false,
+      drafts: CONTENT_DRAFT_VARIANTS.map((variant) =>
+        scaffoldContentDraft({ brief, variant }),
+      ),
+    };
+  }
+
+  try {
+    const drafts = await Promise.all(
+      CONTENT_DRAFT_VARIANTS.map(async (variant) => {
+        const generated = await generateAssetContent({
+          campaign: context.campaign,
+          profile: context.profile,
+          campaignId: context.campaign.id,
+          userId: context.dbUserId,
+          request: {
+            assetType: brief.assetType,
+            theme: brief.theme,
+            issue: brief.issue,
+            channel,
+            audience: brief.audience,
+            contentNeed: brief.contentNeed,
+            variationHint: variant.hint,
+          },
+        });
+
+        return {
+          id: variant.id,
+          variantLabel: variant.label,
+          title: generated.title,
+          content: generated.content,
+          theme: generated.theme ?? brief.theme,
+          issue: generated.issue ?? brief.issue,
+          channel: generated.channel ?? channel,
+        } satisfies ContentDraftPreview;
+      }),
+    );
+
+    return { ok: true, aiGenerated: true, drafts };
+  } catch (error) {
+    console.error("[generateContentDraftVariants]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Draft generation failed. Please try again.",
+      code: "generation_failed",
+    };
+  }
+}
+
+export async function saveContentDraft(
+  input: SaveContentDraftInput,
+): Promise<AssetActionResult> {
+  const context = await requireAssetContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: context.code };
+  }
+
+  const parsed = saveContentDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid draft",
+      code: "validation",
+    };
+  }
+
+  const channel =
+    parsed.data.channel?.trim() ||
+    defaultChannelForAssetType(parsed.data.assetType);
+
+  const assetInput = createAssetSchema.parse({
+    campaignId: context.campaign.id,
+    assetType: parsed.data.assetType,
+    title: parsed.data.title,
+    contentText: parsed.data.contentText,
+    theme: parsed.data.theme,
+    issue: parsed.data.issue,
+    channel,
+    status: "draft",
+    aiGenerated: parsed.data.aiGenerated ?? false,
+    createdBy: context.dbUserId,
+  });
+
+  try {
+    const result = await createAsset(assetInput);
+    if (!result.asset) {
+      return {
+        ok: false,
+        error: "Database is not configured. Asset was not saved.",
+        code: "missing_campaign",
+      };
+    }
+
+    await finalizeNewAsset({
+      campaignId: context.campaign.id,
+      candidateName: campaignDisplayName(context.campaign),
+      assetId: result.asset.id,
+      assetTitle: result.asset.title,
+      assetType: parsed.data.assetType,
+      aiGenerated: parsed.data.aiGenerated ?? false,
+      channel,
+    });
+
+    revalidatePath("/assets");
+    revalidatePath("/dashboard");
+
+    return { ok: true, assetId: result.asset.id };
+  } catch (error) {
+    console.error("[saveContentDraft]", error);
+    return {
+      ok: false,
+      error: "Failed to save content draft. Please try again.",
     };
   }
 }

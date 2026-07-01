@@ -14,6 +14,9 @@ export function buildAssetGenerationUserPrompt(input: {
   theme?: string;
   issue?: string;
   channel?: string;
+  audience?: string;
+  contentNeed?: string;
+  variationHint?: string;
 }): string {
   const messageFramework = input.profile?.message_framework;
   const issueMap = input.profile?.issue_map ?? [];
@@ -64,9 +67,16 @@ export function buildAssetGenerationUserPrompt(input: {
 
   lines.push("", "## Request");
   lines.push(`Asset type: ${typeLabel}`);
+  if (input.contentNeed?.trim()) {
+    lines.push(`Content need: ${input.contentNeed.trim()}`);
+  }
   if (input.theme?.trim()) lines.push(`Preferred theme: ${input.theme.trim()}`);
   if (input.issue?.trim()) lines.push(`Focus issue: ${input.issue.trim()}`);
+  if (input.audience?.trim()) lines.push(`Audience: ${input.audience.trim()}`);
   if (input.channel?.trim()) lines.push(`Channel: ${input.channel.trim()}`);
+  if (input.variationHint?.trim()) {
+    lines.push(`Creative direction: ${input.variationHint.trim()}`);
+  }
 
   lines.push(
     "",
