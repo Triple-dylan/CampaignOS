@@ -25,6 +25,12 @@ import {
   updateComplianceRecordForAsset,
 } from "@/lib/db/compliance";
 import { linkAssetToCampaignGraph } from "@/lib/db/graph";
+import { getOrganizationIntegration } from "@/lib/db/integrations";
+import {
+  generateFromCanvaTemplate,
+  generateFromHiggsfieldTemplate,
+} from "@/lib/integrations/providers/template-generation";
+import { isIntegrationsDemoMode } from "@/lib/integrations/token-crypto";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { getMemberRoleForUser } from "@/lib/db/members";
 import { getUserByClerkId } from "@/lib/db/users";
@@ -502,18 +508,105 @@ export async function generateAssetFromTemplate(input: {
     };
   }
 
-  // Expected production flow:
-  // Canva: load the user's OAuth token, map campaign/profile fields to the
-  // brand template dataset, create an autofill job, poll it, export the design,
-  // then save the Canva design/export URLs on the CampaignOS asset.
-  // Higgsfield: call the configured MCP generation tool with campaign context,
-  // template dimensions, and prompt fields, then save returned image/video URLs.
-  return {
-    ok: false,
-    error:
-      "Template generation is not connected yet. Connect Canva or Higgsfield in Settings, then map template IDs and output storage.",
-    code: "integration_not_connected",
-  };
+  const integration = await getOrganizationIntegration({
+    organizationId: context.campaign.organization_id,
+    provider: input.provider,
+  });
+
+  const connected =
+    integration?.status === "connected" || isIntegrationsDemoMode();
+  if (!connected) {
+    return {
+      ok: false,
+      error: `Connect ${input.provider === "canva" ? "Canva" : "Higgsfield"} in Settings before rendering templates.`,
+      code: "integration_not_connected",
+    };
+  }
+
+  try {
+    const candidateName = campaignDisplayName(context.campaign);
+    const generated =
+      input.provider === "canva"
+        ? await generateFromCanvaTemplate({
+            accessToken: integration?.accessToken,
+            template,
+            theme: input.theme,
+            issue: input.issue,
+            candidateName,
+          })
+        : await generateFromHiggsfieldTemplate({
+            accessToken: integration?.accessToken,
+            template,
+            theme: input.theme,
+            issue: input.issue,
+            candidateName,
+          });
+
+    const title = input.theme?.trim()
+      ? `${template.label}: ${input.theme}`
+      : template.label;
+    const contentText = [
+      `Rendered ${template.platform} creative (${template.dimensions}).`,
+      input.theme ? `Theme: ${input.theme}` : null,
+      input.issue ? `Issue: ${input.issue}` : null,
+      `Export: ${generated.fileUrl}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const assetInput = createAssetSchema.parse({
+      campaignId: context.campaign.id,
+      assetType: template.assetType,
+      title,
+      contentText,
+      channel: template.channel,
+      ...(input.theme ? { theme: input.theme } : {}),
+      ...(input.issue ? { issue: input.issue } : {}),
+      status: "draft",
+      aiGenerated: true,
+      fileUrl: generated.fileUrl,
+      templateUsed: input.templateId,
+      createdBy: context.dbUserId,
+    });
+
+    const result = await createAsset(assetInput);
+    if (!result.asset) {
+      return {
+        ok: false,
+        error: "Database is not configured.",
+        code: "validation",
+      };
+    }
+
+    await finalizeNewAsset({
+      campaignId: context.campaign.id,
+      candidateName,
+      assetId: result.asset.id,
+      assetTitle: result.asset.title,
+      assetType: template.assetType,
+      aiGenerated: true,
+      channel: template.channel,
+      theme: input.theme ?? null,
+      issue: input.issue ?? null,
+      templateUsed: input.templateId,
+    });
+
+    revalidatePath("/assets");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return { ok: true, assetId: result.asset.id };
+  } catch (error) {
+    console.error("[generateAssetFromTemplate]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Template generation failed.",
+      code: "generation_failed",
+    };
+  }
 }
 
 export async function updateAssetContent(input: {

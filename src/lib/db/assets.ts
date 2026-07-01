@@ -37,6 +37,8 @@ export async function createAsset(input: CreateAssetInput) {
       ai_generated: parsed.aiGenerated ?? false,
       prompt_used: parsed.promptUsed ?? null,
       model_used: parsed.modelUsed ?? null,
+      file_url: parsed.fileUrl ?? null,
+      template_used: parsed.templateUsed ?? null,
       created_by: parsed.createdBy ?? null,
       compliance_status: parsed.aiGenerated ? "pending" : "required",
     })
@@ -76,6 +78,8 @@ export async function updateAsset(input: UpdateAssetInput) {
   }
   if (parsed.approvedBy !== undefined) updates.approved_by = parsed.approvedBy;
   if (parsed.approvedAt !== undefined) updates.approved_at = parsed.approvedAt;
+  if (parsed.fileUrl !== undefined) updates.file_url = parsed.fileUrl;
+  if (parsed.templateUsed !== undefined) updates.template_used = parsed.templateUsed;
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

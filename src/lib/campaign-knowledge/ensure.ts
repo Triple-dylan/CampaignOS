@@ -4,7 +4,6 @@ import {
 } from "@/lib/campaign-knowledge/bootstrap";
 import { campaignKnowledgeExists } from "@/lib/campaign-knowledge/exists";
 import { buildCampaignKnowledgeRoot } from "@/lib/campaign-knowledge/paths";
-import { syncCampaignKnowledgeToGraph } from "@/lib/campaign-knowledge/sync-to-graph";
 
 export type { BootstrapCampaignKnowledgeInput };
 
@@ -27,12 +26,12 @@ export async function ensureCampaignKnowledgeBootstrapped(
   }
 
   const result = await bootstrapCampaignKnowledge(input);
-  await syncCampaignKnowledgeToGraph({
+  const { syncKnowledgeAfterWrite } = await import(
+    "@/lib/campaign-knowledge/sync-after-write"
+  );
+  await syncKnowledgeAfterWrite({
+    organizationId: input.organizationId,
     campaignId: input.campaignId,
-    root: buildCampaignKnowledgeRoot({
-      organizationId: input.organizationId,
-      campaignId: input.campaignId,
-    }),
   });
   return result;
 }

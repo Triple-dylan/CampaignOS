@@ -1,11 +1,14 @@
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/db/client";
 import type { DbGraphNode } from "@/lib/db/schema";
 import type { CampaignBrainOutput } from "@/lib/ai/schemas/campaign-brain";
+import { CAMPAIGN_FOLDERS } from "@/lib/campaign-knowledge/folders";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import {
   resolveAssetKnowledgeFolder,
   resolveEventKnowledgeFolder,
 } from "@/lib/graph/folder-routing";
 import { buildEntityGraphMetadata } from "@/lib/graph/entity-metadata";
+import { CENTER_FOLDER } from "@/lib/graph/folder-clusters";
 import { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";
 import type { CalendarEventType } from "@/lib/validators/calendar-events";
 import {
@@ -512,9 +515,10 @@ export async function linkAssetToCampaignGraph(input: {
     return { synced: assetNodeResult.synced };
   }
 
-  await linkObjectNodeToCandidate({
+  await linkObjectNodeToFolderHub({
     campaignId: input.campaignId,
     nodeId: assetNodeResult.node.id,
+    folder,
     candidateName: input.candidateName,
     existingNodes: input.existingNodes,
     edgeMetadata: { source: "asset_studio" },
@@ -569,9 +573,48 @@ export async function getGraphNodeBySourceObject(input: {
   return data ? (data as DbGraphNode) : null;
 }
 
-async function linkObjectNodeToCandidate(input: {
+function findFolderHub(
+  nodes: DbGraphNode[],
+  folder: CampaignFolderId,
+): DbGraphNode | undefined {
+  return nodes.find(
+    (node) =>
+      node.metadata_json?.cluster === true &&
+      node.metadata_json?.folder === folder &&
+      node.metadata_json?.knowledgeKind === "folder_hub",
+  );
+}
+
+async function belongsToEdgeExists(input: {
+  campaignId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+}): Promise<boolean> {
+  if (!isSupabaseConfigured()) {
+    return false;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("graph_edges")
+    .select("id")
+    .eq("campaign_id", input.campaignId)
+    .eq("source_node_id", input.sourceNodeId)
+    .eq("target_node_id", input.targetNodeId)
+    .eq("relationship_type", "belongs_to")
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+async function linkObjectNodeToFolderHub(input: {
   campaignId: string;
   nodeId: string;
+  folder: CampaignFolderId;
   candidateName: string;
   existingNodes: DbGraphNode[];
   edgeMetadata: Record<string, unknown>;
@@ -583,15 +626,102 @@ async function linkObjectNodeToCandidate(input: {
         input.candidateName.trim().toLowerCase(),
   );
 
-  if (candidateNode) {
-    await createGraphEdge({
-      campaignId: input.campaignId,
-      sourceNodeId: input.nodeId,
-      targetNodeId: candidateNode.id,
-      relationshipType: "belongs_to",
-      metadata: input.edgeMetadata,
-    });
+  const hub = findFolderHub(input.existingNodes, input.folder);
+  const targetId =
+    hub?.id ??
+    (input.folder === CENTER_FOLDER ? candidateNode?.id : candidateNode?.id);
+
+  if (!targetId || targetId === input.nodeId) {
+    return;
   }
+
+  const exists = await belongsToEdgeExists({
+    campaignId: input.campaignId,
+    sourceNodeId: input.nodeId,
+    targetNodeId: targetId,
+  });
+  if (exists) {
+    return;
+  }
+
+  await createGraphEdge({
+    campaignId: input.campaignId,
+    sourceNodeId: input.nodeId,
+    targetNodeId: targetId,
+    relationshipType: "belongs_to",
+    metadata: input.edgeMetadata,
+  });
+}
+
+/** Persist folder-hub nodes for every standard campaign folder. */
+export async function seedFolderHubsForCampaign(campaignId: string) {
+  if (!isSupabaseConfigured()) {
+    return { synced: false as const, seeded: 0 };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: existingNodes, error: nodesError } = await supabase
+    .from("graph_nodes")
+    .select("*")
+    .eq("campaign_id", campaignId);
+
+  if (nodesError) {
+    throw nodesError;
+  }
+
+  const nodes = (existingNodes ?? []) as DbGraphNode[];
+  const candidate = nodes.find((node) => node.node_type === "candidate");
+  let seeded = 0;
+
+  for (const folderDef of CAMPAIGN_FOLDERS) {
+    if (folderDef.id === CENTER_FOLDER || !folderDef.isCluster) {
+      continue;
+    }
+    if (findFolderHub(nodes, folderDef.id)) {
+      continue;
+    }
+
+    const nodeType = folderDef.graphNodeTypes[0] ?? "strategic_priority";
+    const result = await createGraphNode({
+      campaignId,
+      nodeType,
+      title: folderDef.label,
+      summary: folderDef.description,
+      metadata: {
+        source: "folder_hub_seed",
+        folder: folderDef.id,
+        cluster: true,
+        knowledgeKind: "folder_hub",
+        path: `${folderDef.slug}/`,
+      },
+    });
+
+    if (!result.node) {
+      continue;
+    }
+
+    nodes.push(result.node);
+    seeded += 1;
+
+    if (candidate) {
+      const edgeExists = await belongsToEdgeExists({
+        campaignId,
+        sourceNodeId: result.node.id,
+        targetNodeId: candidate.id,
+      });
+      if (!edgeExists) {
+        await createGraphEdge({
+          campaignId,
+          sourceNodeId: result.node.id,
+          targetNodeId: candidate.id,
+          relationshipType: "belongs_to",
+          metadata: { source: "folder_hub_seed" },
+        });
+      }
+    }
+  }
+
+  return { synced: true as const, seeded };
 }
 
 async function linkObjectNodeToAsset(input: {
@@ -641,6 +771,8 @@ export async function linkEventToCampaignGraph(input: {
       source: "planner",
       eventType: input.eventType,
       folder,
+      path: `${folder}/${slugifyKnowledgeTitle(input.eventTitle)}.md`,
+      knowledgeKind: "entity",
       channel: input.channel ?? null,
     },
   });
@@ -649,9 +781,10 @@ export async function linkEventToCampaignGraph(input: {
     return { synced: eventNodeResult.synced };
   }
 
-  await linkObjectNodeToCandidate({
+  await linkObjectNodeToFolderHub({
     campaignId: input.campaignId,
     nodeId: eventNodeResult.node.id,
+    folder,
     candidateName: input.candidateName,
     existingNodes: input.existingNodes,
     edgeMetadata: { source: "planner" },
@@ -696,9 +829,10 @@ export async function linkContentCalendarToCampaignGraph(input: {
     return { synced: calendarNodeResult.synced };
   }
 
-  await linkObjectNodeToCandidate({
+  await linkObjectNodeToFolderHub({
     campaignId: input.campaignId,
     nodeId: calendarNodeResult.node.id,
+    folder: "social-media",
     candidateName: input.candidateName,
     existingNodes: input.existingNodes,
     edgeMetadata: { source: "content_calendar" },
@@ -746,9 +880,10 @@ export async function linkTaskToCampaignGraph(input: {
     return { synced: taskNodeResult.synced };
   }
 
-  await linkObjectNodeToCandidate({
+  await linkObjectNodeToFolderHub({
     campaignId: input.campaignId,
     nodeId: taskNodeResult.node.id,
+    folder: "initiatives",
     candidateName: input.candidateName,
     existingNodes: input.existingNodes,
     edgeMetadata: { source: "tasks" },
@@ -829,9 +964,10 @@ export async function linkResearchToCampaignGraph(input: {
     return { synced: researchNodeResult.synced };
   }
 
-  await linkObjectNodeToCandidate({
+  await linkObjectNodeToFolderHub({
     campaignId: input.campaignId,
     nodeId: researchNodeResult.node.id,
+    folder: "research",
     candidateName: input.candidateName,
     existingNodes: input.existingNodes,
     edgeMetadata: { source: "research_hub" },
@@ -881,20 +1017,25 @@ export async function linkProspectToCampaignGraph(input: {
     summary: `${input.prospectType} prospect (${input.status})`,
     sourceObjectType: "fundraising_prospect",
     sourceObjectId: input.prospectId,
-    metadata: {
+    metadata: buildEntityGraphMetadata({
+      folder: "fundraising",
+      path: `fundraising/${slugifyKnowledgeTitle(input.prospectName)}.md`,
       source: "fundraising_planner",
-      prospectType: input.prospectType,
-      status: input.status,
-    },
+      extra: {
+        prospectType: input.prospectType,
+        status: input.status,
+      },
+    }),
   });
 
   if (!prospectNodeResult.node) {
     return { synced: prospectNodeResult.synced };
   }
 
-  await linkObjectNodeToCandidate({
+  await linkObjectNodeToFolderHub({
     campaignId: input.campaignId,
     nodeId: prospectNodeResult.node.id,
+    folder: "fundraising",
     candidateName: input.candidateName,
     existingNodes: input.existingNodes,
     edgeMetadata: { source: "fundraising_planner" },

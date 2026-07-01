@@ -2,6 +2,11 @@
 
 import * as React from "react";
 import { executeChatWorkflow, previewChatWorkflow } from "@/actions/workflow-chat";
+import {
+  clearWorkflowChatSession,
+  loadWorkflowChatSession,
+  saveWorkflowChatSession,
+} from "@/actions/workflow-chat-sessions";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import { WORKFLOW_GRAPH_FOLDERS } from "@/lib/harness/skill-folders";
 import {
@@ -28,6 +33,7 @@ import type { CampaignWorkflowId } from "@/lib/workflows/registry";
 export type WorkflowRunHookResult = {
   getRun: (threadId: string) => WorkflowRunState | null;
   clearRun: (threadId: string) => void;
+  hydrateThread: (threadId: string) => Promise<void>;
   handleMessage: (input: {
     threadId: string;
     text: string;
@@ -46,24 +52,48 @@ export type WorkflowRunHookResult = {
 export function useWorkflowRun(): WorkflowRunHookResult {
   const runsRef = React.useRef<Record<string, WorkflowRunState>>({});
 
+  const persistRun = React.useCallback(
+    async (threadId: string, state: WorkflowRunState | null) => {
+      if (!state || state.phase === "complete") {
+        await clearWorkflowChatSession({ threadId });
+        return;
+      }
+      await saveWorkflowChatSession({ threadId, state });
+    },
+    [],
+  );
+
   const getRun = React.useCallback((threadId: string) => {
     return runsRef.current[threadId] ?? null;
   }, []);
 
-  const clearRun = React.useCallback((threadId: string) => {
-    delete runsRef.current[threadId];
-  }, []);
+  const clearRun = React.useCallback(
+    (threadId: string) => {
+      delete runsRef.current[threadId];
+      void clearWorkflowChatSession({ threadId });
+    },
+    [],
+  );
 
   const setRun = React.useCallback(
     (threadId: string, state: WorkflowRunState | null) => {
       if (state) {
         runsRef.current[threadId] = state;
+        void persistRun(threadId, state);
       } else {
         delete runsRef.current[threadId];
+        void clearWorkflowChatSession({ threadId });
       }
     },
-    [],
+    [persistRun],
   );
+
+  const hydrateThread = React.useCallback(async (threadId: string) => {
+    const result = await loadWorkflowChatSession({ threadId });
+    if (result.ok && result.state) {
+      runsRef.current[threadId] = result.state;
+    }
+  }, []);
 
   const foldersForWorkflow = React.useCallback(
     (workflowId: CampaignWorkflowId): CampaignFolderId[] => {
@@ -122,7 +152,14 @@ export function useWorkflowRun(): WorkflowRunHookResult {
         }
     > => {
       const { threadId, text, onProgress } = input;
-      const existing = runsRef.current[threadId];
+      let existing = runsRef.current[threadId];
+      if (!existing) {
+        const loaded = await loadWorkflowChatSession({ threadId });
+        if (loaded.ok && loaded.state) {
+          existing = loaded.state;
+          runsRef.current[threadId] = existing;
+        }
+      }
 
       if (isWorkflowCancelMessage(text)) {
         if (existing && existing.phase !== "complete") {
@@ -243,5 +280,5 @@ export function useWorkflowRun(): WorkflowRunHookResult {
     [clearRun, foldersForWorkflow, runWorkflowExecution, setRun],
   );
 
-  return { getRun, clearRun, handleMessage };
+  return { getRun, clearRun, hydrateThread, handleMessage };
 }

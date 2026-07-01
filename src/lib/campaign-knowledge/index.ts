@@ -53,4 +53,8 @@ export {
 } from "@/lib/campaign-knowledge/read";
 export { syncCampaignKnowledgeToGraph } from "@/lib/campaign-knowledge/sync-to-graph";
 export { syncKnowledgeAfterWrite } from "@/lib/campaign-knowledge/sync-after-write";
+export {
+  rebuildKnowledgeIndex,
+  touchKnowledgeIndexAfterWrite,
+} from "@/lib/campaign-knowledge/index-maintenance";
 export { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";
