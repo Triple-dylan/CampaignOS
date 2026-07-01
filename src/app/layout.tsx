@@ -23,6 +23,15 @@ export const metadata: Metadata = {
   },
   description:
     "A calm workspace for political campaigns — your campaign knowledge graph and an AI assistant in one place.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "CampaignOS",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {

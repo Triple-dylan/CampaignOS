@@ -381,7 +381,12 @@ export function ComplianceDashboard({
         }}
       >
         {selectedRecord ? (
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogContent
+            className={cn(
+              "max-h-[90vh] overflow-y-auto sm:max-w-4xl",
+              MOBILE_DIALOG_CONTENT_CLASS,
+            )}
+          >
             <DialogHeader>
               <DialogTitle>
                 {selectedRecord.asset?.title ??
