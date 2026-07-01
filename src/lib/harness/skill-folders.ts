@@ -17,6 +17,7 @@ export const WORKFLOW_GRAPH_FOLDERS: Record<CampaignWorkflowId, CampaignFolderId
   {
     "event-research": ["research", "events"],
     "content-creation": ["assets", "messaging", "social-media"],
+    "content-calendar": ["social-media", "events", "messaging"],
     "campaign-structure": ["campaign", "initiatives", "field"],
     "incumbent-research": ["research", "people", "polling"],
   };
@@ -27,6 +28,7 @@ export const SKILL_CONTEXT_PATHS: Record<string, string[]> = {
   "asset-studio": [
     "campaign-knowledge/templates/assets/_context.md",
     "campaign-knowledge/templates/messaging/_context.md",
+    "campaign-knowledge/templates/social-media/_context.md",
   ],
   "research-brief": ["campaign-knowledge/templates/research/_context.md"],
   "fundraising-outreach": [

@@ -134,6 +134,9 @@ async function finalizeNewAsset(input: {
   assetType: AssetType;
   aiGenerated: boolean;
   channel?: string | null;
+  theme?: string | null;
+  issue?: string | null;
+  templateUsed?: string | null;
 }) {
   await createComplianceRecordForAsset({
     campaignId: input.campaignId,
@@ -153,6 +156,10 @@ async function finalizeNewAsset(input: {
     assetId: input.assetId,
     assetTitle: input.assetTitle,
     assetType: input.assetType,
+    channel: input.channel,
+    theme: input.theme,
+    issue: input.issue,
+    templateUsed: input.templateUsed,
     candidateName: input.candidateName,
     existingNodes,
   });
@@ -233,9 +240,12 @@ export async function createAssetManual(input: {
       assetType: parsed.data.assetType,
       aiGenerated: false,
       channel: parsed.data.channel,
+      theme: parsed.data.theme,
+      issue: parsed.data.issue,
     });
 
     revalidatePath("/assets");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, assetId: result.asset.id };
@@ -319,9 +329,13 @@ export async function generateAsset(
       assetType,
       aiGenerated: true,
       channel,
+      theme: generated.theme ?? parsedRequest.data.theme,
+      issue: generated.issue ?? parsedRequest.data.issue,
+      templateUsed: parsedRequest.data.templateId ?? null,
     });
 
     revalidatePath("/assets");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, assetId: result.asset.id };

@@ -125,6 +125,7 @@ function GenerateForm({
           theme: themeValue,
           issue: issueValue,
           channel,
+          templateId: template?.id,
         });
         if (!result.ok) {
           setError(result.error);

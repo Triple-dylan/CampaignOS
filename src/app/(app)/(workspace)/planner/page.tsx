@@ -1,6 +1,7 @@
 import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { CampaignPlanner } from "@/components/planner/campaign-planner";
 import { getPlannerData } from "@/actions/planner";
+import { isOpenAiConfigured } from "@/lib/ai/config";
 import { modulePages } from "@/lib/navigation";
 import {
   Card,
@@ -41,6 +42,7 @@ export default async function PlannerPage() {
       <CampaignPlanner
         events={result.events}
         approvedAssets={result.approvedAssets}
+        openAiConfigured={isOpenAiConfigured()}
       />
     </WorkPageFrame>
   );

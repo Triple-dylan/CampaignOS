@@ -31,6 +31,17 @@ const WORKFLOW_TRIGGERS: Array<{
     ],
   },
   {
+    workflowId: "content-calendar",
+    triggers: [
+      "content calendar",
+      "posting schedule",
+      "social calendar",
+      "schedule posts",
+      "build my calendar",
+      "content schedule",
+    ],
+  },
+  {
     workflowId: "campaign-structure",
     triggers: [
       "campaign structure",

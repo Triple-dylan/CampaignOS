@@ -93,6 +93,7 @@ export const generateAssetRequestSchema = z.object({
   theme: z.string().trim().max(100).optional(),
   issue: z.string().trim().max(100).optional(),
   channel: z.string().trim().max(100).optional(),
+  templateId: z.string().trim().max(100).optional(),
 });
 
 export type GenerateAssetRequest = z.infer<typeof generateAssetRequestSchema>;

@@ -2,13 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { generateAsset } from "@/actions/assets";
-import { createPlannerEvent } from "@/actions/planner";
 import { generateResearchBrief } from "@/actions/research";
-import { createCampaignTask } from "@/actions/tasks";
+import { generateContentCalendarContent } from "@/lib/ai/generate-content-calendar";
 import { generateCampaignTimelineContent } from "@/lib/ai/generate-campaign-timeline";
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { requireCampaignContext } from "@/lib/auth/require-campaign-context";
+import { campaignDisplayName } from "@/lib/db/schema";
 import type { CampaignWorkflowId } from "@/lib/workflows/registry";
+import { persistContentCalendar } from "@/lib/workflows/persist-content-calendar";
+import { persistCampaignTimeline } from "@/lib/workflows/persist-timeline";
 import {
   buildEventResearchTopic,
   buildIncumbentResearchTopic,
@@ -40,6 +42,8 @@ export async function executeChatWorkflow(input: {
       return executeEventResearch(input.fields);
     case "content-creation":
       return executeContentCreation(input.fields);
+    case "content-calendar":
+      return executeContentCalendar(input.fields);
     case "campaign-structure":
       return executeCampaignStructure(input.fields);
     case "incumbent-research":
@@ -121,6 +125,78 @@ async function executeContentCreation(
   };
 }
 
+async function executeContentCalendar(
+  fields: WorkflowFields,
+): Promise<ExecuteWorkflowResult> {
+  const context = await requireCampaignContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: "missing_campaign" };
+  }
+
+  if (!isOpenAiConfigured()) {
+    return {
+      ok: false,
+      error:
+        "OpenAI is not configured. Add OPENAI_API_KEY to generate a content calendar.",
+      code: "missing_openai",
+    };
+  }
+
+  const period = fields.intent?.trim() ?? "";
+  const channelsAndCadence = fields.details?.trim() ?? "";
+  if (!period || !channelsAndCadence) {
+    return {
+      ok: false,
+      error: "Calendar period and channels/cadence are required.",
+      code: "generation_failed",
+    };
+  }
+
+  try {
+    const calendar = await generateContentCalendarContent({
+      campaign: context.campaign,
+      profile: context.profile,
+      campaignId: context.campaign.id,
+      userId: context.dbUserId,
+      period,
+      channelsAndCadence,
+    });
+
+    const { eventIds } = await persistContentCalendar({
+      campaign: context.campaign,
+      createdBy: context.dbUserId,
+      candidateName: campaignDisplayName(context.campaign),
+      calendar,
+    });
+
+    revalidatePath("/planner");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return {
+      ok: true,
+      summary: [
+        calendar.summary,
+        "",
+        `Created ${eventIds.length} content beat${eventIds.length === 1 ? "" : "s"} in Planner and linked them in the brain graph.`,
+      ].join("\n"),
+      artifactLink: "/planner",
+      artifactLabel: "Planner",
+      artifactIds: eventIds,
+    };
+  } catch (error) {
+    console.error("[executeContentCalendar]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Content calendar generation failed.",
+      code: "generation_failed",
+    };
+  }
+}
+
 async function executeCampaignStructure(
   fields: WorkflowFields,
 ): Promise<ExecuteWorkflowResult> {
@@ -158,37 +234,16 @@ async function executeCampaignStructure(
       issues,
     });
 
-    const eventIds: string[] = [];
-    const taskIds: string[] = [];
-
-    for (const event of timeline.events) {
-      const created = await createPlannerEvent({
-        title: event.title,
-        description: event.description,
-        eventType: event.event_type,
-        startTime: event.start_time,
-        isMilestone: event.is_milestone ?? false,
-      });
-      if (created.ok && created.id) {
-        eventIds.push(created.id);
-      }
-    }
-
-    for (const task of timeline.tasks) {
-      const created = await createCampaignTask({
-        title: task.title,
-        description: task.description,
-        priority: task.priority,
-        dueDate: task.due_date ?? null,
-        status: "todo",
-      });
-      if (created.ok && created.id) {
-        taskIds.push(created.id);
-      }
-    }
+    const { eventIds, taskIds } = await persistCampaignTimeline({
+      campaign: context.campaign,
+      createdBy: context.dbUserId,
+      candidateName: campaignDisplayName(context.campaign),
+      timeline,
+    });
 
     revalidatePath("/planner");
     revalidatePath("/tasks");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return {

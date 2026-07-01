@@ -2,6 +2,11 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/db/client";
 import type { DbGraphNode } from "@/lib/db/schema";
 import type { CampaignBrainOutput } from "@/lib/ai/schemas/campaign-brain";
 import {
+  resolveAssetKnowledgeFolder,
+  resolveEventKnowledgeFolder,
+} from "@/lib/graph/folder-routing";
+import type { CalendarEventType } from "@/lib/validators/calendar-events";
+import {
   graphNodeTypeSchema,
   graphRelationshipTypeSchema,
   type GraphNodeType,
@@ -379,14 +384,75 @@ export async function enrichCampaignBrainGraph(input: {
   return { synced: true as const };
 }
 
+async function linkNodeToIssueTitles(input: {
+  campaignId: string;
+  sourceNodeId: string;
+  issueTitles: string[];
+  existingNodes: DbGraphNode[];
+  relationshipType: GraphRelationshipType;
+  edgeMetadata: Record<string, unknown>;
+}) {
+  const issueNodes = findIssueNodesForTitles(
+    input.existingNodes,
+    input.issueTitles,
+  );
+
+  for (const issueNode of issueNodes) {
+    await createGraphEdge({
+      campaignId: input.campaignId,
+      sourceNodeId: input.sourceNodeId,
+      targetNodeId: issueNode.id,
+      relationshipType: input.relationshipType,
+      metadata: input.edgeMetadata,
+    });
+  }
+}
+
+async function linkNodeToMessageThemes(input: {
+  campaignId: string;
+  sourceNodeId: string;
+  themeTitles: string[];
+  existingNodes: DbGraphNode[];
+  edgeMetadata: Record<string, unknown>;
+}) {
+  const normalizedThemes = new Set(
+    input.themeTitles.map((title) => normalizeTitle(title)),
+  );
+
+  const themeNodes = input.existingNodes.filter(
+    (node) =>
+      node.node_type === "message_theme" &&
+      normalizedThemes.has(normalizeTitle(node.title)),
+  );
+
+  for (const themeNode of themeNodes) {
+    await createGraphEdge({
+      campaignId: input.campaignId,
+      sourceNodeId: input.sourceNodeId,
+      targetNodeId: themeNode.id,
+      relationshipType: "aligns_with",
+      metadata: input.edgeMetadata,
+    });
+  }
+}
+
 export async function linkAssetToCampaignGraph(input: {
   campaignId: string;
   assetId: string;
   assetTitle: string;
   assetType: string;
+  channel?: string | null;
+  theme?: string | null;
+  issue?: string | null;
+  templateUsed?: string | null;
   candidateName: string;
   existingNodes: DbGraphNode[];
 }) {
+  const folder = resolveAssetKnowledgeFolder({
+    assetType: input.assetType,
+    channel: input.channel,
+  });
+
   const assetNodeResult = await createGraphNode({
     campaignId: input.campaignId,
     nodeType: "asset",
@@ -394,27 +460,45 @@ export async function linkAssetToCampaignGraph(input: {
     summary: `${input.assetType} asset from Asset Studio`,
     sourceObjectType: "asset",
     sourceObjectId: input.assetId,
-    metadata: { source: "asset_studio", assetType: input.assetType },
+    metadata: {
+      source: "asset_studio",
+      assetType: input.assetType,
+      folder,
+      channel: input.channel ?? null,
+      templateUsed: input.templateUsed ?? null,
+    },
   });
 
   if (!assetNodeResult.node) {
     return { synced: assetNodeResult.synced };
   }
 
-  const candidateNode = input.existingNodes.find(
-    (node) =>
-      node.node_type === "candidate" &&
-      node.title.trim().toLowerCase() ===
-        input.candidateName.trim().toLowerCase(),
-  );
+  await linkObjectNodeToCandidate({
+    campaignId: input.campaignId,
+    nodeId: assetNodeResult.node.id,
+    candidateName: input.candidateName,
+    existingNodes: input.existingNodes,
+    edgeMetadata: { source: "asset_studio" },
+  });
 
-  if (candidateNode) {
-    await createGraphEdge({
+  if (input.issue?.trim()) {
+    await linkNodeToIssueTitles({
       campaignId: input.campaignId,
       sourceNodeId: assetNodeResult.node.id,
-      targetNodeId: candidateNode.id,
-      relationshipType: "belongs_to",
-      metadata: { source: "asset_studio" },
+      issueTitles: [input.issue],
+      existingNodes: input.existingNodes,
+      relationshipType: "aligns_with",
+      edgeMetadata: { source: "asset_studio" },
+    });
+  }
+
+  if (input.theme?.trim()) {
+    await linkNodeToMessageThemes({
+      campaignId: input.campaignId,
+      sourceNodeId: assetNodeResult.node.id,
+      themeTitles: [input.theme],
+      existingNodes: input.existingNodes,
+      edgeMetadata: { source: "asset_studio" },
     });
   }
 
@@ -499,11 +583,14 @@ export async function linkEventToCampaignGraph(input: {
   campaignId: string;
   eventId: string;
   eventTitle: string;
-  eventType: string;
+  eventType: CalendarEventType | string;
   candidateName: string;
   relatedAssetId?: string | null;
+  channel?: string | null;
   existingNodes: DbGraphNode[];
 }) {
+  const folder = resolveEventKnowledgeFolder(input.eventType as CalendarEventType);
+
   const eventNodeResult = await createGraphNode({
     campaignId: input.campaignId,
     nodeType: "event",
@@ -511,7 +598,12 @@ export async function linkEventToCampaignGraph(input: {
     summary: `${input.eventType} calendar event`,
     sourceObjectType: "calendar_event",
     sourceObjectId: input.eventId,
-    metadata: { source: "planner", eventType: input.eventType },
+    metadata: {
+      source: "planner",
+      eventType: input.eventType,
+      folder,
+      channel: input.channel ?? null,
+    },
   });
 
   if (!eventNodeResult.node) {
@@ -538,6 +630,51 @@ export async function linkEventToCampaignGraph(input: {
   }
 
   return { synced: true as const, node: eventNodeResult.node };
+}
+
+export async function linkContentCalendarToCampaignGraph(input: {
+  campaignId: string;
+  calendarTitle: string;
+  summary: string;
+  candidateName: string;
+  contentEventNodeIds: string[];
+  existingNodes: DbGraphNode[];
+}) {
+  const calendarNodeResult = await createGraphNode({
+    campaignId: input.campaignId,
+    nodeType: "message_theme",
+    title: input.calendarTitle,
+    summary: input.summary,
+    metadata: {
+      source: "content_calendar",
+      folder: "social-media",
+      knowledgePath: "social-media/content-calendar.md",
+    },
+  });
+
+  if (!calendarNodeResult.node) {
+    return { synced: calendarNodeResult.synced };
+  }
+
+  await linkObjectNodeToCandidate({
+    campaignId: input.campaignId,
+    nodeId: calendarNodeResult.node.id,
+    candidateName: input.candidateName,
+    existingNodes: input.existingNodes,
+    edgeMetadata: { source: "content_calendar" },
+  });
+
+  for (const eventNodeId of input.contentEventNodeIds) {
+    await createGraphEdge({
+      campaignId: input.campaignId,
+      sourceNodeId: calendarNodeResult.node.id,
+      targetNodeId: eventNodeId,
+      relationshipType: "connected_to",
+      metadata: { source: "content_calendar" },
+    });
+  }
+
+  return { synced: true as const, node: calendarNodeResult.node };
 }
 
 export async function linkTaskToCampaignGraph(input: {

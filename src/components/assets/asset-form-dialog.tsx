@@ -104,7 +104,7 @@ export function AssetFormDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create asset</DialogTitle>
+          <DialogTitle>New Content</DialogTitle>
           <DialogDescription>
             Draft campaign content manually or generate a first pass with AI
             using your Campaign Brain context.
@@ -250,7 +250,7 @@ export function AssetFormDialog({
               ) : mode === "ai" ? (
                 "Generate asset"
               ) : (
-                "Create asset"
+                "Save content"
               )}
             </Button>
           </DialogFooter>
