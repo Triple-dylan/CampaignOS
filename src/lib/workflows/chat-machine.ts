@@ -109,6 +109,19 @@ export function applyFieldAnswer(
     [currentStep.field]: userMessage.trim(),
   };
 
+  if (!currentStep.isComplete(fields)) {
+    return {
+      ...state,
+      fields,
+      phase: "collecting",
+      progressLabel: progressLabelForPhase(
+        state.workflowId,
+        "collecting",
+        state.stepIndex,
+      ),
+    };
+  }
+
   let stepIndex = state.stepIndex + 1;
   while (stepIndex < steps.length && steps[stepIndex].isComplete(fields)) {
     stepIndex += 1;

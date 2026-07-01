@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { IntegrationPreferencesPanel } from "@/components/settings/integration-preferences";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
@@ -227,16 +228,30 @@ export default async function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Coming soon</CardTitle>
+            <CardTitle>Workflow integrations (Phase C)</CardTitle>
             <CardDescription>
-              Additional settings will ship in later milestones.
+              Opt in to external providers when they are connected. Guided
+              workflows continue with model-only generation when integrations
+              are disabled.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <IntegrationPreferencesPanel />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>More settings</CardTitle>
+            <CardDescription>
+              Additional account and team settings will ship in later milestones.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
             <p>Team roles & invitations</p>
-            <p>Integrations (email, CRM, compliance)</p>
             <p>Billing & subscription</p>
             <p>Notification preferences</p>
+            <p>CRM and compliance vendor connections</p>
           </CardContent>
         </Card>
       </div>

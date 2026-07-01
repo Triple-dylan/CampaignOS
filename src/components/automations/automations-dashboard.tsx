@@ -11,7 +11,8 @@ import {
   Sparkles,
   ClipboardList,
 } from "lucide-react";
-import type { DbWorkflowRun, DbWorkflowSchedule } from "@/lib/db/schema";
+import type { DbComplianceRecordWithAsset, DbWorkflowRun, DbWorkflowSchedule } from "@/lib/db/schema";
+import type { DbCalendarEvent } from "@/lib/db/schema";
 import { useAutomations } from "@/components/automations/automations-provider";
 import { RunNowButton } from "@/components/automations/run-now-button";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,8 @@ type AutomationsDashboardProps = {
   schedules: DbWorkflowSchedule[];
   runs: DbWorkflowRun[];
   synced: boolean;
+  upcomingEvents?: DbCalendarEvent[];
+  pendingCompliance?: DbComplianceRecordWithAsset[];
 };
 
 type CommandTab = "scheduled" | "planner" | "compliance" | "history";
@@ -80,6 +83,8 @@ export function AutomationsDashboard({
   schedules,
   runs,
   synced,
+  upcomingEvents = [],
+  pendingCompliance = [],
 }: AutomationsDashboardProps) {
   const { openCreateDialog } = useAutomations();
   const [activeTab, setActiveTab] = useState<CommandTab>("scheduled");
@@ -132,8 +137,12 @@ export function AutomationsDashboard({
         />
       ) : null}
 
-      {activeTab === "planner" ? <PlannerSummaryTab /> : null}
-      {activeTab === "compliance" ? <ComplianceQueueTab /> : null}
+      {activeTab === "planner" ? (
+        <PlannerSummaryTab events={upcomingEvents} />
+      ) : null}
+      {activeTab === "compliance" ? (
+        <ComplianceQueueTab records={pendingCompliance} />
+      ) : null}
       {activeTab === "history" ? (
         <RunHistoryTab runs={runs} schedules={schedules} synced={synced} />
       ) : null}
@@ -229,82 +238,91 @@ function ScheduledRunsTab({
   );
 }
 
-function PlannerSummaryTab() {
-  const stubItems = [
-    { day: "Mon", focus: "Field canvass — Ward 3", status: "draft" },
-    { day: "Wed", focus: "Fundraiser prep call block", status: "scheduled" },
-    { day: "Fri", focus: "Weekend GOTV asset review", status: "pending" },
-  ];
+function PlannerSummaryTab({ events }: { events: DbCalendarEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          No upcoming planner events in the next 7 days. Generate a timeline in{" "}
+          <span className="font-medium text-foreground">Planner</span> or create
+          events manually.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Read-only snapshot of the weekly plan. Full editing lives in{" "}
+        Upcoming events from Planner (next 7 days). Full editing lives in{" "}
         <span className="font-medium text-foreground">Planner</span>.
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {stubItems.map((item) => (
-          <Card key={item.day} className="border-dashed">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {events.map((event) => (
+          <Card key={event.id}>
             <CardHeader className="pb-2">
               <CardDescription className="text-xs uppercase tracking-wide">
-                {item.day}
+                {new Date(event.start_time).toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}
               </CardDescription>
-              <CardTitle className="text-sm leading-snug">{item.focus}</CardTitle>
+              <CardTitle className="text-sm leading-snug">{event.title}</CardTitle>
             </CardHeader>
             <CardContent>
               <span className="inline-flex rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
-                {item.status}
+                {event.event_type.replace(/_/g, " ")}
               </span>
             </CardContent>
           </Card>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Runner integration coming soon — scheduled planner automations will
-        populate this view from workflow outputs.
-      </p>
     </div>
   );
 }
 
-function ComplianceQueueTab() {
-  const stubQueue = [
-    { title: "Healthcare mailer", type: "Disclosure review", priority: "high" },
-    { title: "Weekend social post", type: "AI-generated", priority: "medium" },
-    { title: "Fundraising email", type: "Pending review", priority: "medium" },
-  ];
+function ComplianceQueueTab({
+  records,
+}: {
+  records: DbComplianceRecordWithAsset[];
+}) {
+  if (records.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          No pending compliance reviews. New assets from Asset Studio and workflow
+          runs will appear here when review is required.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Upcoming compliance scans and review items surfaced by automations.
+        Pending compliance reviews for this campaign.
       </p>
       <div className="grid gap-3">
-        {stubQueue.map((item) => (
-          <Card key={item.title} className="border-dashed">
+        {records.map((record) => (
+          <Card key={record.id}>
             <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-2">
               <div>
-                <CardTitle className="text-sm">{item.title}</CardTitle>
-                <CardDescription>{item.type}</CardDescription>
+                <CardTitle className="text-sm">
+                  {record.asset?.title ?? "Campaign asset"}
+                </CardTitle>
+                <CardDescription>
+                  {(record.content_type ?? "campaign_asset").replace(/_/g, " ")}
+                  {record.ai_generated ? " · AI-generated" : ""}
+                </CardDescription>
               </div>
-              <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide",
-                  item.priority === "high"
-                    ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                    : "border-border bg-muted/40 text-muted-foreground",
-                )}
-              >
-                {item.priority}
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                {record.review_status}
               </span>
             </CardHeader>
           </Card>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Live queue data will sync from Compliance when the workflow runner is
-        enabled.
-      </p>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/db/client";
 import type { DbWorkflowRun, DbWorkflowSchedule } from "@/lib/db/schema";
 import { buildScheduleMetadata } from "@/lib/workflows/resolve-schedule";
-import { toCronExpression } from "@/lib/workflows/schedule";
+import { computeNextRunAt, isScheduleDue, toCronExpression } from "@/lib/workflows/schedule";
 import {
   createWorkflowScheduleSchema,
   type CreateWorkflowScheduleInput,
@@ -60,6 +60,12 @@ export async function createWorkflowSchedule(input: CreateWorkflowScheduleInput)
     timezone: parsed.scheduleConfig?.timezone ?? "America/Los_Angeles",
   };
 
+  const nextRunAt = computeNextRunAt({
+    scheduleType: parsed.scheduleType,
+    cronExpression,
+    scheduleConfig,
+  });
+
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("workflow_schedules")
@@ -73,7 +79,8 @@ export async function createWorkflowSchedule(input: CreateWorkflowScheduleInput)
       cron_expression: cronExpression,
       schedule_config: scheduleConfig,
       enabled: parsed.enabled,
-      status: "pending_implementation",
+      status: parsed.enabled ? "active" : "paused",
+      next_run_at: nextRunAt,
       created_by: parsed.createdBy ?? null,
       metadata_json: buildScheduleMetadata({
         prompt: parsed.prompt,
@@ -229,19 +236,61 @@ export async function updateWorkflowRun(input: {
   return { synced: true as const };
 }
 
+export async function listDueWorkflowSchedules(limit = 25) {
+  if (!isSupabaseConfigured()) {
+    return { synced: false as const, schedules: [] as DbWorkflowSchedule[] };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("workflow_schedules")
+    .select("*")
+    .eq("enabled", true)
+    .order("next_run_at", { ascending: true, nullsFirst: false })
+    .limit(limit * 4);
+
+  if (error) {
+    throw error;
+  }
+
+  const now = new Date();
+  const schedules = (data ?? [])
+    .map(mapSchedule)
+    .filter((schedule) => isScheduleDue(schedule, now))
+    .slice(0, limit);
+
+  return {
+    synced: true as const,
+    schedules,
+  };
+}
+
 export async function markScheduleRan(input: {
   scheduleId: string;
-  status?: "active" | "error";
+  status?: "active" | "error" | "paused";
+  scheduleType?: string;
+  scheduleConfig?: Record<string, unknown> | null;
+  cronExpression?: string | null;
 }) {
   if (!isSupabaseConfigured()) {
     return { synced: false as const };
   }
+
+  const nextRunAt =
+    input.scheduleType != null
+      ? computeNextRunAt({
+          scheduleType: input.scheduleType as CreateWorkflowScheduleInput["scheduleType"],
+          cronExpression: input.cronExpression,
+          scheduleConfig: input.scheduleConfig ?? undefined,
+        })
+      : null;
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
     .from("workflow_schedules")
     .update({
       last_run_at: new Date().toISOString(),
+      next_run_at: nextRunAt,
       status: input.status ?? "active",
     })
     .eq("id", input.scheduleId);
