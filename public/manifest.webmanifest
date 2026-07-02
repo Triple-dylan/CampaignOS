@@ -1,0 +1,10 @@
+{
+  "name": "CampaignOS",
+  "short_name": "CampaignOS",
+  "description": "Your campaign knowledge graph and AI assistant in one workspace.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#fafafa",
+  "orientation": "any"
+}

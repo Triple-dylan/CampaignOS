@@ -37,14 +37,14 @@ export function ResearchBoard({
   }, [briefs]);
 
   return (
-    <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid flex-1 gap-3 overflow-x-auto pb-1 snap-x snap-mandatory md:grid-cols-2 md:overflow-visible md:snap-none md:pb-0 xl:grid-cols-4">
       {RESEARCH_STAGES.map((stage) => {
         const meta = RESEARCH_STAGE_META[stage];
         const laneBriefs = lanes.get(stage) ?? [];
         return (
           <section
             key={stage}
-            className="flex min-h-48 flex-col gap-3 rounded-xl border border-border bg-muted/20 p-3"
+            className="flex min-h-48 w-[min(85vw,18rem)] shrink-0 snap-start flex-col gap-3 rounded-xl border border-border bg-muted/20 p-3 md:w-auto md:shrink"
           >
             <header className="flex items-center justify-between">
               <div className="flex items-center gap-2">

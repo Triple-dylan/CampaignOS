@@ -24,7 +24,10 @@ export function OnboardingProgress({
   const currentIndex = steps.indexOf(currentStep);
 
   return (
-    <nav aria-label="Onboarding progress" className="w-full">
+    <nav aria-label="Onboarding progress" className="w-full space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">
+        Step {currentIndex + 1} of {steps.length}
+      </p>
       <ol className="flex flex-wrap items-center gap-2 md:gap-0">
         {steps.map((step, index) => {
           const isComplete = index < currentIndex;
