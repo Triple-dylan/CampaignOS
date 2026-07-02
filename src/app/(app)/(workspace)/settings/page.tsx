@@ -272,12 +272,12 @@ function IntegrationSetupCard({
 }) {
   return (
     <div className="rounded-lg border bg-muted/20 p-4">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="font-medium">{title}</p>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button type="button" variant="outline" disabled>
+        <Button type="button" variant="outline" disabled className="w-full sm:w-auto">
           {cta}
         </Button>
       </div>

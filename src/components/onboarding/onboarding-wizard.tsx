@@ -205,7 +205,7 @@ export function OnboardingWizard({ initialData }: OnboardingWizardProps) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-24 md:pb-0">
       <OnboardingProgress steps={ONBOARDING_STEPS} currentStep={currentStep} />
 
       <Card className="glass-card">
@@ -241,7 +241,7 @@ export function OnboardingWizard({ initialData }: OnboardingWizardProps) {
               ) : null}
             </CardContent>
 
-            <CardFooter className="flex items-center justify-between gap-3 border-t">
+            <CardFooter className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t bg-card/95 pb-safe backdrop-blur-sm md:static md:bg-transparent md:pb-0 md:backdrop-blur-none">
               <Button
                 type="button"
                 variant="outline"

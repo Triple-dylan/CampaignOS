@@ -46,6 +46,7 @@ import {
   calendarEventTypeSchema,
   type CalendarEventType,
 } from "@/lib/validators/calendar-events";
+import { ResponsiveActionGroup } from "@/components/layout/responsive-action-group";
 import { cn } from "@/lib/utils";
 
 const EVENT_TYPES = calendarEventTypeSchema.options;
@@ -267,19 +268,24 @@ export function CampaignPlanner({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setTimelineOpen(true)}>
-            <Sparkles data-icon="inline-start" className="size-3.5" />
-            Generate timeline
-          </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus data-icon="inline-start" className="size-3.5" />
-            New event
-          </Button>
-        </div>
+        <ResponsiveActionGroup
+          primary={
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus data-icon="inline-start" className="size-3.5" />
+              New event
+            </Button>
+          }
+          overflow={
+            <Button size="sm" variant="outline" onClick={() => setTimelineOpen(true)}>
+              <Sparkles data-icon="inline-start" className="size-3.5" />
+              Generate timeline
+            </Button>
+          }
+          overflowLabel="Planner actions"
+        />
       </div>
 
-      <section className="glass-card rounded-xl border border-border p-3">
+      <section className="glass-card hidden rounded-xl border border-border p-3 md:block">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Week of {weekLabel}
@@ -372,6 +378,106 @@ export function CampaignPlanner({
                   )}
                 </div>
               </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="glass-card rounded-xl border border-border p-3 md:hidden">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            This week
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="size-7 p-0"
+              onClick={() => setWeekAnchor((w) => addDays(w, -7))}
+              aria-label="Previous week"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                setWeekAnchor(startOfWeek(new Date()));
+                setSelectedDay(null);
+              }}
+            >
+              Today
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="size-7 p-0"
+              onClick={() => setWeekAnchor((w) => addDays(w, 7))}
+              aria-label="Next week"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">{weekLabel}</p>
+        <div className="space-y-3">
+          {weekDays.map((day) => {
+            const dayEvents = (eventsByDay.get(day.toDateString()) ?? []).filter(
+              (event) => {
+                if (
+                  eventTypeFilter !== "all" &&
+                  event.event_type !== eventTypeFilter
+                ) {
+                  return false;
+                }
+                if (viewMode === "milestones" && !event.is_milestone) {
+                  return false;
+                }
+                if (viewMode === "upcoming") {
+                  const start = new Date(event.start_time);
+                  return !Number.isNaN(start.getTime()) && start >= new Date();
+                }
+                return true;
+              },
+            );
+
+            return (
+              <div key={day.toISOString()} className="rounded-lg border border-border/70 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-medium">
+                    {day.toLocaleDateString(undefined, {
+                      weekday: "long",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                  {isSameDay(day, today) ? (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium text-primary">
+                      Today
+                    </span>
+                  ) : null}
+                </div>
+                {dayEvents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No events</p>
+                ) : (
+                  <div className="space-y-2">
+                    {dayEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => setEditEvent(event)}
+                        className="flex w-full flex-col gap-1 rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-left transition-colors hover:bg-accent"
+                      >
+                        <span className="text-sm font-medium">{event.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatEventDateTime(event.start_time, event.end_time)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

@@ -92,7 +92,8 @@ export function AutomationsDashboard({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="inline-flex rounded-lg border border-border bg-card/60 p-0.5">
+        <div className="-mx-1 flex overflow-x-auto px-1 pb-1 snap-x snap-mandatory md:inline-flex md:overflow-visible md:pb-0">
+          <div className="inline-flex shrink-0 snap-start rounded-lg border border-border bg-card/60 p-0.5">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -112,6 +113,7 @@ export function AutomationsDashboard({
               </button>
             );
           })}
+          </div>
         </div>
 
         {activeTab === "scheduled" ? (
