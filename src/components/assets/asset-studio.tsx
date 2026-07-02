@@ -160,7 +160,7 @@ export function AssetStudio({
                 primary={
                   <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
                     <Plus data-icon="inline-start" className="size-3.5" />
-                    Create
+                    New Content
                   </Button>
                 }
                 overflow={
@@ -209,7 +209,7 @@ export function AssetStudio({
                 </Button>
                 <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
                   <Plus data-icon="inline-start" className="size-3.5" />
-                  Create asset
+                  New Content
                 </Button>
               </div>
             </div>

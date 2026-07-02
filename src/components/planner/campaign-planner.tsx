@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { deletePlannerEvent } from "@/actions/planner";
-import { useChat } from "@/components/chat/chat-provider";
 import { EventFormDialog } from "@/components/planner/event-form-dialog";
+import { PlannerGenerationDialog } from "@/components/planner/planner-generation-dialog";
 import {
   EventTypeBadge,
   MilestoneBadge,
@@ -50,11 +50,12 @@ import { cn } from "@/lib/utils";
 
 const EVENT_TYPES = calendarEventTypeSchema.options;
 
-type ViewMode = "upcoming" | "all" | "milestones";
+type ViewMode = "upcoming" | "all" | "milestones" | "content";
 
 type CampaignPlannerProps = {
   events: DbCalendarEvent[];
   approvedAssets: DbAsset[];
+  openAiConfigured: boolean;
 };
 
 function startOfWeek(date: Date): Date {
@@ -125,10 +126,14 @@ function groupEventsByMonth(events: DbCalendarEvent[]) {
 export function CampaignPlanner({
   events,
   approvedAssets,
+  openAiConfigured,
 }: CampaignPlannerProps) {
   const router = useRouter();
-  const { setChatRailOpen, sendMessage } = useChat();
   const [createOpen, setCreateOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateMode, setGenerateMode] = useState<
+    "timeline" | "content-calendar"
+  >("content-calendar");
   const [editEvent, setEditEvent] = useState<DbCalendarEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DbCalendarEvent | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("upcoming");
@@ -178,6 +183,9 @@ export function CampaignPlanner({
       if (viewMode === "milestones" && !event.is_milestone) {
         return false;
       }
+      if (viewMode === "content" && event.event_type !== "content") {
+        return false;
+      }
       if (selectedDay) {
         const start = new Date(event.start_time);
         if (!isSameDay(start, selectedDay)) return false;
@@ -220,10 +228,13 @@ export function CampaignPlanner({
   }
 
   async function handleGenerateWeeklyPlan() {
-    setChatRailOpen(true);
-    await sendMessage(
-      "Generate a weekly campaign plan for this week. Include field events, voter contact goals, content deadlines, and fundraising milestones based on what's already on the calendar.",
-    );
+    setGenerateMode("timeline");
+    setGenerateOpen(true);
+  }
+
+  function handleGenerateContentCalendar() {
+    setGenerateMode("content-calendar");
+    setGenerateOpen(true);
   }
 
   const weekLabel = `${weekDays[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekDays[6].toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
@@ -235,6 +246,7 @@ export function CampaignPlanner({
           {(
             [
               ["upcoming", "Upcoming"],
+              ["content", "Content beats"],
               ["all", "All events"],
               ["milestones", "Milestones"],
             ] as const
@@ -266,10 +278,16 @@ export function CampaignPlanner({
             </Button>
           }
           overflow={
-            <Button size="sm" variant="outline" onClick={handleGenerateWeeklyPlan}>
-              <Sparkles data-icon="inline-start" className="size-3.5" />
-              Generate weekly plan
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={handleGenerateContentCalendar}>
+                <Sparkles data-icon="inline-start" className="size-3.5" />
+                Content calendar
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleGenerateWeeklyPlan}>
+                <Sparkles data-icon="inline-start" className="size-3.5" />
+                Generate timeline
+              </Button>
+            </>
           }
           overflowLabel="Planner actions"
         />
@@ -544,9 +562,9 @@ export function CampaignPlanner({
                 <Plus data-icon="inline-start" className="size-3.5" />
                 Create your first event
               </Button>
-              <Button variant="outline" size="sm" onClick={handleGenerateWeeklyPlan}>
+              <Button variant="outline" size="sm" onClick={handleGenerateContentCalendar}>
                 <MessageSquarePlus data-icon="inline-start" className="size-3.5" />
-                Ask in chat
+                Generate content calendar
               </Button>
             </div>
           </div>
@@ -634,6 +652,15 @@ export function CampaignPlanner({
           ))}
         </div>
       )}
+
+      <PlannerGenerationDialog
+        key={generateMode}
+        open={generateOpen}
+        onOpenChange={setGenerateOpen}
+        openAiConfigured={openAiConfigured}
+        initialMode={generateMode}
+        onSuccess={refresh}
+      />
 
       <EventFormDialog
         open={createOpen}

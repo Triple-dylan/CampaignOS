@@ -1,6 +1,7 @@
 export type CampaignWorkflowId =
   | "event-research"
   | "content-creation"
+  | "content-calendar"
   | "campaign-structure"
   | "incumbent-research";
 
@@ -9,6 +10,7 @@ export type WorkflowEntryPoint = "chat" | "tab";
 export type WorkflowOutputType =
   | "research_brief"
   | "asset"
+  | "content_calendar"
   | "campaign_timeline";
 
 export type WorkflowDestinationModule =
@@ -87,6 +89,32 @@ export const campaignWorkflows = [
     destinationModule: "assets",
     harnessSkillId: "asset-studio",
     requiredIntegrations: ["OpenAI/Claude", "Canva", "Higgsfield", "Gmail"],
+  },
+  {
+    id: "content-calendar",
+    name: "Content Calendar",
+    description:
+      "Generate a social/content calendar with scheduled content beats linked to the brain graph.",
+    entryPoints: ["chat", "tab"],
+    steps: [
+      {
+        id: "capture-period",
+        label: "Capture calendar period",
+        prompt: "What period should this content calendar cover?",
+      },
+      {
+        id: "collect-channels",
+        label: "Collect channels and cadence",
+        prompt:
+          "Which channels (Instagram, X, Facebook, email) and how often should we post?",
+      },
+      { id: "generate-slots", label: "Generate content calendar slots" },
+      { id: "store-calendar", label: "Store in Planner and graph" },
+    ],
+    outputType: "content_calendar",
+    destinationModule: "planner",
+    harnessSkillId: "asset-studio",
+    requiredIntegrations: ["OpenAI/Claude"],
   },
   {
     id: "campaign-structure",

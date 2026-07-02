@@ -32,7 +32,11 @@ export function parseKnowledgeMetadata(
   const folder = isCampaignFolderId(metadata.folder) ? metadata.folder : null;
   const isFolderHub = metadata.cluster === true;
   const knowledgePath =
-    typeof metadata.path === "string" ? metadata.path : null;
+    typeof metadata.path === "string"
+      ? metadata.path
+      : typeof metadata.knowledgePath === "string"
+        ? metadata.knowledgePath
+        : null;
 
   let knowledgeKind: KnowledgeGraphNodeKind | null = null;
   if (typeof metadata.knowledgeKind === "string") {

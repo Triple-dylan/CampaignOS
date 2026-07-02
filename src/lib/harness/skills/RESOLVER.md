@@ -30,6 +30,7 @@ Maps user chat intents to `src/lib/workflows/registry.ts` entries and graph fold
 |----------|-----------------|-------|---------------|
 | `event-research` | "event research", "town hall prep", "event brief", "prepare for event" | `research-brief` | research, events |
 | `content-creation` | "content creation", "create content", "write a post", "draft content" | `asset-studio` | assets, messaging, social-media |
+| `content-calendar` | "content calendar", "posting schedule", "social calendar", "schedule posts" | `asset-studio` | social-media, events, messaging |
 | `campaign-structure` | "campaign structure", "campaign timeline", "build a plan", "voter segments" | `campaign-manager` | campaign, initiatives, field |
 | `incumbent-research` | "incumbent research", "compare candidates", "opponent comparison", "incumbent report" | `research-brief` | research, people, polling |
 

@@ -1,14 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { generateAsset } from "@/actions/assets";
-import { createPlannerEvent } from "@/actions/planner";
+import { previewAssetDrafts, saveAssetFromDraft } from "@/actions/assets";
 import { generateResearchBrief } from "@/actions/research";
-import { createCampaignTask } from "@/actions/tasks";
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
+import { generateContentCalendarContent } from "@/lib/ai/generate-content-calendar";
 import { generateCampaignTimelineContent } from "@/lib/ai/generate-campaign-timeline";
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { requireCampaignContext } from "@/lib/auth/require-campaign-context";
+import { campaignDisplayName } from "@/lib/db/schema";
 import type { CampaignWorkflowId } from "@/lib/workflows/registry";
+import { persistContentCalendar } from "@/lib/workflows/persist-content-calendar";
+import { persistCampaignTimeline } from "@/lib/workflows/persist-timeline";
 import {
   buildEventResearchTopic,
   buildIncumbentResearchTopic,
@@ -31,15 +34,57 @@ export type ExecuteWorkflowResult =
       code?: "missing_openai" | "missing_campaign" | "generation_failed";
     };
 
+export type PreviewWorkflowResult =
+  | { ok: true; drafts: AssetGenerationOutput[] }
+  | {
+      ok: false;
+      error: string;
+      code?: "missing_openai" | "missing_campaign" | "generation_failed";
+    };
+
+export async function previewChatWorkflow(input: {
+  workflowId: CampaignWorkflowId;
+  fields: WorkflowFields;
+}): Promise<PreviewWorkflowResult> {
+  if (input.workflowId !== "content-creation") {
+    return { ok: false, error: "Preview is only supported for content creation." };
+  }
+
+  const combined = [input.fields.intent, input.fields.theme].filter(Boolean).join(". ");
+  const assetType = inferAssetTypeFromText(combined);
+  const { theme, issue, channel } = extractThemeAndIssue(input.fields.theme ?? "");
+
+  const result = await previewAssetDrafts({
+    assetType,
+    theme,
+    issue,
+    channel,
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error,
+      code: result.code === "missing_openai" ? "missing_openai" : "generation_failed",
+    };
+  }
+
+  return { ok: true, drafts: result.drafts };
+}
+
 export async function executeChatWorkflow(input: {
   workflowId: CampaignWorkflowId;
   fields: WorkflowFields;
+  draftIndex?: number;
+  drafts?: AssetGenerationOutput[];
 }): Promise<ExecuteWorkflowResult> {
   switch (input.workflowId) {
     case "event-research":
       return executeEventResearch(input.fields);
     case "content-creation":
-      return executeContentCreation(input.fields);
+      return executeContentCreation(input.fields, input.draftIndex, input.drafts);
+    case "content-calendar":
+      return executeContentCalendar(input.fields);
     case "campaign-structure":
       return executeCampaignStructure(input.fields);
     case "incumbent-research":
@@ -95,15 +140,29 @@ async function executeIncumbentResearch(
 
 async function executeContentCreation(
   fields: WorkflowFields,
+  draftIndex = 0,
+  drafts?: AssetGenerationOutput[],
 ): Promise<ExecuteWorkflowResult> {
   const combined = [fields.intent, fields.theme].filter(Boolean).join(". ");
   const assetType = inferAssetTypeFromText(combined);
   const { theme, issue, channel } = extractThemeAndIssue(fields.theme ?? "");
 
-  const result = await generateAsset({
+  let selectedDraft = drafts?.[draftIndex];
+  if (!selectedDraft) {
+    const preview = await previewAssetDrafts({ assetType, theme, issue, channel });
+    if (!preview.ok) {
+      return mapActionError(preview);
+    }
+    selectedDraft = preview.drafts[draftIndex] ?? preview.drafts[0];
+  }
+
+  if (!selectedDraft) {
+    return { ok: false, error: "No draft available to save.", code: "generation_failed" };
+  }
+
+  const result = await saveAssetFromDraft({
+    draft: selectedDraft,
     assetType,
-    theme,
-    issue,
     channel,
   });
 
@@ -113,12 +172,88 @@ async function executeContentCreation(
 
   return {
     ok: true,
-    summary:
-      "Your content draft is saved in Asset Studio for review and approval.",
+    summary: [
+      `Saved draft ${draftIndex + 1} to Asset Studio for review and approval.`,
+      selectedDraft.content.slice(0, 280) +
+        (selectedDraft.content.length > 280 ? "…" : ""),
+    ].join("\n\n"),
     artifactLink: `/assets?assetId=${result.assetId}`,
     artifactLabel: "Asset Studio",
     artifactIds: [result.assetId],
   };
+}
+
+async function executeContentCalendar(
+  fields: WorkflowFields,
+): Promise<ExecuteWorkflowResult> {
+  const context = await requireCampaignContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: "missing_campaign" };
+  }
+
+  if (!isOpenAiConfigured()) {
+    return {
+      ok: false,
+      error:
+        "OpenAI is not configured. Add OPENAI_API_KEY to generate a content calendar.",
+      code: "missing_openai",
+    };
+  }
+
+  const period = fields.intent?.trim() ?? "";
+  const channelsAndCadence = fields.details?.trim() ?? "";
+  if (!period || !channelsAndCadence) {
+    return {
+      ok: false,
+      error: "Calendar period and channels/cadence are required.",
+      code: "generation_failed",
+    };
+  }
+
+  try {
+    const calendar = await generateContentCalendarContent({
+      campaign: context.campaign,
+      profile: context.profile,
+      campaignId: context.campaign.id,
+      userId: context.dbUserId,
+      period,
+      channelsAndCadence,
+    });
+
+    const { eventIds } = await persistContentCalendar({
+      organizationId: context.campaign.organization_id,
+      campaign: context.campaign,
+      createdBy: context.dbUserId,
+      candidateName: campaignDisplayName(context.campaign),
+      calendar,
+    });
+
+    revalidatePath("/planner");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return {
+      ok: true,
+      summary: [
+        calendar.summary,
+        "",
+        `Created ${eventIds.length} content beat${eventIds.length === 1 ? "" : "s"} in Planner and linked them in the brain graph.`,
+      ].join("\n"),
+      artifactLink: "/planner",
+      artifactLabel: "Planner",
+      artifactIds: eventIds,
+    };
+  } catch (error) {
+    console.error("[executeContentCalendar]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Content calendar generation failed.",
+      code: "generation_failed",
+    };
+  }
 }
 
 async function executeCampaignStructure(
@@ -158,37 +293,16 @@ async function executeCampaignStructure(
       issues,
     });
 
-    const eventIds: string[] = [];
-    const taskIds: string[] = [];
-
-    for (const event of timeline.events) {
-      const created = await createPlannerEvent({
-        title: event.title,
-        description: event.description,
-        eventType: event.event_type,
-        startTime: event.start_time,
-        isMilestone: event.is_milestone ?? false,
-      });
-      if (created.ok && created.id) {
-        eventIds.push(created.id);
-      }
-    }
-
-    for (const task of timeline.tasks) {
-      const created = await createCampaignTask({
-        title: task.title,
-        description: task.description,
-        priority: task.priority,
-        dueDate: task.due_date ?? null,
-        status: "todo",
-      });
-      if (created.ok && created.id) {
-        taskIds.push(created.id);
-      }
-    }
+    const { eventIds, taskIds } = await persistCampaignTimeline({
+      campaign: context.campaign,
+      createdBy: context.dbUserId,
+      candidateName: campaignDisplayName(context.campaign),
+      timeline,
+    });
 
     revalidatePath("/planner");
     revalidatePath("/tasks");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return {

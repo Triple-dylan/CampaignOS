@@ -3,9 +3,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { ensureOrganizationSynced } from "@/actions/organizations";
-import { generateAssetContent } from "@/lib/ai/generate-asset";
+import { generateAssetContent, generateAssetDraftContents } from "@/lib/ai/generate-asset";
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { getSocialAssetTemplate } from "@/lib/assets/social-templates";
+import { writeAssetToCampaignKnowledge } from "@/lib/campaign-knowledge/asset-sync";
 import { canApproveAssets } from "@/lib/auth/permissions";
 import {
   createAsset,
@@ -24,9 +25,16 @@ import {
   updateComplianceRecordForAsset,
 } from "@/lib/db/compliance";
 import { linkAssetToCampaignGraph } from "@/lib/db/graph";
+import { getOrganizationIntegration } from "@/lib/db/integrations";
+import {
+  generateFromCanvaTemplate,
+  generateFromHiggsfieldTemplate,
+} from "@/lib/integrations/providers/template-generation";
+import { isIntegrationsDemoMode } from "@/lib/integrations/token-crypto";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { getMemberRoleForUser } from "@/lib/db/members";
 import { getUserByClerkId } from "@/lib/db/users";
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
 import {
   createAssetSchema,
   defaultChannelForAssetType,
@@ -134,6 +142,9 @@ async function finalizeNewAsset(input: {
   assetType: AssetType;
   aiGenerated: boolean;
   channel?: string | null;
+  theme?: string | null;
+  issue?: string | null;
+  templateUsed?: string | null;
 }) {
   await createComplianceRecordForAsset({
     campaignId: input.campaignId,
@@ -153,6 +164,10 @@ async function finalizeNewAsset(input: {
     assetId: input.assetId,
     assetTitle: input.assetTitle,
     assetType: input.assetType,
+    channel: input.channel,
+    theme: input.theme,
+    issue: input.issue,
+    templateUsed: input.templateUsed,
     candidateName: input.candidateName,
     existingNodes,
   });
@@ -233,9 +248,12 @@ export async function createAssetManual(input: {
       assetType: parsed.data.assetType,
       aiGenerated: false,
       channel: parsed.data.channel,
+      theme: parsed.data.theme,
+      issue: parsed.data.issue,
     });
 
     revalidatePath("/assets");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, assetId: result.asset.id };
@@ -319,9 +337,13 @@ export async function generateAsset(
       assetType,
       aiGenerated: true,
       channel,
+      theme: generated.theme ?? parsedRequest.data.theme,
+      issue: generated.issue ?? parsedRequest.data.issue,
+      templateUsed: parsedRequest.data.templateId ?? null,
     });
 
     revalidatePath("/assets");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, assetId: result.asset.id };
@@ -335,6 +357,126 @@ export async function generateAsset(
           : "Asset generation failed. Please try again.",
       code: "generation_failed",
     };
+  }
+}
+
+export type AssetDraftPreviewResult =
+  | { ok: true; drafts: AssetGenerationOutput[] }
+  | {
+      ok: false;
+      error: string;
+      code?: "missing_openai" | "validation" | "generation_failed";
+    };
+
+export async function previewAssetDrafts(
+  request: GenerateAssetRequest,
+): Promise<AssetDraftPreviewResult> {
+  const context = await requireAssetContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: "validation" };
+  }
+
+  if (!isOpenAiConfigured()) {
+    return {
+      ok: false,
+      error:
+        "OpenAI is not configured. Add OPENAI_API_KEY to generate assets with AI.",
+      code: "missing_openai",
+    };
+  }
+
+  const parsedRequest = generateAssetRequestSchema.safeParse(request);
+  if (!parsedRequest.success) {
+    return {
+      ok: false,
+      error: parsedRequest.error.issues[0]?.message ?? "Invalid request",
+      code: "validation",
+    };
+  }
+
+  try {
+    const drafts = await generateAssetDraftContents({
+      campaign: context.campaign,
+      profile: context.profile,
+      campaignId: context.campaign.id,
+      userId: context.dbUserId,
+      request: parsedRequest.data,
+      draftCount: 3,
+    });
+    return { ok: true, drafts };
+  } catch (error) {
+    console.error("[previewAssetDrafts]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Asset generation failed. Please try again.",
+      code: "generation_failed",
+    };
+  }
+}
+
+export async function saveAssetFromDraft(input: {
+  draft: AssetGenerationOutput;
+  assetType: M7AssetType;
+  channel?: string;
+  templateId?: string;
+}): Promise<AssetActionResult> {
+  const context = await requireAssetContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: context.code };
+  }
+
+  const channel =
+    input.draft.channel ??
+    input.channel ??
+    defaultChannelForAssetType(input.assetType);
+
+  const assetInput = createAssetSchema.parse({
+    campaignId: context.campaign.id,
+    assetType: input.assetType,
+    title: input.draft.title,
+    contentText: input.draft.content,
+    theme: input.draft.theme,
+    issue: input.draft.issue,
+    channel,
+    status: "draft",
+    aiGenerated: true,
+    createdBy: context.dbUserId,
+  });
+
+  try {
+    const result = await createAsset(assetInput);
+    if (!result.asset) {
+      return {
+        ok: false,
+        error: "Database is not configured. Asset was not saved.",
+        code: "missing_campaign",
+      };
+    }
+
+    await finalizeNewAsset({
+      campaignId: context.campaign.id,
+      candidateName: campaignDisplayName(context.campaign),
+      assetId: result.asset.id,
+      assetTitle: result.asset.title,
+      assetType: input.assetType,
+      aiGenerated: true,
+      channel,
+      theme: input.draft.theme,
+      issue: input.draft.issue,
+      templateUsed: input.templateId ?? null,
+    });
+
+    revalidatePath("/assets");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return { ok: true, assetId: result.asset.id };
+  } catch (error) {
+    console.error("[saveAssetFromDraft]", error);
+    return { ok: false, error: "Failed to save asset draft." };
   }
 }
 
@@ -366,18 +508,105 @@ export async function generateAssetFromTemplate(input: {
     };
   }
 
-  // Expected production flow:
-  // Canva: load the user's OAuth token, map campaign/profile fields to the
-  // brand template dataset, create an autofill job, poll it, export the design,
-  // then save the Canva design/export URLs on the CampaignOS asset.
-  // Higgsfield: call the configured MCP generation tool with campaign context,
-  // template dimensions, and prompt fields, then save returned image/video URLs.
-  return {
-    ok: false,
-    error:
-      "Template generation is not connected yet. Connect Canva or Higgsfield in Settings, then map template IDs and output storage.",
-    code: "integration_not_connected",
-  };
+  const integration = await getOrganizationIntegration({
+    organizationId: context.campaign.organization_id,
+    provider: input.provider,
+  });
+
+  const connected =
+    integration?.status === "connected" || isIntegrationsDemoMode();
+  if (!connected) {
+    return {
+      ok: false,
+      error: `Connect ${input.provider === "canva" ? "Canva" : "Higgsfield"} in Settings before rendering templates.`,
+      code: "integration_not_connected",
+    };
+  }
+
+  try {
+    const candidateName = campaignDisplayName(context.campaign);
+    const generated =
+      input.provider === "canva"
+        ? await generateFromCanvaTemplate({
+            accessToken: integration?.accessToken,
+            template,
+            theme: input.theme,
+            issue: input.issue,
+            candidateName,
+          })
+        : await generateFromHiggsfieldTemplate({
+            accessToken: integration?.accessToken,
+            template,
+            theme: input.theme,
+            issue: input.issue,
+            candidateName,
+          });
+
+    const title = input.theme?.trim()
+      ? `${template.label}: ${input.theme}`
+      : template.label;
+    const contentText = [
+      `Rendered ${template.platform} creative (${template.dimensions}).`,
+      input.theme ? `Theme: ${input.theme}` : null,
+      input.issue ? `Issue: ${input.issue}` : null,
+      `Export: ${generated.fileUrl}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const assetInput = createAssetSchema.parse({
+      campaignId: context.campaign.id,
+      assetType: template.assetType,
+      title,
+      contentText,
+      channel: template.channel,
+      ...(input.theme ? { theme: input.theme } : {}),
+      ...(input.issue ? { issue: input.issue } : {}),
+      status: "draft",
+      aiGenerated: true,
+      fileUrl: generated.fileUrl,
+      templateUsed: input.templateId,
+      createdBy: context.dbUserId,
+    });
+
+    const result = await createAsset(assetInput);
+    if (!result.asset) {
+      return {
+        ok: false,
+        error: "Database is not configured.",
+        code: "validation",
+      };
+    }
+
+    await finalizeNewAsset({
+      campaignId: context.campaign.id,
+      candidateName,
+      assetId: result.asset.id,
+      assetTitle: result.asset.title,
+      assetType: template.assetType,
+      aiGenerated: true,
+      channel: template.channel,
+      theme: input.theme ?? null,
+      issue: input.issue ?? null,
+      templateUsed: input.templateId,
+    });
+
+    revalidatePath("/assets");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return { ok: true, assetId: result.asset.id };
+  } catch (error) {
+    console.error("[generateAssetFromTemplate]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Template generation failed.",
+      code: "generation_failed",
+    };
+  }
 }
 
 export async function updateAssetContent(input: {
@@ -538,7 +767,15 @@ export async function approveAsset(
       reviewedBy: context.dbUserId,
     });
 
+    await writeAssetToCampaignKnowledge({
+      organizationId: context.campaign.organization_id,
+      campaignId: context.campaign.id,
+      asset: result.asset,
+      status: "approved",
+    });
+
     revalidatePath("/assets");
+    revalidatePath("/brain");
     return { ok: true, assetId };
   } catch (error) {
     console.error("[approveAsset]", error);

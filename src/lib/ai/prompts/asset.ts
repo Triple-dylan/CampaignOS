@@ -14,6 +14,7 @@ export function buildAssetGenerationUserPrompt(input: {
   theme?: string;
   issue?: string;
   channel?: string;
+  variantLabel?: string;
 }): string {
   const messageFramework = input.profile?.message_framework;
   const issueMap = input.profile?.issue_map ?? [];
@@ -67,6 +68,9 @@ export function buildAssetGenerationUserPrompt(input: {
   if (input.theme?.trim()) lines.push(`Preferred theme: ${input.theme.trim()}`);
   if (input.issue?.trim()) lines.push(`Focus issue: ${input.issue.trim()}`);
   if (input.channel?.trim()) lines.push(`Channel: ${input.channel.trim()}`);
+  if (input.variantLabel?.trim()) {
+    lines.push(`Draft label: ${input.variantLabel.trim()} — use a distinct angle.`);
+  }
 
   lines.push(
     "",
