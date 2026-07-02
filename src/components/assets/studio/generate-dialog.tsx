@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Loader2, Sparkles, WandSparkles } from "lucide-react";
-import { createAssetManual, generateAsset } from "@/actions/assets";
+import { createAssetManual, previewAssetDrafts, saveAssetFromDraft } from "@/actions/assets";
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -98,6 +99,8 @@ function GenerateForm({
   const [issue, setIssue] = useState("");
   const [tone, setTone] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<AssetGenerationOutput[] | null>(null);
+  const [selectedDraftIndex, setSelectedDraftIndex] = useState(0);
   const [isPending, startTransition] = useTransition();
 
   const channel = useMemo(
@@ -115,27 +118,28 @@ function GenerateForm({
 
   function handleGenerate() {
     setError(null);
+    setDrafts(null);
     startTransition(async () => {
       const themeValue = combinedTheme();
       const issueValue = issue.trim() || undefined;
 
       if (openAiConfigured) {
-        const result = await generateAsset({
+        const result = await previewAssetDrafts({
           assetType,
           theme: themeValue,
           issue: issueValue,
           channel,
+          templateId: template?.id,
         });
         if (!result.ok) {
           setError(result.error);
           return;
         }
-        onGenerated(result.assetId);
+        setDrafts(result.drafts);
+        setSelectedDraftIndex(0);
         return;
       }
 
-      // No AI configured — still deliver a usable draft using the manual action
-      // so the generation flow always produces something to preview/export.
       const label = ASSET_TYPE_LABELS[assetType];
       const result = await createAssetManual({
         assetType,
@@ -149,6 +153,27 @@ function GenerateForm({
         theme: themeValue,
         issue: issueValue,
         channel,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onGenerated(result.assetId);
+    });
+  }
+
+  function handleSaveSelectedDraft() {
+    if (!drafts?.length) return;
+    setError(null);
+    startTransition(async () => {
+      const selected = drafts[selectedDraftIndex];
+      if (!selected) return;
+
+      const result = await saveAssetFromDraft({
+        draft: selected,
+        assetType,
+        channel,
+        templateId: template?.id,
       });
       if (!result.ok) {
         setError(result.error);
@@ -246,6 +271,34 @@ function GenerateForm({
             {error}
           </p>
         ) : null}
+
+        {drafts?.length ? (
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Choose a draft
+            </p>
+            <div className="grid gap-2">
+              {drafts.map((draft, index) => (
+                <button
+                  key={`${draft.title}-${index}`}
+                  type="button"
+                  onClick={() => setSelectedDraftIndex(index)}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-colors",
+                    selectedDraftIndex === index
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/40",
+                  )}
+                >
+                  <p className="text-sm font-medium">{draft.title}</p>
+                  <p className="mt-1 line-clamp-3 text-xs text-muted-foreground whitespace-pre-wrap">
+                    {draft.content}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <DialogFooter>
@@ -257,19 +310,32 @@ function GenerateForm({
         >
           Cancel
         </Button>
-        <Button type="button" onClick={handleGenerate} disabled={isPending}>
-          {isPending ? (
-            <>
-              <Loader2 data-icon="inline-start" className="size-4 animate-spin" />
-              Generating…
-            </>
-          ) : (
-            <>
-              <Sparkles data-icon="inline-start" className="size-3.5" />
-              Generate
-            </>
-          )}
-        </Button>
+        {drafts?.length ? (
+          <Button type="button" onClick={handleSaveSelectedDraft} disabled={isPending}>
+            {isPending ? (
+              <>
+                <Loader2 data-icon="inline-start" className="size-4 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              "Save selected draft"
+            )}
+          </Button>
+        ) : (
+          <Button type="button" onClick={handleGenerate} disabled={isPending}>
+            {isPending ? (
+              <>
+                <Loader2 data-icon="inline-start" className="size-4 animate-spin" />
+                Generating…
+              </>
+            ) : (
+              <>
+                <Sparkles data-icon="inline-start" className="size-3.5" />
+                Generate drafts
+              </>
+            )}
+          </Button>
+        )}
       </DialogFooter>
     </>
   );

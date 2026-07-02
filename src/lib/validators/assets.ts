@@ -57,6 +57,8 @@ export const createAssetSchema = z.object({
   aiGenerated: z.boolean().optional(),
   promptUsed: z.string().optional(),
   modelUsed: z.string().optional(),
+  fileUrl: z.string().url().optional(),
+  templateUsed: z.string().trim().max(100).optional(),
   createdBy: z.uuid().nullable().optional(),
 });
 
@@ -75,6 +77,8 @@ export const updateAssetSchema = z.object({
   complianceStatus: complianceReviewStatusSchema.optional(),
   approvedBy: z.uuid().nullable().optional(),
   approvedAt: z.string().nullable().optional(),
+  fileUrl: z.string().url().nullable().optional(),
+  templateUsed: z.string().trim().max(100).nullable().optional(),
 });
 
 export type UpdateAssetInput = z.infer<typeof updateAssetSchema>;
@@ -96,6 +100,7 @@ export const generateAssetRequestSchema = z.object({
   audience: z.string().trim().max(200).optional(),
   contentNeed: z.string().trim().max(300).optional(),
   variationHint: z.string().trim().max(200).optional(),
+  templateId: z.string().trim().max(100).optional(),
 });
 
 export type GenerateAssetRequest = z.infer<typeof generateAssetRequestSchema>;

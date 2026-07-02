@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/require-campaign-context";
 import { listGraphEdges, listGraphNodes } from "@/lib/db/campaigns";
 import { linkResearchToCampaignGraph, linkTaskToCampaignGraph } from "@/lib/db/graph";
+import { writeResearchBriefToCampaignKnowledge } from "@/lib/campaign-knowledge/research-sync";
 import {
   createResearchBrief,
   deleteResearchBrief,
@@ -45,10 +46,13 @@ export type ResearchActionResult =
     };
 
 async function finalizeNewBrief(input: {
+  organizationId: string;
   campaignId: string;
   candidateName: string;
   briefId: string;
   briefTitle: string;
+  briefSummary: string;
+  briefBody: string;
   researchType: string;
   relatedIssueTitles?: string[];
 }) {
@@ -61,6 +65,16 @@ async function finalizeNewBrief(input: {
     candidateName: input.candidateName,
     relatedIssueTitles: input.relatedIssueTitles,
     existingNodes,
+  });
+
+  await writeResearchBriefToCampaignKnowledge({
+    organizationId: input.organizationId,
+    campaignId: input.campaignId,
+    briefId: input.briefId,
+    title: input.briefTitle,
+    summary: input.briefSummary,
+    body: input.briefBody,
+    researchType: input.researchType,
   });
 }
 
@@ -200,15 +214,19 @@ export async function createResearchBriefManual(input: {
     }
 
     await finalizeNewBrief({
+      organizationId: context.campaign.organization_id,
       campaignId: context.campaign.id,
       candidateName: campaignDisplayName(context.campaign),
       briefId: result.brief.id,
       briefTitle: result.brief.title,
+      briefSummary: result.brief.summary ?? "",
+      briefBody: result.brief.body ?? "",
       researchType: parsed.data.researchType,
       relatedIssueTitles: context.profile?.top_issues ?? undefined,
     });
 
     revalidatePath("/research");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, briefId: result.brief.id };
@@ -288,15 +306,25 @@ export async function generateResearchBrief(
       undefined;
 
     await finalizeNewBrief({
+      organizationId: context.campaign.organization_id,
       campaignId: context.campaign.id,
       candidateName: campaignDisplayName(context.campaign),
       briefId: result.brief.id,
       briefTitle: result.brief.title,
+      briefSummary: result.brief.summary ?? generated.summary ?? "",
+      briefBody:
+        result.brief.body ??
+        [
+          generated.summary,
+          "",
+          ...generated.key_findings.map((finding) => `- ${finding}`),
+        ].join("\n"),
       researchType: parsedRequest.data.researchType,
       relatedIssueTitles: relatedIssues,
     });
 
     revalidatePath("/research");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, briefId: result.brief.id };

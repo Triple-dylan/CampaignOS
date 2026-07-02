@@ -110,7 +110,7 @@ export function ChatProvider({
     string[]
   >([]);
   const [isChatRailOpen, setChatRailOpen] = React.useState(true);
-  const { handleMessage: handleWorkflowMessage } = useWorkflowRun();
+  const { handleMessage: handleWorkflowMessage, hydrateThread } = useWorkflowRun();
 
   const toggleChatRail = React.useCallback(
     () => setChatRailOpen((open) => !open),
@@ -132,7 +132,8 @@ export function ChatProvider({
 
   const selectThread = React.useCallback((id: string) => {
     setActiveThreadId(id);
-  }, []);
+    void hydrateThread(id);
+  }, [hydrateThread]);
 
   const sendMessage = React.useCallback(
     async (text: string) => {

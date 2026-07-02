@@ -3,9 +3,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { ensureOrganizationSynced } from "@/actions/organizations";
-import { generateAssetContent } from "@/lib/ai/generate-asset";
+import { generateAssetContent, generateAssetDraftContents } from "@/lib/ai/generate-asset";
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { getSocialAssetTemplate } from "@/lib/assets/social-templates";
+import { writeAssetToCampaignKnowledge } from "@/lib/campaign-knowledge/asset-sync";
 import { canApproveAssets } from "@/lib/auth/permissions";
 import {
   createAsset,
@@ -24,24 +25,25 @@ import {
   updateComplianceRecordForAsset,
 } from "@/lib/db/compliance";
 import { linkAssetToCampaignGraph } from "@/lib/db/graph";
+import { getOrganizationIntegration } from "@/lib/db/integrations";
+import {
+  generateFromCanvaTemplate,
+  generateFromHiggsfieldTemplate,
+} from "@/lib/integrations/providers/template-generation";
+import { isIntegrationsDemoMode } from "@/lib/integrations/token-crypto";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { getMemberRoleForUser } from "@/lib/db/members";
 import { getUserByClerkId } from "@/lib/db/users";
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
 import {
   createAssetSchema,
-  contentDraftBriefSchema,
   defaultChannelForAssetType,
   generateAssetRequestSchema,
-  saveContentDraftSchema,
   updateAssetSchema,
   type AssetType,
-  type ContentDraftBrief,
-  type ContentDraftPreview,
   type GenerateAssetRequest,
   type ListAssetsFilter,
   type M7AssetType,
-  ASSET_TYPE_LABELS,
-  type SaveContentDraftInput,
 } from "@/lib/validators/assets";
 
 export type AssetActionResult =
@@ -140,6 +142,9 @@ async function finalizeNewAsset(input: {
   assetType: AssetType;
   aiGenerated: boolean;
   channel?: string | null;
+  theme?: string | null;
+  issue?: string | null;
+  templateUsed?: string | null;
 }) {
   await createComplianceRecordForAsset({
     campaignId: input.campaignId,
@@ -159,6 +164,10 @@ async function finalizeNewAsset(input: {
     assetId: input.assetId,
     assetTitle: input.assetTitle,
     assetType: input.assetType,
+    channel: input.channel,
+    theme: input.theme,
+    issue: input.issue,
+    templateUsed: input.templateUsed,
     candidateName: input.candidateName,
     existingNodes,
   });
@@ -239,9 +248,12 @@ export async function createAssetManual(input: {
       assetType: parsed.data.assetType,
       aiGenerated: false,
       channel: parsed.data.channel,
+      theme: parsed.data.theme,
+      issue: parsed.data.issue,
     });
 
     revalidatePath("/assets");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, assetId: result.asset.id };
@@ -325,9 +337,13 @@ export async function generateAsset(
       assetType,
       aiGenerated: true,
       channel,
+      theme: generated.theme ?? parsedRequest.data.theme,
+      issue: generated.issue ?? parsedRequest.data.issue,
+      templateUsed: parsedRequest.data.templateId ?? null,
     });
 
     revalidatePath("/assets");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, assetId: result.asset.id };
@@ -344,190 +360,89 @@ export async function generateAsset(
   }
 }
 
-const CONTENT_DRAFT_VARIANTS = [
-  {
-    id: "direct",
-    label: "Direct & urgent",
-    hint: "Lead with a clear call to action and concise urgency.",
-  },
-  {
-    id: "story",
-    label: "Story-driven",
-    hint: "Lead with a relatable community story and warm, optimistic tone.",
-  },
-  {
-    id: "contrast",
-    label: "Contrast & proof",
-    hint: "Lead with contrast, proof points, or accountability against the status quo.",
-  },
-] as const;
-
-export type ContentDraftVariantsResult =
-  | {
-      ok: true;
-      drafts: ContentDraftPreview[];
-      aiGenerated: boolean;
-    }
+export type AssetDraftPreviewResult =
+  | { ok: true; drafts: AssetGenerationOutput[] }
   | {
       ok: false;
       error: string;
-      code?: AssetActionCode;
+      code?: "missing_openai" | "validation" | "generation_failed";
     };
 
-function scaffoldContentDraft(input: {
-  brief: ContentDraftBrief;
-  variant: (typeof CONTENT_DRAFT_VARIANTS)[number];
-}): ContentDraftPreview {
-  const label = ASSET_TYPE_LABELS[input.brief.assetType];
-  const theme = input.brief.theme?.trim();
-  const issue = input.brief.issue?.trim();
-  const audience = input.brief.audience?.trim();
-  const channel =
-    input.brief.channel?.trim() ||
-    defaultChannelForAssetType(input.brief.assetType);
-
-  const title = [
-    label,
-    theme ? `— ${theme}` : "",
-    ` (${input.variant.label})`,
-  ]
-    .join("")
-    .slice(0, 200);
-
-  const lines = [
-    `${label} draft — ${input.variant.label}`,
-    "",
-    `Content need: ${input.brief.contentNeed}`,
-    theme ? `Theme: ${theme}` : "",
-    issue ? `Issue focus: ${issue}` : "Issue focus: [add issue]",
-    audience ? `Audience: ${audience}` : "Audience: [describe audience]",
-    `Channel: ${channel}`,
-    "",
-    `Angle: ${input.variant.hint}`,
-    "",
-    "Headline: [write a sharp, benefit-led headline]",
-    "Body: [2-3 sentences in the campaign voice]",
-    "Call to action: [what should the voter do next?]",
-  ];
-
-  return {
-    id: input.variant.id,
-    variantLabel: input.variant.label,
-    title,
-    content: lines.filter(Boolean).join("\n"),
-    theme: theme || undefined,
-    issue: issue || undefined,
-    channel,
-  };
-}
-
-export async function generateContentDraftVariants(
-  input: ContentDraftBrief,
-): Promise<ContentDraftVariantsResult> {
+export async function previewAssetDrafts(
+  request: GenerateAssetRequest,
+): Promise<AssetDraftPreviewResult> {
   const context = await requireAssetContext();
   if (!context.ok) {
-    return { ok: false, error: context.error, code: context.code };
+    return { ok: false, error: context.error, code: "validation" };
   }
 
-  const parsed = contentDraftBriefSchema.safeParse(input);
-  if (!parsed.success) {
+  if (!isOpenAiConfigured()) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid brief",
+      error:
+        "OpenAI is not configured. Add OPENAI_API_KEY to generate assets with AI.",
+      code: "missing_openai",
+    };
+  }
+
+  const parsedRequest = generateAssetRequestSchema.safeParse(request);
+  if (!parsedRequest.success) {
+    return {
+      ok: false,
+      error: parsedRequest.error.issues[0]?.message ?? "Invalid request",
       code: "validation",
     };
   }
 
-  const brief = parsed.data;
-  const channel =
-    brief.channel?.trim() || defaultChannelForAssetType(brief.assetType);
-
-  if (!isOpenAiConfigured()) {
-    return {
-      ok: true,
-      aiGenerated: false,
-      drafts: CONTENT_DRAFT_VARIANTS.map((variant) =>
-        scaffoldContentDraft({ brief, variant }),
-      ),
-    };
-  }
-
   try {
-    const drafts = await Promise.all(
-      CONTENT_DRAFT_VARIANTS.map(async (variant) => {
-        const generated = await generateAssetContent({
-          campaign: context.campaign,
-          profile: context.profile,
-          campaignId: context.campaign.id,
-          userId: context.dbUserId,
-          request: {
-            assetType: brief.assetType,
-            theme: brief.theme,
-            issue: brief.issue,
-            channel,
-            audience: brief.audience,
-            contentNeed: brief.contentNeed,
-            variationHint: variant.hint,
-          },
-        });
-
-        return {
-          id: variant.id,
-          variantLabel: variant.label,
-          title: generated.title,
-          content: generated.content,
-          theme: generated.theme ?? brief.theme,
-          issue: generated.issue ?? brief.issue,
-          channel: generated.channel ?? channel,
-        } satisfies ContentDraftPreview;
-      }),
-    );
-
-    return { ok: true, aiGenerated: true, drafts };
+    const drafts = await generateAssetDraftContents({
+      campaign: context.campaign,
+      profile: context.profile,
+      campaignId: context.campaign.id,
+      userId: context.dbUserId,
+      request: parsedRequest.data,
+      draftCount: 3,
+    });
+    return { ok: true, drafts };
   } catch (error) {
-    console.error("[generateContentDraftVariants]", error);
+    console.error("[previewAssetDrafts]", error);
     return {
       ok: false,
       error:
         error instanceof Error
           ? error.message
-          : "Draft generation failed. Please try again.",
+          : "Asset generation failed. Please try again.",
       code: "generation_failed",
     };
   }
 }
 
-export async function saveContentDraft(
-  input: SaveContentDraftInput,
-): Promise<AssetActionResult> {
+export async function saveAssetFromDraft(input: {
+  draft: AssetGenerationOutput;
+  assetType: M7AssetType;
+  channel?: string;
+  templateId?: string;
+}): Promise<AssetActionResult> {
   const context = await requireAssetContext();
   if (!context.ok) {
     return { ok: false, error: context.error, code: context.code };
   }
 
-  const parsed = saveContentDraftSchema.safeParse(input);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid draft",
-      code: "validation",
-    };
-  }
-
   const channel =
-    parsed.data.channel?.trim() ||
-    defaultChannelForAssetType(parsed.data.assetType);
+    input.draft.channel ??
+    input.channel ??
+    defaultChannelForAssetType(input.assetType);
 
   const assetInput = createAssetSchema.parse({
     campaignId: context.campaign.id,
-    assetType: parsed.data.assetType,
-    title: parsed.data.title,
-    contentText: parsed.data.contentText,
-    theme: parsed.data.theme,
-    issue: parsed.data.issue,
+    assetType: input.assetType,
+    title: input.draft.title,
+    contentText: input.draft.content,
+    theme: input.draft.theme,
+    issue: input.draft.issue,
     channel,
     status: "draft",
-    aiGenerated: parsed.data.aiGenerated ?? false,
+    aiGenerated: true,
     createdBy: context.dbUserId,
   });
 
@@ -546,21 +461,22 @@ export async function saveContentDraft(
       candidateName: campaignDisplayName(context.campaign),
       assetId: result.asset.id,
       assetTitle: result.asset.title,
-      assetType: parsed.data.assetType,
-      aiGenerated: parsed.data.aiGenerated ?? false,
+      assetType: input.assetType,
+      aiGenerated: true,
       channel,
+      theme: input.draft.theme,
+      issue: input.draft.issue,
+      templateUsed: input.templateId ?? null,
     });
 
     revalidatePath("/assets");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return { ok: true, assetId: result.asset.id };
   } catch (error) {
-    console.error("[saveContentDraft]", error);
-    return {
-      ok: false,
-      error: "Failed to save content draft. Please try again.",
-    };
+    console.error("[saveAssetFromDraft]", error);
+    return { ok: false, error: "Failed to save asset draft." };
   }
 }
 
@@ -592,18 +508,105 @@ export async function generateAssetFromTemplate(input: {
     };
   }
 
-  // Expected production flow:
-  // Canva: load the user's OAuth token, map campaign/profile fields to the
-  // brand template dataset, create an autofill job, poll it, export the design,
-  // then save the Canva design/export URLs on the CampaignOS asset.
-  // Higgsfield: call the configured MCP generation tool with campaign context,
-  // template dimensions, and prompt fields, then save returned image/video URLs.
-  return {
-    ok: false,
-    error:
-      "Template generation is not connected yet. Connect Canva or Higgsfield in Settings, then map template IDs and output storage.",
-    code: "integration_not_connected",
-  };
+  const integration = await getOrganizationIntegration({
+    organizationId: context.campaign.organization_id,
+    provider: input.provider,
+  });
+
+  const connected =
+    integration?.status === "connected" || isIntegrationsDemoMode();
+  if (!connected) {
+    return {
+      ok: false,
+      error: `Connect ${input.provider === "canva" ? "Canva" : "Higgsfield"} in Settings before rendering templates.`,
+      code: "integration_not_connected",
+    };
+  }
+
+  try {
+    const candidateName = campaignDisplayName(context.campaign);
+    const generated =
+      input.provider === "canva"
+        ? await generateFromCanvaTemplate({
+            accessToken: integration?.accessToken,
+            template,
+            theme: input.theme,
+            issue: input.issue,
+            candidateName,
+          })
+        : await generateFromHiggsfieldTemplate({
+            accessToken: integration?.accessToken,
+            template,
+            theme: input.theme,
+            issue: input.issue,
+            candidateName,
+          });
+
+    const title = input.theme?.trim()
+      ? `${template.label}: ${input.theme}`
+      : template.label;
+    const contentText = [
+      `Rendered ${template.platform} creative (${template.dimensions}).`,
+      input.theme ? `Theme: ${input.theme}` : null,
+      input.issue ? `Issue: ${input.issue}` : null,
+      `Export: ${generated.fileUrl}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const assetInput = createAssetSchema.parse({
+      campaignId: context.campaign.id,
+      assetType: template.assetType,
+      title,
+      contentText,
+      channel: template.channel,
+      ...(input.theme ? { theme: input.theme } : {}),
+      ...(input.issue ? { issue: input.issue } : {}),
+      status: "draft",
+      aiGenerated: true,
+      fileUrl: generated.fileUrl,
+      templateUsed: input.templateId,
+      createdBy: context.dbUserId,
+    });
+
+    const result = await createAsset(assetInput);
+    if (!result.asset) {
+      return {
+        ok: false,
+        error: "Database is not configured.",
+        code: "validation",
+      };
+    }
+
+    await finalizeNewAsset({
+      campaignId: context.campaign.id,
+      candidateName,
+      assetId: result.asset.id,
+      assetTitle: result.asset.title,
+      assetType: template.assetType,
+      aiGenerated: true,
+      channel: template.channel,
+      theme: input.theme ?? null,
+      issue: input.issue ?? null,
+      templateUsed: input.templateId,
+    });
+
+    revalidatePath("/assets");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return { ok: true, assetId: result.asset.id };
+  } catch (error) {
+    console.error("[generateAssetFromTemplate]", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Template generation failed.",
+      code: "generation_failed",
+    };
+  }
 }
 
 export async function updateAssetContent(input: {
@@ -764,7 +767,15 @@ export async function approveAsset(
       reviewedBy: context.dbUserId,
     });
 
+    await writeAssetToCampaignKnowledge({
+      organizationId: context.campaign.organization_id,
+      campaignId: context.campaign.id,
+      asset: result.asset,
+      status: "approved",
+    });
+
     revalidatePath("/assets");
+    revalidatePath("/brain");
     return { ok: true, assetId };
   } catch (error) {
     console.error("[approveAsset]", error);

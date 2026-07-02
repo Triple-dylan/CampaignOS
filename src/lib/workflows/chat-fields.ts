@@ -57,6 +57,22 @@ export const WORKFLOW_COLLECT_STEPS: Record<
       isComplete: (fields) => hasText(fields.theme, 5),
     },
   ],
+  "content-calendar": [
+    {
+      field: "intent",
+      prompt:
+        "What period should this content calendar cover? (e.g. October 2026, launch week, month before election)",
+      progressLabel: "Collecting calendar period…",
+      isComplete: (fields) => hasText(fields.intent, 5),
+    },
+    {
+      field: "details",
+      prompt:
+        "Which channels should we plan for, and how often? Include Instagram, X, Facebook, email, or print if relevant.",
+      progressLabel: "Collecting channels and cadence…",
+      isComplete: (fields) => hasText(fields.details, 8),
+    },
+  ],
   "campaign-structure": [
     {
       field: "districtSegments",

@@ -9,6 +9,7 @@ import {
   isOnboardingCompleteInMetadata,
 } from "@/lib/auth/onboarding";
 import { seedCampaignGraphNodes } from "@/lib/db/graph";
+import { ensureCampaignKnowledgeBootstrapped } from "@/lib/campaign-knowledge/ensure";
 import {
   createCampaign,
   getCampaignByOrganizationId,
@@ -250,6 +251,16 @@ export async function completeOnboarding(
       topIssues: parsed.data.topIssues,
       voterSegments: parsed.data.voterSegments,
     });
+
+    await ensureCampaignKnowledgeBootstrapped({
+      organizationId: campaign.organization_id,
+      campaignId: campaign.id,
+      campaign,
+      topIssues: parsed.data.topIssues,
+      voterSegments: parsed.data.voterSegments,
+    });
+
+    revalidatePath("/brain");
 
     const user = await currentUser();
     if (user && !isOnboardingCompleteInMetadata(user)) {

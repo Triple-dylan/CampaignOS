@@ -1,32 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { generateCampaignTimelineContent } from "@/lib/ai/generate-campaign-timeline";
-import { isOpenAiConfigured } from "@/lib/ai/config";
 import {
   requireCampaignContext,
   type ModuleActionResult,
 } from "@/lib/auth/require-campaign-context";
+import { generateContentCalendarContent } from "@/lib/ai/generate-content-calendar";
+import { generateCampaignTimelineContent } from "@/lib/ai/generate-campaign-timeline";
+import { isOpenAiConfigured } from "@/lib/ai/config";
 import { listAssets } from "@/lib/db/assets";
 import {
-  createCalendarEvent,
   deleteCalendarEvent,
   getCalendarEventById,
   listCalendarEvents,
   updateCalendarEvent,
 } from "@/lib/db/calendar-events";
-import { listGraphNodes } from "@/lib/db/campaigns";
-import { linkEventToCampaignGraph } from "@/lib/db/graph";
 import { campaignDisplayName } from "@/lib/db/schema";
-import {
-  campaignTimelineEventSchema,
-  campaignTimelineTaskSchema,
-  type CampaignTimelineOutput,
-} from "@/lib/ai/schemas/campaign-timeline";
-import {
-  buildCampaignTimelineIssuesInput,
-  persistCampaignTimelineItems,
-} from "@/lib/workflows/persist-campaign-timeline";
+import { persistPlannerEvent } from "@/lib/planner/persist-event";
+import { persistContentCalendar } from "@/lib/workflows/persist-content-calendar";
+import { persistCampaignTimeline } from "@/lib/workflows/persist-timeline";
 import {
   createCalendarEventSchema,
   listCalendarEventsFilterSchema,
@@ -34,7 +26,6 @@ import {
   type CalendarEventType,
   type ListCalendarEventsFilter,
 } from "@/lib/validators/calendar-events";
-import { z } from "zod";
 
 export async function getPlannerData(
   filters?: Omit<ListCalendarEventsFilter, "campaignId">,
@@ -64,17 +55,6 @@ export async function getPlannerData(
     ok: true as const,
     events,
     approvedAssets,
-    openAiConfigured: isOpenAiConfigured(),
-    defaults: {
-      districtSegments: [
-        context.campaign.jurisdiction,
-        context.campaign.office_sought,
-      ]
-        .filter(Boolean)
-        .join(" — "),
-      issues: context.profile?.top_issues?.join(", ") ?? "",
-      electionDate: context.campaign.election_date,
-    },
   };
 }
 
@@ -87,6 +67,7 @@ export async function createPlannerEvent(input: {
   location?: string;
   relatedAssetId?: string | null;
   isMilestone?: boolean;
+  channel?: string | null;
 }): Promise<ModuleActionResult> {
   const context = await requireCampaignContext();
   if (!context.ok) {
@@ -115,8 +96,21 @@ export async function createPlannerEvent(input: {
   }
 
   try {
-    const result = await createCalendarEvent(parsed.data);
-    if (!result.event) {
+    const created = await persistPlannerEvent({
+      campaign: context.campaign,
+      createdBy: context.dbUserId,
+      title: input.title,
+      description: input.description,
+      eventType: input.eventType,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      location: input.location,
+      relatedAssetId: input.relatedAssetId,
+      isMilestone: input.isMilestone,
+      channel: input.channel ?? null,
+    });
+
+    if (!created.ok) {
       return {
         ok: false,
         error: "Database is not configured. Event was not saved.",
@@ -124,21 +118,11 @@ export async function createPlannerEvent(input: {
       };
     }
 
-    const existingNodes = await listGraphNodes(context.campaign.id);
-    await linkEventToCampaignGraph({
-      campaignId: context.campaign.id,
-      eventId: result.event.id,
-      eventTitle: result.event.title,
-      eventType: result.event.event_type,
-      candidateName: campaignDisplayName(context.campaign),
-      relatedAssetId: result.event.related_asset_id,
-      existingNodes,
-    });
-
     revalidatePath("/planner");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
-    return { ok: true, id: result.event.id };
+    return { ok: true, id: created.eventId };
   } catch (error) {
     console.error("[createPlannerEvent]", error);
     return { ok: false, error: "Failed to create event. Please try again." };
@@ -252,27 +236,19 @@ export async function listPlannerEventsForRange(
   return { ok: true as const, events };
 }
 
-const previewCampaignTimelineSchema = z.object({
-  districtSegments: z.string().trim().min(8, "District and segments are required"),
-  issues: z.string().trim().min(5, "Key issues are required"),
-  dateRangeStart: z.string().trim().optional(),
-  dateRangeEnd: z.string().trim().optional(),
-});
-
-export type PreviewCampaignTimelineResult =
-  | { ok: true; timeline: CampaignTimelineOutput }
-  | {
-      ok: false;
-      error: string;
-      code?: "missing_openai" | "missing_campaign" | "validation" | "generation_failed";
-    };
-
-export async function previewCampaignTimeline(
-  input: z.infer<typeof previewCampaignTimelineSchema>,
-): Promise<PreviewCampaignTimelineResult> {
+export async function generatePlannerTimeline(input: {
+  districtSegments: string;
+  issues: string;
+}): Promise<
+  ModuleActionResult & {
+    eventCount?: number;
+    taskCount?: number;
+    summary?: string;
+  }
+> {
   const context = await requireCampaignContext();
   if (!context.ok) {
-    return { ok: false, error: context.error, code: "missing_campaign" };
+    return { ok: false, error: context.error, code: context.code };
   }
 
   if (!isOpenAiConfigured()) {
@@ -280,15 +256,15 @@ export async function previewCampaignTimeline(
       ok: false,
       error:
         "OpenAI is not configured. Add OPENAI_API_KEY to generate a campaign timeline.",
-      code: "missing_openai",
     };
   }
 
-  const parsed = previewCampaignTimelineSchema.safeParse(input);
-  if (!parsed.success) {
+  const districtSegments = input.districtSegments.trim();
+  const issues = input.issues.trim();
+  if (!districtSegments || !issues) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid timeline input",
+      error: "District/segments and key issues are required.",
       code: "validation",
     };
   }
@@ -299,91 +275,109 @@ export async function previewCampaignTimeline(
       profile: context.profile,
       campaignId: context.campaign.id,
       userId: context.dbUserId,
-      districtSegments: parsed.data.districtSegments,
-      issues: buildCampaignTimelineIssuesInput(parsed.data),
+      districtSegments,
+      issues,
     });
 
-    return { ok: true, timeline };
+    const { eventIds, taskIds } = await persistCampaignTimeline({
+      campaign: context.campaign,
+      createdBy: context.dbUserId,
+      candidateName: campaignDisplayName(context.campaign),
+      timeline,
+    });
+
+    revalidatePath("/planner");
+    revalidatePath("/tasks");
+    revalidatePath("/brain");
+    revalidatePath("/dashboard");
+
+    return {
+      ok: true,
+      id: eventIds[0] ?? taskIds[0] ?? context.campaign.id,
+      eventCount: eventIds.length,
+      taskCount: taskIds.length,
+      summary: timeline.summary,
+    };
   } catch (error) {
-    console.error("[previewCampaignTimeline]", error);
+    console.error("[generatePlannerTimeline]", error);
     return {
       ok: false,
       error:
         error instanceof Error
           ? error.message
           : "Campaign timeline generation failed.",
-      code: "generation_failed",
     };
   }
 }
 
-const saveCampaignTimelineSchema = z.object({
-  events: z.array(campaignTimelineEventSchema).max(12),
-  tasks: z.array(campaignTimelineTaskSchema).max(15),
-});
-
-export type SaveCampaignTimelineResult =
-  | {
-      ok: true;
-      eventCount: number;
-      taskCount: number;
-      eventIds: string[];
-      taskIds: string[];
-    }
-  | {
-      ok: false;
-      error: string;
-      code?: "missing_campaign" | "validation" | "generation_failed";
-    };
-
-export async function saveCampaignTimelineSelection(
-  input: z.infer<typeof saveCampaignTimelineSchema>,
-): Promise<SaveCampaignTimelineResult> {
+export async function generatePlannerContentCalendar(input: {
+  period: string;
+  channelsAndCadence: string;
+}): Promise<
+  ModuleActionResult & {
+    eventCount?: number;
+    summary?: string;
+  }
+> {
   const context = await requireCampaignContext();
   if (!context.ok) {
-    return { ok: false, error: context.error, code: "missing_campaign" };
+    return { ok: false, error: context.error, code: context.code };
   }
 
-  const parsed = saveCampaignTimelineSchema.safeParse(input);
-  if (!parsed.success) {
+  if (!isOpenAiConfigured()) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid timeline selection",
-      code: "validation",
+      error:
+        "OpenAI is not configured. Add OPENAI_API_KEY to generate a content calendar.",
     };
   }
 
-  if (parsed.data.events.length === 0 && parsed.data.tasks.length === 0) {
+  const period = input.period.trim();
+  const channelsAndCadence = input.channelsAndCadence.trim();
+  if (!period || !channelsAndCadence) {
     return {
       ok: false,
-      error: "Select at least one event or task to save.",
+      error: "Period and channels/cadence are required.",
       code: "validation",
     };
   }
 
   try {
-    const { eventIds, taskIds } = await persistCampaignTimelineItems(parsed.data);
+    const calendar = await generateContentCalendarContent({
+      campaign: context.campaign,
+      profile: context.profile,
+      campaignId: context.campaign.id,
+      userId: context.dbUserId,
+      period,
+      channelsAndCadence,
+    });
+
+    const { eventIds } = await persistContentCalendar({
+      organizationId: context.campaign.organization_id,
+      campaign: context.campaign,
+      createdBy: context.dbUserId,
+      candidateName: campaignDisplayName(context.campaign),
+      calendar,
+    });
 
     revalidatePath("/planner");
-    revalidatePath("/tasks");
+    revalidatePath("/brain");
     revalidatePath("/dashboard");
 
     return {
       ok: true,
+      id: eventIds[0] ?? context.campaign.id,
       eventCount: eventIds.length,
-      taskCount: taskIds.length,
-      eventIds,
-      taskIds,
+      summary: calendar.summary,
     };
   } catch (error) {
-    console.error("[saveCampaignTimelineSelection]", error);
+    console.error("[generatePlannerContentCalendar]", error);
     return {
       ok: false,
       error:
         error instanceof Error
           ? error.message
-          : "Failed to save campaign timeline.",
-      code: "generation_failed",
+          : "Content calendar generation failed.",
     };
   }
 }

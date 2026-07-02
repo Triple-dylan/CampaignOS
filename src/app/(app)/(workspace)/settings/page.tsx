@@ -1,4 +1,7 @@
+import { Suspense } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import { getIntegrationSummaries } from "@/actions/integrations";
+import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import {
   getCampaignByOrganizationId,
@@ -14,12 +17,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { IntegrationPreferencesPanel } from "@/components/settings/integration-preferences";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ integration?: string; result?: string }>;
+}) {
   const page = modulePages.settings;
+  const params = await searchParams;
   const { orgId } = await auth();
 
   let orgName = "—";
@@ -50,6 +56,25 @@ export default async function SettingsPage() {
     | { selectedTones?: string[]; notes?: string }
     | null
     | undefined;
+
+  const integrationData = orgId
+    ? await getIntegrationSummaries()
+    : { ok: false, integrations: [], demoMode: false };
+
+  const flashMessage = (() => {
+    const provider = params.integration;
+    const result = params.result;
+    if (!provider || provider === "org_error") {
+      return result === "error" ? "Could not connect integration." : null;
+    }
+    if (result === "success") {
+      return `${provider.replace("_", " ")} connected.`;
+    }
+    if (result === "error") {
+      return `Could not connect ${provider.replace("_", " ")}.`;
+    }
+    return null;
+  })();
 
   const voterSegments = (profile?.voter_segments ?? []) as Array<{
     name?: string;
@@ -198,95 +223,43 @@ export default async function SettingsPage() {
           <CardHeader>
             <CardTitle>Asset generation integrations</CardTitle>
             <CardDescription>
-              Connect a design provider before CampaignOS can render social
-              templates or export finished creative.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-2">
-            <IntegrationSetupCard
-              title="Canva Connect"
-              description="Best for reusable brand templates, campaign-safe layouts, and exportable social graphics."
-              cta="Connect Canva"
-              steps={[
-                "Create a Canva developer app and configure OAuth with PKCE.",
-                "Publish Canva brand templates for each social format and store their template IDs.",
-                "Map CampaignOS fields to each template dataset, then run Autofill and Export jobs.",
-              ]}
-            />
-            <IntegrationSetupCard
-              title="Higgsfield MCP"
-              description="Best for AI-generated image or short-video variations when a rendered design template is not required."
-              cta="Connect Higgsfield"
-              steps={[
-                "Add the Higgsfield MCP server to Cursor or the CampaignOS runtime when supported.",
-                "Authenticate through Higgsfield OAuth instead of storing API keys in the app.",
-                "Map template metadata to MCP generation prompts and save returned media URLs.",
-              ]}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Workflow integrations (Phase C)</CardTitle>
-            <CardDescription>
-              Opt in to external providers when they are connected. Guided
-              workflows continue with model-only generation when integrations
-              are disabled.
+              Connect design providers and Google Calendar for template export
+              and planner sync.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <IntegrationPreferencesPanel />
+            <Suspense
+              fallback={
+                <p className="text-sm text-muted-foreground">
+                  Loading integrations…
+                </p>
+              }
+            >
+              <IntegrationsPanel
+                integrations={integrationData.integrations}
+                demoMode={integrationData.demoMode}
+                flashMessage={flashMessage}
+              />
+            </Suspense>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>More settings</CardTitle>
+            <CardTitle>Coming soon</CardTitle>
             <CardDescription>
-              Additional account and team settings will ship in later milestones.
+              Additional settings will ship in later milestones.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
             <p>Team roles & invitations</p>
+            <p>Additional CRM and compliance integrations</p>
             <p>Billing & subscription</p>
             <p>Notification preferences</p>
-            <p>CRM and compliance vendor connections</p>
           </CardContent>
         </Card>
       </div>
     </WorkPageFrame>
-  );
-}
-
-function IntegrationSetupCard({
-  title,
-  description,
-  cta,
-  steps,
-}: {
-  title: string;
-  description: string;
-  cta: string;
-  steps: string[];
-}) {
-  return (
-    <div className="rounded-lg border bg-muted/20 p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="font-medium">{title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
-        <Button type="button" variant="outline" disabled className="w-full sm:w-auto">
-          {cta}
-        </Button>
-      </div>
-      <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-        {steps.map((step) => (
-          <li key={step}>{step}</li>
-        ))}
-      </ol>
-    </div>
   );
 }
 

@@ -39,6 +39,8 @@ export async function generateAssetContent(input: {
   campaignId: string;
   userId: string | null;
   request: GenerateAssetRequest;
+  temperature?: number;
+  variantLabel?: string;
 }): Promise<AssetGenerationOutput> {
   const client = getOpenAiClient();
   if (!client) {
@@ -56,6 +58,7 @@ export async function generateAssetContent(input: {
     audience: input.request.audience,
     contentNeed: input.request.contentNeed,
     variationHint: input.request.variationHint,
+    variantLabel: input.variantLabel,
   });
 
   const { data } = await runLoggedAiCompletion({
@@ -74,12 +77,13 @@ export async function generateAssetContent(input: {
       audience: input.request.audience,
       contentNeed: input.request.contentNeed,
       variationHint: input.request.variationHint,
+      variantLabel: input.variantLabel,
     },
     createdObjectType: "asset",
     call: async () => {
       const response = await client.chat.completions.create({
         model,
-        temperature: 0.6,
+        temperature: input.temperature ?? 0.6,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: ASSET_GENERATION_SYSTEM_PROMPT },
@@ -102,4 +106,28 @@ export async function generateAssetContent(input: {
   });
 
   return data;
+}
+
+export async function generateAssetDraftContents(input: {
+  campaign: DbCampaign;
+  profile: DbCampaignProfile | null;
+  campaignId: string;
+  userId: string | null;
+  request: GenerateAssetRequest;
+  draftCount?: number;
+}): Promise<AssetGenerationOutput[]> {
+  const count = input.draftCount ?? 3;
+  const temperatures = [0.55, 0.65, 0.75];
+
+  const drafts = await Promise.all(
+    Array.from({ length: count }, (_, index) =>
+      generateAssetContent({
+        ...input,
+        temperature: temperatures[index] ?? 0.6 + index * 0.05,
+        variantLabel: `Variant ${index + 1}`,
+      }),
+    ),
+  );
+
+  return drafts;
 }

@@ -33,3 +33,28 @@ export {
   folderClusterNode,
   knowledgeNodeKindForFile,
 } from "@/lib/campaign-knowledge/graph-mapping";
+
+export {
+  bootstrapCampaignKnowledge,
+  type BootstrapCampaignKnowledgeInput,
+} from "@/lib/campaign-knowledge/bootstrap";
+export { ensureCampaignKnowledgeBootstrapped } from "@/lib/campaign-knowledge/ensure";
+export { campaignKnowledgeExists } from "@/lib/campaign-knowledge/exists";
+export {
+  appendKnowledgeLog,
+  buildAssetKnowledgePage,
+  buildContentCalendarKnowledgePage,
+  buildResearchBriefKnowledgePage,
+  writeKnowledgePage,
+} from "@/lib/campaign-knowledge/write";
+export {
+  readCampaignKnowledgeContext,
+  readCampaignKnowledgeIndex,
+} from "@/lib/campaign-knowledge/read";
+export { syncCampaignKnowledgeToGraph } from "@/lib/campaign-knowledge/sync-to-graph";
+export { syncKnowledgeAfterWrite } from "@/lib/campaign-knowledge/sync-after-write";
+export {
+  rebuildKnowledgeIndex,
+  touchKnowledgeIndexAfterWrite,
+} from "@/lib/campaign-knowledge/index-maintenance";
+export { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";

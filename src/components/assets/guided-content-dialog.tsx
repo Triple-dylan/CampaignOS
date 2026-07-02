@@ -2,10 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { ArrowLeft, Loader2, PenLine, Sparkles } from "lucide-react";
-import {
-  generateContentDraftVariants,
-  saveContentDraft,
-} from "@/actions/assets";
+import { previewAssetDrafts, saveAssetFromDraft } from "@/actions/assets";
+import type { AssetGenerationOutput } from "@/lib/ai/schemas/asset";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +21,6 @@ import {
   ASSET_TYPE_LABELS,
   M7_ASSET_TYPES,
   defaultChannelForAssetType,
-  type ContentDraftPreview,
   type M7AssetType,
 } from "@/lib/validators/assets";
 import { TOP_ISSUE_PRESETS } from "@/lib/validators/onboarding";
@@ -38,6 +35,10 @@ const CHANNEL_OPTIONS = [
   { value: "sms", label: "SMS / text" },
   { value: "website", label: "Website" },
 ];
+
+const VARIANT_LABELS = ["Direct & urgent", "Story-driven", "Contrast & proof"];
+
+type DraftOption = AssetGenerationOutput & { id: string; variantLabel: string };
 
 type WizardStep = "brief" | "preview";
 
@@ -61,11 +62,10 @@ export function GuidedContentDialog({
   const [audience, setAudience] = useState("");
   const [channel, setChannel] = useState("social");
   const [assetType, setAssetType] = useState<M7AssetType>("social_post");
-  const [drafts, setDrafts] = useState<ContentDraftPreview[]>([]);
+  const [drafts, setDrafts] = useState<DraftOption[]>([]);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedContent, setEditedContent] = useState("");
-  const [draftsFromAi, setDraftsFromAi] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -81,7 +81,6 @@ export function GuidedContentDialog({
     setSelectedDraftId(null);
     setEditedTitle("");
     setEditedContent("");
-    setDraftsFromAi(false);
     setError(null);
   }
 
@@ -95,7 +94,7 @@ export function GuidedContentDialog({
     setChannel(defaultChannelForAssetType(nextType));
   }
 
-  function selectDraft(draft: ContentDraftPreview) {
+  function selectDraft(draft: DraftOption) {
     setSelectedDraftId(draft.id);
     setEditedTitle(draft.title);
     setEditedContent(draft.content);
@@ -113,13 +112,13 @@ export function GuidedContentDialog({
     setError(null);
 
     startTransition(async () => {
-      const result = await generateContentDraftVariants({
+      const result = await previewAssetDrafts({
         assetType,
-        contentNeed: contentNeed.trim(),
         theme: theme.trim() || undefined,
         issue: issue.trim() || undefined,
+        channel: channel.trim() || defaultChannelForAssetType(assetType),
         audience: audience.trim() || undefined,
-        channel: channel.trim() || undefined,
+        contentNeed: contentNeed.trim(),
       });
 
       if (!result.ok) {
@@ -127,28 +126,38 @@ export function GuidedContentDialog({
         return;
       }
 
-      setDrafts(result.drafts);
-      setDraftsFromAi(result.aiGenerated);
-      if (result.drafts[0]) {
-        selectDraft(result.drafts[0]);
+      const mapped = result.drafts.map((draft, index) => ({
+        ...draft,
+        id: String(index),
+        variantLabel: VARIANT_LABELS[index] ?? `Variant ${index + 1}`,
+      }));
+
+      setDrafts(mapped);
+      if (mapped[0]) {
+        selectDraft(mapped[0]);
       }
       setStep("preview");
     });
   }
 
   function handleSave() {
-    if (!canSave) return;
+    if (!canSave || selectedDraftId == null) return;
     setError(null);
 
+    const selected = drafts.find((draft) => draft.id === selectedDraftId);
+    if (!selected) return;
+
     startTransition(async () => {
-      const result = await saveContentDraft({
+      const result = await saveAssetFromDraft({
+        draft: {
+          title: editedTitle.trim(),
+          content: editedContent.trim(),
+          theme: theme.trim() || selected.theme,
+          issue: issue.trim() || selected.issue,
+          channel: channel.trim() || selected.channel,
+        },
         assetType,
-        title: editedTitle.trim(),
-        contentText: editedContent.trim(),
-        theme: theme.trim() || undefined,
-        issue: issue.trim() || undefined,
         channel: channel.trim() || defaultChannelForAssetType(assetType),
-        aiGenerated: draftsFromAi,
       });
 
       if (!result.ok) {
@@ -181,8 +190,8 @@ export function GuidedContentDialog({
           <form onSubmit={handleGenerate} className="space-y-4">
             {!openAiConfigured ? (
               <p className="text-xs text-muted-foreground">
-                OpenAI is not configured — we will create editable starter
-                drafts for each angle. Add OPENAI_API_KEY to generate full copy.
+                OpenAI is not configured — draft generation requires
+                OPENAI_API_KEY.
               </p>
             ) : null}
 
@@ -285,7 +294,10 @@ export function GuidedContentDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isPending || !canGenerate}>
+              <Button
+                type="submit"
+                disabled={isPending || !canGenerate || !openAiConfigured}
+              >
                 {isPending ? (
                   <>
                     <Loader2
@@ -307,9 +319,7 @@ export function GuidedContentDialog({
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">
-                {draftsFromAi
-                  ? "Pick the strongest variant, then edit before saving."
-                  : "Starter drafts — pick one and fill in the placeholders."}
+                Pick the strongest variant, then edit before saving.
               </p>
               <Button
                 type="button"
