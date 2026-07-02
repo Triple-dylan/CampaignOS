@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
   ArrowRight,
+  FileText,
+  Folder,
   Moon,
   PanelRightClose,
   Sun,
@@ -14,9 +16,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { GraphNodeTypeBadge } from "@/components/brain/graph-node-badge";
 import { getSourceObjectLink } from "@/lib/graph/source-links";
-import type {
-  CampaignGraphFlow,
-  CampaignGraphNodeData,
+import {
+  getNodeVisualAccent,
+  type CampaignGraphFlow,
+  type CampaignGraphNodeData,
 } from "@/lib/graph/to-react-flow";
 import { getCampaignFolder } from "@/lib/campaign-knowledge/folders";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
@@ -47,6 +50,8 @@ export type WorkspaceContextPanelProps = {
   selectedNode: CampaignGraphNodeData | null;
   onClose: () => void;
   onClearSelection: () => void;
+  /** Select another graph node from within the panel (e.g. a folder page). */
+  onSelectNodeId?: (id: string) => void;
 };
 
 export function WorkspaceContextPanelContent({
@@ -57,6 +62,7 @@ export function WorkspaceContextPanelContent({
   selectedNode,
   onClose,
   onClearSelection,
+  onSelectNodeId,
 }: WorkspaceContextPanelProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -93,6 +99,7 @@ export function WorkspaceContextPanelContent({
               folderId={selectedNode.folder}
               graph={graph}
               hubNode={selectedNode}
+              onSelectNodeId={onSelectNodeId}
             />
           ) : (
             <NodeDetail node={selectedNode} />
@@ -119,16 +126,57 @@ export function WorkspaceContextPanel(props: WorkspaceContextPanelProps) {
   );
 }
 
+/** Accent-tinted icon chip shared by the node and folder "file" headers. */
+function NodeIconChip({
+  accent,
+  icon,
+}: {
+  accent: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <span
+      aria-hidden
+      className="flex size-8 shrink-0 items-center justify-center rounded-lg border"
+      style={{
+        color: accent,
+        backgroundColor: `color-mix(in oklch, ${accent} 12%, transparent)`,
+        borderColor: `color-mix(in oklch, ${accent} 28%, transparent)`,
+      }}
+    >
+      {icon}
+    </span>
+  );
+}
+
+/** Mono file-path bar — the "this node is a file" affordance. */
+function KnowledgePathBar({ path }: { path: string }) {
+  return (
+    <p className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/60 px-2 py-1.5">
+      <FileText
+        className="size-3 shrink-0 text-muted-foreground"
+        aria-hidden
+      />
+      <span className="truncate font-mono text-[0.7rem] text-muted-foreground">
+        {path}
+      </span>
+    </p>
+  );
+}
+
 function FolderHubDetail({
   folderId,
   graph,
   hubNode,
+  onSelectNodeId,
 }: {
   folderId: CampaignFolderId;
   graph: CampaignGraphFlow | null;
   hubNode: CampaignGraphNodeData;
+  onSelectNodeId?: (id: string) => void;
 }) {
   const folder = getCampaignFolder(folderId);
+  const accent = getNodeVisualAccent(hubNode);
 
   const childDocuments = React.useMemo(() => {
     if (!graph) return [];
@@ -139,57 +187,72 @@ function FolderHubDetail({
           node.data.folder === folderId &&
           node.data.knowledgePath,
       )
-      .map((node) => node.data)
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .map((node) => ({ id: node.id, data: node.data }))
+      .sort((a, b) => a.data.title.localeCompare(b.data.title));
   }, [graph, folderId]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
-          {folder.slug}/
-        </p>
-        <h3 className="mt-1 text-base font-semibold leading-snug">
-          {folder.label}
-        </h3>
-        <GraphNodeTypeBadge nodeType={hubNode.nodeType} className="mt-2" />
+    <div className="space-y-5">
+      <div className="flex items-start gap-2.5">
+        <NodeIconChip accent={accent} icon={<Folder className="size-4" />} />
+        <div className="min-w-0">
+          <p className="overline-label">{folder.slug}/</p>
+          <h3 className="mt-0.5 text-base font-semibold leading-snug">
+            {folder.label}
+          </h3>
+        </div>
       </div>
 
       <div>
-        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
-          Folder purpose
-        </p>
+        <p className="overline-label">Folder purpose</p>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
           {folder.description}
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Agents read <code className="text-foreground">{folder.slug}/_context.md</code>{" "}
+          Agents read{" "}
+          <code className="text-foreground">{folder.slug}/_context.md</code>{" "}
           before descending into this folder (wiki-llm pattern).
         </p>
       </div>
 
       <div>
-        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
-          Pages in this folder
-        </p>
+        <p className="overline-label">Pages in this folder</p>
         {childDocuments.length > 0 ? (
-          <ul className="mt-2 space-y-2">
-            {childDocuments.map((doc) => (
-              <li
-                key={doc.dbId}
-                className="rounded-lg border border-border bg-card px-3 py-2"
-              >
-                <p className="text-sm font-medium leading-snug">{doc.title}</p>
-                {doc.knowledgePath ? (
-                  <p className="mt-0.5 font-mono text-[0.65rem] text-muted-foreground">
-                    {doc.knowledgePath}
-                  </p>
-                ) : null}
-                {doc.summary?.trim() ? (
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {doc.summary}
-                  </p>
-                ) : null}
+          <ul className="mt-2 space-y-1.5">
+            {childDocuments.map(({ id, data }) => (
+              <li key={id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectNodeId?.(id)}
+                  disabled={!onSelectNodeId}
+                  className="group w-full rounded-lg border border-border bg-card px-3 py-2 text-left outline-none transition-colors hover:border-brand-blue/40 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText
+                      className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
+                      {data.title}
+                    </span>
+                    {onSelectNodeId ? (
+                      <ArrowRight
+                        className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      />
+                    ) : null}
+                  </span>
+                  {data.knowledgePath ? (
+                    <span className="mt-0.5 block truncate pl-[22px] font-mono text-[0.65rem] text-muted-foreground">
+                      {data.knowledgePath}
+                    </span>
+                  ) : null}
+                  {data.summary?.trim() ? (
+                    <span className="mt-1 line-clamp-2 block pl-[22px] text-xs leading-relaxed text-muted-foreground">
+                      {data.summary}
+                    </span>
+                  ) : null}
+                </button>
               </li>
             ))}
           </ul>
@@ -206,27 +269,37 @@ function FolderHubDetail({
 }
 
 function NodeDetail({ node }: { node: CampaignGraphNodeData }) {
+  const accent = getNodeVisualAccent(node);
   const sourceLink = getSourceObjectLink({
     sourceObjectType: node.sourceObjectType,
     sourceObjectId: node.sourceObjectId,
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
-        <h3 className="text-base font-semibold leading-snug">{node.title}</h3>
-        <GraphNodeTypeBadge nodeType={node.nodeType} className="mt-2" />
+        <div className="flex items-start gap-2.5">
+          <NodeIconChip
+            accent={accent}
+            icon={<FileText className="size-4" />}
+          />
+          <div className="min-w-0">
+            {node.folder ? <p className="overline-label">{node.folder}/</p> : null}
+            <h3 className="mt-0.5 text-base font-semibold leading-snug">
+              {node.title}
+            </h3>
+          </div>
+        </div>
+        <GraphNodeTypeBadge nodeType={node.nodeType} className="mt-2.5" />
         {node.knowledgePath ? (
-          <p className="mt-2 font-mono text-[0.65rem] text-muted-foreground">
-            {node.knowledgePath}
-          </p>
+          <div className="mt-2.5">
+            <KnowledgePathBar path={node.knowledgePath} />
+          </div>
         ) : null}
       </div>
 
       <div>
-        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
-          Summary
-        </p>
+        <p className="overline-label">Summary</p>
         {node.summary?.trim() ? (
           <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed">
             {node.summary}
@@ -240,9 +313,7 @@ function NodeDetail({ node }: { node: CampaignGraphNodeData }) {
 
       {node.sourceObjectType ? (
         <div>
-          <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
-            Source
-          </p>
+          <p className="overline-label">Source</p>
           <p className="mt-1 text-sm capitalize">
             {node.sourceObjectType.replace(/_/g, " ")}
           </p>
@@ -306,7 +377,7 @@ function CampaignOverview({
 
       {topIssues.length > 0 ? (
         <div>
-          <p className="mb-2 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="overline-label mb-2">
             Top issues
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -323,7 +394,7 @@ function CampaignOverview({
       ) : null}
 
       <div>
-        <p className="mb-2 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="overline-label mb-2">
           Workspace
         </p>
         <div className="grid grid-cols-2 gap-2">
@@ -364,7 +435,7 @@ function CampaignOverview({
 function OverviewStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-card p-2.5">
-      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+      <dt className="overline-label">
         {label}
       </dt>
       <dd className="mt-0.5 truncate text-sm font-medium">{value}</dd>
@@ -411,7 +482,7 @@ function AccessibilitySection() {
 
   return (
     <div className="space-y-2 border-t border-border p-3">
-      <p className="px-1 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="overline-label px-1">
         Accessibility
       </p>
       <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-border bg-card p-1">

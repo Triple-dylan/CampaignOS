@@ -117,7 +117,7 @@
   --sidebar-border: oklch(0.918 0 0);
   --sidebar-ring: oklch(0.52 0.16 256);
 
-  /* Flat surface tokens (replaces the old glass system). */
+  /* Flat surface tokens — opaque content surfaces inside the glass chrome. */
   --surface: oklch(1 0 0);
   --surface-muted: oklch(0.99 0 0);
   --stage-base: oklch(0.965 0 0);
@@ -145,6 +145,29 @@
     0 6px 16px -10px oklch(0.205 0 0 / 0.16);
   --glass-shadow-pop: 0 1px 2px oklch(0.205 0 0 / 0.06),
     0 12px 30px -14px oklch(0.205 0 0 / 0.24);
+
+  /*
+   * Graph accent ramp — the single source of truth for knowledge-graph color.
+   * One curated oklch hue wheel at near-uniform lightness/chroma so clusters
+   * read as one family, not confetti. Node dots, folder hubs, and type badges
+   * all derive from these tokens (see src/lib/graph/node-styles.ts), and the
+   * two identity hues anchor the wheel: issues sit on brand blue, opponents on
+   * brand red.
+   */
+  --graph-candidate: oklch(0.54 0.17 295);
+  --graph-strategic-priority: oklch(0.55 0.18 310);
+  --graph-issue: var(--brand-blue);
+  --graph-message-theme: oklch(0.51 0.19 275);
+  --graph-voter-segment: oklch(0.6 0.11 215);
+  --graph-research: oklch(0.58 0.12 235);
+  --graph-asset: oklch(0.58 0.12 165);
+  --graph-event: oklch(0.66 0.13 75);
+  --graph-task: oklch(0.62 0.15 55);
+  --graph-prospect: oklch(0.59 0.17 350);
+  --graph-donor: oklch(0.57 0.19 15);
+  --graph-organization: oklch(0.5 0.03 250);
+  --graph-opponent: var(--brand-red);
+  --graph-compliance: oklch(0.65 0.12 95);
 }
 
 .dark {
@@ -214,6 +237,22 @@
     0 8px 22px -12px oklch(0 0 0 / 0.55);
   --glass-shadow-pop: 0 1px 3px oklch(0 0 0 / 0.45),
     0 16px 38px -16px oklch(0 0 0 / 0.65);
+
+  /* Graph accents lift in lightness on the dark stage so dots stay luminous. */
+  --graph-candidate: oklch(0.72 0.15 295);
+  --graph-strategic-priority: oklch(0.72 0.16 310);
+  --graph-issue: var(--brand-blue);
+  --graph-message-theme: oklch(0.7 0.16 275);
+  --graph-voter-segment: oklch(0.75 0.11 215);
+  --graph-research: oklch(0.73 0.12 235);
+  --graph-asset: oklch(0.74 0.12 165);
+  --graph-event: oklch(0.78 0.13 75);
+  --graph-task: oklch(0.75 0.14 55);
+  --graph-prospect: oklch(0.73 0.15 350);
+  --graph-donor: oklch(0.7 0.17 15);
+  --graph-organization: oklch(0.72 0.03 250);
+  --graph-opponent: var(--brand-red);
+  --graph-compliance: oklch(0.78 0.12 95);
 }
 
 @layer base {
@@ -364,6 +403,16 @@
     background-color: var(--brand-blue-soft);
     color: var(--brand-blue);
     border-color: color-mix(in oklch, var(--brand-blue) 30%, transparent);
+  }
+
+  /* Shared overline label — the single micro-heading style for panel sections,
+   * stat tiles, and metadata groups. */
+  .overline-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
   }
 
   /* Obsidian-style graph dot. A soft, type-tinted node; the only interactive
@@ -532,9 +581,9 @@
 }
 
 .react-flow__edge-path {
-  stroke: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
-  stroke-width: 1;
-  opacity: 0.85;
+  stroke: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+  stroke-width: 1.1;
+  opacity: 0.9;
   transition:
     stroke 0.3s ease,
     stroke-width 0.3s ease,
@@ -548,9 +597,9 @@
  * meaningful relationship edges carry the visual weight.
  */
 .react-flow__edge.is-structural .react-flow__edge-path {
-  stroke: color-mix(in oklch, var(--muted-foreground) 20%, transparent);
+  stroke: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
   stroke-width: 0.9;
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 /*
@@ -613,13 +662,13 @@
 }
 
 .dark .react-flow__edge-path {
-  stroke: color-mix(in oklch, var(--muted-foreground) 42%, transparent);
-  opacity: 0.92;
+  stroke: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+  opacity: 0.95;
 }
 
 .dark .react-flow__edge.is-structural .react-flow__edge-path {
-  stroke: color-mix(in oklch, var(--muted-foreground) 28%, transparent);
-  opacity: 0.72;
+  stroke: color-mix(in oklch, var(--muted-foreground) 38%, transparent);
+  opacity: 0.75;
 }
 
 .dark .graph-dot {

@@ -1,6 +1,9 @@
 import type { DbGraphEdge, DbGraphNode } from "@/lib/db/schema";
 import type { GraphNodeType } from "@/lib/validators/enums";
-import { GRAPH_NODE_MINIMAP_COLORS } from "@/lib/graph/node-styles";
+import {
+  GRAPH_NODE_FALLBACK_ACCENT,
+  GRAPH_NODE_TYPE_ACCENTS,
+} from "@/lib/graph/node-styles";
 import {
   CENTER_FOLDER,
   folderAccentColor,
@@ -88,13 +91,13 @@ export type CampaignGraphFlow = {
  * so clusters stay clear of one another no matter how many folders are present —
  * the calm, non-overlapping Obsidian "folder galaxy" feel.
  */
-const BASE_CLUSTER_RADIUS = 460;
-const INTRA_CLUSTER_SPACING = 104;
-const HUB_MEMBER_SPACING = 158;
+const BASE_CLUSTER_RADIUS = 400;
+const INTRA_CLUSTER_SPACING = 100;
+const HUB_MEMBER_SPACING = 144;
 /** Members past this count wrap onto a second concentric ring, not a huge one. */
-const MAX_RING_RADIUS = 220;
-const SECOND_RING_GAP = 108;
-const CENTER_SPACING = 168;
+const MAX_RING_RADIUS = 200;
+const SECOND_RING_GAP = 100;
+const CENTER_SPACING = 156;
 
 /**
  * Push folder clusters further out as more folders appear so neighbouring
@@ -102,7 +105,7 @@ const CENTER_SPACING = 168;
  * taxonomy it opens up into airy, well-separated constellations.
  */
 function clusterRadiusFor(folderCount: number): number {
-  return BASE_CLUSTER_RADIUS + Math.max(0, folderCount - 6) * 64;
+  return BASE_CLUSTER_RADIUS + Math.max(0, folderCount - 6) * 56;
 }
 
 function isFolderHubNode(node: DbGraphNode): boolean {
@@ -295,13 +298,9 @@ export function toReactFlowGraph(input: {
   };
 }
 
-export function getMinimapNodeColor(nodeType: GraphNodeType): string {
-  return GRAPH_NODE_MINIMAP_COLORS[nodeType] ?? "#94a3b8";
-}
-
-/** Accent color (hex) for a node's dot, used by the Obsidian-style node. */
+/** Accent color (CSS value) for a node's dot, used by the Obsidian-style node. */
 export function getNodeAccentColor(nodeType: GraphNodeType): string {
-  return GRAPH_NODE_MINIMAP_COLORS[nodeType] ?? "#94a3b8";
+  return GRAPH_NODE_TYPE_ACCENTS[nodeType] ?? GRAPH_NODE_FALLBACK_ACCENT;
 }
 
 /**
@@ -311,15 +310,22 @@ export function getNodeAccentColor(nodeType: GraphNodeType): string {
  * turning into a field of wildly different blobs.
  */
 export function getNodeDiameter(degree: number, isFolderHub = false): number {
-  if (isFolderHub) return 46;
-  const scaled = 15 + Math.sqrt(Math.max(0, degree)) * 7;
-  return Math.round(Math.min(36, Math.max(15, scaled)));
+  if (isFolderHub) return 48;
+  const scaled = 17 + Math.sqrt(Math.max(0, degree)) * 7;
+  return Math.round(Math.min(38, Math.max(17, scaled)));
 }
 
-/** Accent for a node — folder hubs use their cluster colour. */
+/**
+ * Accent for a node on the canvas. Every member of a folder shares its
+ * cluster's accent (hubs included) so each constellation reads as one coherent
+ * body of knowledge — the Obsidian "one hue per folder" feel — instead of a
+ * confetti of per-type colours. Nodes without a resolvable folder fall back to
+ * their type accent.
+ */
 export function getNodeVisualAccent(data: CampaignGraphNodeData): string {
-  if (data.isFolderHub && data.folder) {
-    return folderAccentColor(data.folder);
+  const folder = data.folder ?? folderForNode(data);
+  if (folder) {
+    return folderAccentColor(folder);
   }
   return getNodeAccentColor(data.nodeType);
 }

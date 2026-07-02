@@ -74,12 +74,14 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
           {
             width: diameter,
             height: diameter,
+            // Entity dots are near-solid accent (Obsidian-style) so the graph
+            // reads clearly even zoomed out; hubs stay soft tinted containers.
             backgroundColor: data.isFolderHub
-              ? `color-mix(in oklch, ${accent} 14%, var(--card))`
-              : `color-mix(in oklch, ${accent} 24%, var(--card))`,
+              ? `color-mix(in oklch, ${accent} 18%, var(--card))`
+              : `color-mix(in oklch, ${accent} 85%, var(--card))`,
             borderColor: data.isFolderHub
-              ? `color-mix(in oklch, ${accent} 65%, transparent)`
-              : `color-mix(in oklch, ${accent} 80%, transparent)`,
+              ? `color-mix(in oklch, ${accent} 72%, transparent)`
+              : `color-mix(in oklch, ${accent} 35%, var(--card))`,
             "--node-accent": accent,
           } as React.CSSProperties
         }
@@ -98,15 +100,15 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
           "graph-node-label pointer-events-none absolute left-1/2 top-[calc(100%+6px)] -translate-x-1/2 text-center font-medium leading-tight transition-[color,opacity]",
           data.isFolderHub
             ? "max-w-[170px] text-[12px] font-semibold"
-            : "max-w-[132px] truncate text-[10.5px]",
-          selected ? "text-foreground" : "text-muted-foreground",
+            : "max-w-[132px] truncate text-[11px]",
+          selected ? "text-foreground" : "text-foreground/75",
           "group-hover:text-foreground",
           // Quiet entity labels into ambient context so dense clusters read
           // cleanly; hub labels (the navigation anchors) always stay legible.
           !data.isFolderHub &&
             !selected &&
             !data.highlighted &&
-            "opacity-70 group-hover:opacity-100",
+            "opacity-85 group-hover:opacity-100",
           data.compactLabels &&
             !data.isFolderHub &&
             !selected &&

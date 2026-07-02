@@ -1,6 +1,12 @@
 import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { BrainPageClient } from "@/components/brain/brain-page-client";
 import { getCampaignGraph } from "@/actions/brain";
+import { getFundraisingDashboardMetrics } from "@/actions/fundraising";
+import { getCampaignContext } from "@/lib/campaign/get-campaign-context";
+import { countAssets } from "@/lib/db/assets";
+import { countUpcomingCalendarEvents } from "@/lib/db/calendar-events";
+import { countResearchBriefs } from "@/lib/db/research-briefs";
+import { countActiveTasks } from "@/lib/db/tasks";
 import { modulePages } from "@/lib/navigation";
 import {
   Card,
@@ -36,9 +42,39 @@ export default async function BrainPage() {
     );
   }
 
+  // Live workspace counts so the campaign overview panel matches the dashboard
+  // instead of showing hardcoded zeros.
+  const { campaign } = await getCampaignContext();
+  const [
+    assetCount,
+    taskCount,
+    upcomingEventCount,
+    researchBriefCount,
+    fundraisingMetrics,
+  ] = campaign
+    ? await Promise.all([
+        countAssets(campaign.id),
+        countActiveTasks(campaign.id),
+        countUpcomingCalendarEvents(campaign.id),
+        countResearchBriefs(campaign.id),
+        getFundraisingDashboardMetrics(),
+      ])
+    : [0, 0, 0, 0, { prospectCount: 0 }];
+
   return (
     <WorkPageFrame title={page.title} description={page.description}>
-      <BrainPageClient graph={result.graph} edgeCount={result.edgeCount} />
+      <BrainPageClient
+        graph={result.graph}
+        edgeCount={result.edgeCount}
+        metrics={{
+          graphNodeCount: result.graph.totalNodeCount,
+          assetCount,
+          taskCount,
+          upcomingEventCount,
+          researchBriefCount,
+          prospectCount: fundraisingMetrics.prospectCount,
+        }}
+      />
     </WorkPageFrame>
   );
 }
