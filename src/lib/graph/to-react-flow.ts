@@ -37,6 +37,11 @@ export type CampaignGraphNodeData = {
   degree: number;
   /** Transient UI flag: node is being "searched" by the assistant. */
   highlighted?: boolean;
+  /**
+   * Transient UI flag: the assistant is actively thinking. Highlighted nodes
+   * pulse while true and settle into a steady lit ring once the reply lands.
+   */
+  thinking?: boolean;
   /** Hide entity labels when zoomed out (hub labels stay visible). */
   compactLabels?: boolean;
   /**

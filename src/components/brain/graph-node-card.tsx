@@ -67,7 +67,7 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
             ? "graph-folder-hub size-full"
             : "graph-dot size-full rounded-full border-[1.5px] group-hover:scale-110",
           !data.isFolderHub && selected && "graph-dot-selected",
-          data.highlighted && "graph-node-active",
+          data.highlighted && (data.thinking ? "graph-node-active" : "graph-node-lit"),
           data.isFolderHub && selected && "graph-folder-hub-selected",
         )}
         style={

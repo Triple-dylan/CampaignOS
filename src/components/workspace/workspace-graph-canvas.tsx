@@ -158,11 +158,19 @@ function WorkspaceGraphCanvasInner({
       data: {
         ...node.data,
         highlighted: highlighted.has(node.id),
+        thinking: searching,
         focusLevel: focusLevels?.get(node.id),
         compactLabels,
       },
     })) as Node[];
-  }, [visibleFlowNodes, selectedNodeId, highlighted, focusLevels, compactLabels]);
+  }, [
+    visibleFlowNodes,
+    selectedNodeId,
+    highlighted,
+    searching,
+    focusLevels,
+    compactLabels,
+  ]);
 
   const edges = useMemo<Edge[]>(() => {
     return visibleEdges.map((edge) => {
@@ -174,7 +182,9 @@ function WorkspaceGraphCanvasInner({
         classes.push("is-structural");
       }
       if (highlighted.has(edge.source) && highlighted.has(edge.target)) {
-        classes.push("is-active");
+        // Pulse while the assistant thinks; settle to a steady lit stroke once
+        // the reply lands (mirrors graph-node-active vs graph-node-lit).
+        classes.push(searching ? "is-active" : "is-lit");
       }
       if (focusLevels) {
         const sourceLevel = focusLevels.get(edge.source);
@@ -198,7 +208,7 @@ function WorkspaceGraphCanvasInner({
         className: classes.length > 0 ? classes.join(" ") : undefined,
       };
     }) as Edge[];
-  }, [visibleEdges, highlighted, focusLevels]);
+  }, [visibleEdges, highlighted, searching, focusLevels]);
 
   const exitFocus = useCallback(() => {
     setFocusFolderId(null);

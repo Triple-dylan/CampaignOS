@@ -180,7 +180,7 @@ export function WorkspaceChatContent({
             : undefined
         }
       >
-        <div className="glass-composer rounded-2xl transition-shadow focus-within:border-brand-blue/60">
+        <div className="glass-composer rounded-2xl transition-[border-color,box-shadow] focus-within:border-brand-blue/60">
           <textarea
             ref={textareaRef}
             value={draft}
