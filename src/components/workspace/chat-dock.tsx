@@ -5,7 +5,12 @@ import { ArrowUp, AtSign, CalendarClock, ChevronDown, Paperclip } from "lucide-r
 import { useChat } from "@/components/chat/chat-provider";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { useAutomations } from "@/components/automations/automations-provider";
-import { AgentPicker } from "@/components/chat/agent-picker";
+import {
+  AgentMentionMenu,
+  AgentModeChip,
+  parseAgentDirective,
+  useAgentMention,
+} from "@/components/chat/agent-mention";
 import { useVisualViewportOffset } from "@/hooks/use-visual-viewport-offset";
 import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
@@ -22,8 +27,14 @@ type ChatDockProps = {
 };
 
 export function ChatDock({ composerRef }: ChatDockProps) {
-  const { activeThread, agentMode, isSending, aiConfigured, sendMessage } =
-    useChat();
+  const {
+    activeThread,
+    agentOverride,
+    setAgentOverride,
+    isSending,
+    aiConfigured,
+    sendMessage,
+  } = useChat();
   const { openCreateDialog } = useAutomations();
   const keyboardOffset = useVisualViewportOffset();
   const [draft, setDraft] = React.useState("");
@@ -31,6 +42,13 @@ export function ChatDock({ composerRef }: ChatDockProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const localRef = React.useRef<HTMLTextAreaElement>(null);
   const textareaRef = composerRef ?? localRef;
+
+  const mention = useAgentMention({
+    textareaRef,
+    draft,
+    setDraft,
+    onPick: setAgentOverride,
+  });
 
   const messages = React.useMemo(
     () => activeThread?.messages ?? [],
@@ -60,7 +78,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
       setDraft("");
       openCreateDialog({
         prompt: prompt || undefined,
-        agentMode,
+        agentMode: agentOverride ?? undefined,
         name: prompt
           ? prompt.slice(0, 48) + (prompt.length > 48 ? "…" : "")
           : undefined,
@@ -68,9 +86,22 @@ export function ChatDock({ composerRef }: ChatDockProps) {
       return;
     }
 
+    // `@Researcher …` / `/researcher …` — pin the agent and route the message.
+    const directive = parseAgentDirective(text);
+    if (directive.agent) {
+      setAgentOverride(directive.agent);
+      if (!directive.text) {
+        setDraft("");
+        return;
+      }
+    }
+
     setDraft("");
     setCollapsed(false);
-    await sendMessage(text);
+    await sendMessage(
+      directive.text,
+      directive.agent ? { agent: directive.agent } : undefined,
+    );
   }
 
   function handleScheduleFromDraft() {
@@ -78,12 +109,13 @@ export function ChatDock({ composerRef }: ChatDockProps) {
     if (!text) return;
     openCreateDialog({
       prompt: text,
-      agentMode,
+      agentMode: agentOverride ?? undefined,
       name: text.slice(0, 48) + (text.length > 48 ? "…" : ""),
     });
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention.handleKeyDown(event)) return;
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void submit();
@@ -98,7 +130,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
         <div className="glass-frost pointer-events-auto mx-auto mb-2 w-full max-w-3xl rounded-2xl px-4 pb-2">
           <div className="flex items-center justify-between pb-1 pt-3">
             <span className="text-xs font-medium text-muted-foreground">
-              {AGENT_LABELS[agentMode]}
+              {agentOverride ? AGENT_LABELS[agentOverride] : "Campaign copilot"}
             </span>
             <button
               type="button"
@@ -126,6 +158,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
                   pending={message.pending}
                   workflowProgress={message.workflowProgress}
                   workflowPhase={message.workflowPhase}
+                  agentId={message.agentId}
                 />
               </div>
             ))}
@@ -159,15 +192,35 @@ export function ChatDock({ composerRef }: ChatDockProps) {
           </div>
         ) : null}
 
-        <div className="glass-composer rounded-2xl transition-shadow focus-within:border-brand-blue/60">
+        <div className="glass-composer relative rounded-2xl transition-shadow focus-within:border-brand-blue/60">
+          <AgentMentionMenu mention={mention} />
+          {agentOverride ? (
+            <div className="flex flex-wrap items-center gap-1 px-3 pt-2.5">
+              <AgentModeChip
+                agent={agentOverride}
+                onClear={() => setAgentOverride(null)}
+              />
+            </div>
+          ) : null}
           <textarea
             ref={textareaRef}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              mention.syncCaret();
+            }}
             onKeyDown={handleKeyDown}
+            onSelect={mention.syncCaret}
             rows={1}
-            placeholder={`Ask the ${AGENT_LABELS[agentMode]}…`}
-            className="block max-h-[200px] min-h-[24px] w-full resize-none bg-transparent px-3.5 pt-3 text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
+            placeholder={
+              agentOverride
+                ? `Ask the ${AGENT_LABELS[agentOverride]}…`
+                : "Ask anything — @ to pick an agent…"
+            }
+            className={cn(
+              "block max-h-[200px] min-h-[24px] w-full resize-none bg-transparent px-3.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground",
+              agentOverride ? "pt-1.5" : "pt-3",
+            )}
           />
           <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
             <div className="flex items-center gap-1">
@@ -181,13 +234,13 @@ export function ChatDock({ composerRef }: ChatDockProps) {
               </button>
               <button
                 type="button"
-                title="Add campaign context (coming soon)"
-                className="hidden items-center gap-1 rounded-lg px-1.5 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:inline-flex"
+                title="Mention an agent or context"
+                aria-label="Mention an agent or context"
+                onClick={mention.insertMentionTrigger}
+                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
-                <AtSign className="size-3.5" aria-hidden />
-                Context
+                <AtSign className="size-4" aria-hidden />
               </button>
-              <AgentPicker placement="top" />
             </div>
             <div className="flex items-center gap-1.5">
               {aiConfigured === false ? (
@@ -224,7 +277,9 @@ export function ChatDock({ composerRef }: ChatDockProps) {
           <kbd className="font-sans font-medium text-foreground/70">
             Shift+Enter
           </kbd>{" "}
-          for a new line
+          for a new line ·{" "}
+          <kbd className="font-sans font-medium text-foreground/70">@</kbd> to
+          pick an agent
         </p>
       </div>
     </div>

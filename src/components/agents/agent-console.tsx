@@ -109,18 +109,19 @@ function profileSnippet(
 
 export function AgentConsole({ agent, consoleData }: AgentConsoleProps) {
   const { profile, campaign } = useCampaign();
-  const { setAgentMode, setChatRailOpen, sendMessage, createThread } = useChat();
+  const { setAgentOverride, setChatRailOpen, sendMessage, createThread } = useChat();
 
   const contextRows = profileSnippet(agent, profile, campaign);
   const Icon = agent.icon;
   const skill = consoleData.defaultSkill;
 
   async function startChat(prompt?: string) {
-    setAgentMode(agent.id);
+    setAgentOverride(agent.id);
     setChatRailOpen(true);
     createThread();
     if (prompt?.trim()) {
-      await sendMessage(prompt.trim());
+      // Pass the agent explicitly — state set above lands on the next render.
+      await sendMessage(prompt.trim(), { agent: agent.id });
     }
   }
 

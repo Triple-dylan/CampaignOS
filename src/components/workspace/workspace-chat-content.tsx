@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   ArrowUp,
+  AtSign,
   CalendarClock,
   MessageSquarePlus,
   Paperclip,
@@ -12,8 +13,14 @@ import {
 import { useChat } from "@/components/chat/chat-provider";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { useAutomations } from "@/components/automations/automations-provider";
-import { AgentPicker } from "@/components/chat/agent-picker";
+import {
+  AgentMentionMenu,
+  AgentModeChip,
+  parseAgentDirective,
+  useAgentMention,
+} from "@/components/chat/agent-mention";
 import { useVisualViewportOffset } from "@/hooks/use-visual-viewport-offset";
+import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 
 const RAIL_SUGGESTIONS = [
@@ -36,6 +43,8 @@ export function WorkspaceChatContent({
 }: WorkspaceChatContentProps) {
   const {
     activeThread,
+    agentOverride,
+    setAgentOverride,
     isSending,
     aiConfigured,
     sendMessage,
@@ -46,6 +55,13 @@ export function WorkspaceChatContent({
   const [draft, setDraft] = React.useState("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const mention = useAgentMention({
+    textareaRef,
+    draft,
+    setDraft,
+    onPick: setAgentOverride,
+  });
 
   const messages = React.useMemo(
     () => activeThread?.messages ?? [],
@@ -73,15 +89,31 @@ export function WorkspaceChatContent({
       setDraft("");
       openCreateDialog({
         prompt: prompt || undefined,
+        agentMode: agentOverride ?? undefined,
         name: prompt ? prompt.slice(0, 48) : undefined,
       });
       return;
     }
+
+    // `@Researcher …` / `/researcher …` — pin the agent and route the message.
+    const directive = parseAgentDirective(text);
+    if (directive.agent) {
+      setAgentOverride(directive.agent);
+      if (!directive.text) {
+        setDraft("");
+        return;
+      }
+    }
+
     setDraft("");
-    await sendMessage(text);
+    await sendMessage(
+      directive.text,
+      directive.agent ? { agent: directive.agent } : undefined,
+    );
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention.handleKeyDown(event)) return;
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void submit();
@@ -140,6 +172,7 @@ export function WorkspaceChatContent({
                 pending={message.pending}
                 workflowProgress={message.workflowProgress}
                 workflowPhase={message.workflowPhase}
+                agentId={message.agentId}
               />
             </div>
           ))
@@ -180,15 +213,35 @@ export function WorkspaceChatContent({
             : undefined
         }
       >
-        <div className="glass-composer rounded-2xl transition-shadow focus-within:border-brand-blue/60">
+        <div className="glass-composer relative rounded-2xl transition-shadow focus-within:border-brand-blue/60">
+          <AgentMentionMenu mention={mention} />
+          {agentOverride ? (
+            <div className="flex flex-wrap items-center gap-1 px-3 pt-2">
+              <AgentModeChip
+                agent={agentOverride}
+                onClear={() => setAgentOverride(null)}
+              />
+            </div>
+          ) : null}
           <textarea
             ref={textareaRef}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              mention.syncCaret();
+            }}
             onKeyDown={handleKeyDown}
+            onSelect={mention.syncCaret}
             rows={1}
-            placeholder="Ask the campaign copilot…"
-            className="block max-h-[160px] min-h-[24px] w-full resize-none bg-transparent px-3 pt-2.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
+            placeholder={
+              agentOverride
+                ? `Ask the ${AGENT_LABELS[agentOverride]}…`
+                : "Ask the campaign copilot…"
+            }
+            className={cn(
+              "block max-h-[160px] min-h-[24px] w-full resize-none bg-transparent px-3 text-sm leading-relaxed outline-none placeholder:text-muted-foreground",
+              agentOverride ? "pt-1.5" : "pt-2.5",
+            )}
           />
           <div className="flex items-center justify-between gap-2 px-2 pt-1 pb-2">
             <div className="flex items-center gap-1">
@@ -200,7 +253,15 @@ export function WorkspaceChatContent({
               >
                 <Paperclip className="size-4" aria-hidden />
               </button>
-              <AgentPicker placement="top" />
+              <button
+                type="button"
+                title="Mention an agent or context"
+                aria-label="Mention an agent or context"
+                onClick={mention.insertMentionTrigger}
+                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <AtSign className="size-4" aria-hidden />
+              </button>
             </div>
             <div className="flex items-center gap-1.5">
               {draft.trim() ? (

@@ -7,6 +7,7 @@ import {
   type ChatTurn,
 } from "@/actions/chat";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
+import { agentForSkillId } from "@/lib/agents";
 import { resolveHarnessPlanClient } from "@/lib/harness/resolver-client";
 import type { WorkflowPhase } from "@/lib/workflows/chat-machine";
 import { useWorkflowRun } from "@/hooks/use-workflow-run";
@@ -19,6 +20,8 @@ export type ChatMessage = {
   pending?: boolean;
   workflowProgress?: string;
   workflowPhase?: WorkflowPhase;
+  /** Specialist that handled (or is handling) this assistant turn. */
+  agentId?: AgentMode;
 };
 
 export type ChatThread = {
@@ -28,10 +31,21 @@ export type ChatThread = {
   createdAt: number;
 };
 
+export type SendMessageOptions = {
+  /** One-shot agent routing (e.g. from an `@mention`), beats the pinned override. */
+  agent?: AgentMode;
+};
+
 type ChatContextValue = {
   threads: ChatThread[];
   activeThreadId: string | null;
   activeThread: ChatThread | null;
+  /**
+   * Explicitly pinned agent, or null for auto-routing (the harness resolver
+   * picks the specialist per message).
+   */
+  agentOverride: AgentMode | null;
+  /** Effective mode — pinned override or the Campaign Manager default. */
   agentMode: AgentMode;
   isSending: boolean;
   /** null until the first server response is observed. */
@@ -55,8 +69,8 @@ type ChatContextValue = {
   graphNodeIdsToHighlight: string[];
   /** Resolver context paths for optimistic retrieval highlights. */
   harnessContextPaths: string[];
-  setAgentMode: (mode: AgentMode) => void;
-  sendMessage: (text: string) => Promise<void>;
+  setAgentOverride: (mode: AgentMode | null) => void;
+  sendMessage: (text: string, options?: SendMessageOptions) => Promise<void>;
 };
 
 const ChatContext = React.createContext<ChatContextValue | null>(null);
@@ -93,8 +107,8 @@ export function ChatProvider({
   const [activeThreadId, setActiveThreadId] = React.useState<string | null>(
     initialThreads[0]?.id ?? null,
   );
-  const [agentMode, setAgentMode] = React.useState<AgentMode>(
-    "campaign-manager",
+  const [agentOverride, setAgentOverride] = React.useState<AgentMode | null>(
+    null,
   );
   const [isSending, setIsSending] = React.useState(false);
   const [aiConfigured, setAiConfigured] = React.useState<boolean | null>(
@@ -136,7 +150,7 @@ export function ChatProvider({
   }, [hydrateThread]);
 
   const sendMessage = React.useCallback(
-    async (text: string) => {
+    async (text: string, options?: SendMessageOptions) => {
       const trimmed = text.trim();
       if (!trimmed || isSending) return;
 
@@ -144,6 +158,16 @@ export function ChatProvider({
       if (!threadId || !threads.some((t) => t.id === threadId)) {
         threadId = createThread();
       }
+
+      // Explicit routing (per-message @mention beats the pinned chip) or
+      // auto-routing via the harness resolver's skill match.
+      const explicitAgent = options?.agent ?? agentOverride;
+      const optimisticPlan = resolveHarnessPlanClient(
+        trimmed,
+        explicitAgent ?? "campaign-manager",
+      );
+      const routedAgent: AgentMode =
+        explicitAgent ?? agentForSkillId(optimisticPlan.skillId);
 
       const userMessage: ChatMessage = {
         id: makeId("msg"),
@@ -159,6 +183,7 @@ export function ChatProvider({
         createdAt: Date.now(),
         pending: true,
         workflowProgress: "Working…",
+        agentId: routedAgent,
       };
 
       let historyForRequest: ChatTurn[] = [];
@@ -184,7 +209,6 @@ export function ChatProvider({
       );
 
       setIsSending(true);
-      const optimisticPlan = resolveHarnessPlanClient(trimmed, agentMode);
       setGraphFoldersToHighlight(optimisticPlan.graphFolders);
       setHarnessContextPaths(optimisticPlan.contextPaths);
       setGraphNodeIdsToHighlight([]);
@@ -213,18 +237,14 @@ export function ChatProvider({
               workflowProgress: state.progressLabel,
               workflowPhase: state.phase,
             });
-            setGraphFoldersToHighlight(
-              resolveHarnessPlanClient(trimmed, agentMode).graphFolders,
-            );
+            setGraphFoldersToHighlight(optimisticPlan.graphFolders);
           },
         });
 
         if (workflowResult.handled) {
           setGraphFoldersToHighlight(workflowResult.graphFolders);
           setGraphNodeIdsToHighlight([]);
-          setHarnessContextPaths(
-            resolveHarnessPlanClient(trimmed, agentMode).contextPaths,
-          );
+          setHarnessContextPaths(optimisticPlan.contextPaths);
           setThreads((prev) =>
             prev.map((thread) => {
               if (thread.id !== threadId) return thread;
@@ -249,14 +269,18 @@ export function ChatProvider({
 
         const result = await sendChatMessage({
           messages: historyForRequest,
-          agentMode,
+          agentMode: routedAgent,
         });
         setAiConfigured(result.configured);
         setGraphFoldersToHighlight(result.graphFoldersToHighlight);
         setGraphNodeIdsToHighlight(result.graphNodeIdsToHighlight);
-        setHarnessContextPaths(
-          resolveHarnessPlanClient(trimmed, agentMode).contextPaths,
-        );
+        setHarnessContextPaths(optimisticPlan.contextPaths);
+        // In auto mode, trust the server resolver's skill for attribution.
+        const attributedAgent =
+          explicitAgent ??
+          (result.harnessSkillId
+            ? agentForSkillId(result.harnessSkillId)
+            : routedAgent);
         setThreads((prev) =>
           prev.map((thread) => {
             if (thread.id !== threadId) return thread;
@@ -270,6 +294,7 @@ export function ChatProvider({
                       pending: false,
                       workflowProgress: undefined,
                       workflowPhase: undefined,
+                      agentId: attributedAgent,
                     }
                   : m,
               ),
@@ -304,7 +329,7 @@ export function ChatProvider({
     },
     [
       activeThreadId,
-      agentMode,
+      agentOverride,
       createThread,
       handleWorkflowMessage,
       isSending,
@@ -320,7 +345,8 @@ export function ChatProvider({
       threads,
       activeThreadId,
       activeThread,
-      agentMode,
+      agentOverride,
+      agentMode: agentOverride ?? "campaign-manager",
       isSending,
       aiConfigured,
       graphFoldersToHighlight,
@@ -331,14 +357,14 @@ export function ChatProvider({
       toggleChatRail,
       createThread,
       selectThread,
-      setAgentMode,
+      setAgentOverride,
       sendMessage,
     }),
     [
       threads,
       activeThreadId,
       activeThread,
-      agentMode,
+      agentOverride,
       isSending,
       aiConfigured,
       graphFoldersToHighlight,

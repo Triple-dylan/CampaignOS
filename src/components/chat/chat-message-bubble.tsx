@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import type { AgentMode } from "@/actions/chat";
+import { agentPersona } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 import type { WorkflowPhase } from "@/lib/workflows/chat-machine";
 
@@ -10,6 +12,8 @@ export type ChatMessageBubbleProps = {
   pending?: boolean;
   workflowProgress?: string;
   workflowPhase?: WorkflowPhase;
+  /** Specialist attribution shown above assistant replies. */
+  agentId?: AgentMode;
 };
 
 function renderContentWithLinks(content: string): React.ReactNode {
@@ -36,7 +40,9 @@ export function ChatMessageBubble({
   pending,
   workflowProgress,
   workflowPhase,
+  agentId,
 }: ChatMessageBubbleProps) {
+  const persona = role === "assistant" && agentId ? agentPersona(agentId) : null;
   return (
     <div
       className={cn(
@@ -46,6 +52,12 @@ export function ChatMessageBubble({
           : "border border-border bg-card text-foreground",
       )}
     >
+      {persona ? (
+        <span className="mb-1 flex items-center gap-1 text-[0.65rem] font-medium text-muted-foreground">
+          <persona.icon className="size-3 text-brand-blue" aria-hidden />
+          {persona.label}
+        </span>
+      ) : null}
       {workflowProgress && role === "assistant" ? (
         <p
           className={cn(

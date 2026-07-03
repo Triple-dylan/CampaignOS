@@ -325,9 +325,6 @@ export const AGENT_REGISTRY: ReadonlyArray<AgentPersona> = [
   },
 ];
 
-/** @deprecated Use {@link AGENT_REGISTRY} — kept for composer picker compatibility. */
-export const AGENT_PERSONAS = AGENT_REGISTRY;
-
 export const AGENT_LABELS: Record<AgentMode, string> = AGENT_REGISTRY.reduce(
   (acc, persona) => {
     acc[persona.id] = persona.label;
@@ -348,6 +345,19 @@ export function getAgentBySlug(slug: string): AgentPersona | null {
 
 export function isAgentSlug(slug: string): slug is AgentMode {
   return AGENT_BY_SLUG.has(slug as AgentMode);
+}
+
+const AGENT_BY_SKILL = new Map(
+  AGENT_REGISTRY.map((agent) => [agent.defaultSkillId, agent.id]),
+);
+
+/**
+ * Map a resolved harness skill back to the specialist persona that owns it.
+ * Used for auto-routing attribution — skills without a dedicated persona
+ * (e.g. `automations`) fall back to the Campaign Manager.
+ */
+export function agentForSkillId(skillId: string): AgentMode {
+  return AGENT_BY_SKILL.get(skillId) ?? "campaign-manager";
 }
 
 /** ai_generation_logs.module values associated with each agent (plus workspace_chat). */
