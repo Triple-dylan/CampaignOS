@@ -56,7 +56,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
     <WorkspaceShellContext.Provider value={value}>
       <div className="workspace-stage flex h-svh w-full overflow-hidden">
-        <aside className="glass-rail hidden w-[264px] shrink-0 md:flex">
+        <aside className="glass-rail hidden w-[232px] shrink-0 sm:flex">
           <AppRail />
         </aside>
 

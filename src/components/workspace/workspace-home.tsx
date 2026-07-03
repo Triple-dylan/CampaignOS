@@ -29,6 +29,7 @@ import type {
   DbGraphNode,
 } from "@/lib/db/schema";
 import type { KnowledgeNode } from "@/lib/campaign-knowledge/types";
+import type { WorkspaceDigest } from "@/lib/workspace/digest";
 
 type WorkspaceHomeProps = {
   isSetupComplete: boolean;
@@ -37,6 +38,8 @@ type WorkspaceHomeProps = {
   graph: CampaignGraphFlow | null;
   edgeCount: number;
   metrics: WorkspaceMetrics;
+  /** Actionable digest for the right rail's default view. */
+  digest?: WorkspaceDigest | null;
   onboardingData: OnboardingData | null;
   /**
    * Optional live-graph seed. When provided (e.g. the preview workspace), the
@@ -203,6 +206,7 @@ export function WorkspaceHome({
   graph,
   edgeCount,
   metrics,
+  digest = null,
   onboardingData,
   liveSeed = null,
   growthSteps = [],
@@ -277,6 +281,7 @@ export function WorkspaceHome({
     campaign,
     profile,
     metrics,
+    digest,
     graph: activeGraph,
     selectedNode,
     onClose: () => setPanelOpen(false),

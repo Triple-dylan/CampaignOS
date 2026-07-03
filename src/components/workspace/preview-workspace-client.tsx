@@ -8,6 +8,7 @@ import { WorkspaceHome } from "@/components/workspace/workspace-home";
 import {
   DEMO_CAMPAIGN,
   DEMO_CONTEXT,
+  DEMO_DIGEST,
   DEMO_EDGES,
   DEMO_GRAPH,
   DEMO_GROWTH_STEPS,
@@ -33,6 +34,7 @@ export function PreviewWorkspaceClient() {
               graph={DEMO_GRAPH}
               edgeCount={DEMO_GRAPH.edges.length}
               metrics={DEMO_METRICS}
+              digest={DEMO_DIGEST}
               onboardingData={null}
               liveSeed={{ nodes: DEMO_NODES, edges: DEMO_EDGES }}
               growthSteps={DEMO_GROWTH_STEPS}

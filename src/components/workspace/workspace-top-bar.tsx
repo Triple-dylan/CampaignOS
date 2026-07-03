@@ -27,7 +27,7 @@ export function WorkspaceTopBar({
         type="button"
         onClick={onToggleRail}
         aria-label="Open navigation"
-        className="-ml-1 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden"
+        className="-ml-1 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:hidden"
       >
         <PanelLeft className="size-4" aria-hidden />
       </button>

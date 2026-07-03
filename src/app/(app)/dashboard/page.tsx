@@ -8,6 +8,7 @@ import { countResearchBriefs } from "@/lib/db/research-briefs";
 import { countActiveTasks } from "@/lib/db/tasks";
 import { countGraphNodes } from "@/lib/db/campaigns";
 import { getFundraisingDashboardMetrics } from "@/actions/fundraising";
+import { getWorkspaceDigest } from "@/lib/workspace/digest";
 import type { CampaignGraphFlow } from "@/lib/graph/to-react-flow";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,7 @@ export default async function WorkspacePage() {
     researchBriefCount,
     fundraisingMetrics,
     graphNodeCount,
+    digest,
   ] = await Promise.all([
     getCampaignGraph(),
     countAssets(campaign.id),
@@ -56,6 +58,7 @@ export default async function WorkspacePage() {
     countResearchBriefs(campaign.id),
     getFundraisingDashboardMetrics(),
     countGraphNodes(campaign.id),
+    getWorkspaceDigest(campaign, profile),
   ]);
 
   const graph: CampaignGraphFlow | null = graphResult.ok
@@ -78,6 +81,7 @@ export default async function WorkspacePage() {
         researchBriefCount,
         prospectCount: fundraisingMetrics.prospectCount,
       }}
+      digest={digest}
       onboardingData={null}
     />
   );

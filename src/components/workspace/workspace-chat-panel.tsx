@@ -13,7 +13,7 @@ export function WorkspaceChatPanel() {
   const { setChatRailOpen } = useChat();
 
   return (
-    <aside className="glass-frost hidden w-[22rem] shrink-0 flex-col lg:flex">
+    <aside className="glass-frost hidden w-[19rem] shrink-0 flex-col md:flex lg:w-[22rem]">
       <WorkspaceChatContent onClose={() => setChatRailOpen(false)} />
     </aside>
   );

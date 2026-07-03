@@ -6,6 +6,7 @@ import type {
 import { toReactFlowGraph } from "@/lib/graph/to-react-flow";
 import type { KnowledgeNode } from "@/lib/campaign-knowledge/types";
 import type { WorkspaceMetrics } from "@/components/workspace/workspace-context-panel";
+import type { WorkspaceDigest } from "@/lib/workspace/digest";
 import {
   buildDemoKnowledgeGraph,
   DEMO_GRAPH_NODE_COUNT,
@@ -72,6 +73,74 @@ export const DEMO_METRICS: WorkspaceMetrics = {
   upcomingEventCount: 2,
   researchBriefCount: 3,
   prospectCount: 12,
+};
+
+export const DEMO_DIGEST: WorkspaceDigest = {
+  dueTasks: [
+    {
+      id: "demo-task-1",
+      title: "Finalize Ballard canvass route",
+      priority: "high",
+      dueDate: "2026-01-03",
+    },
+    {
+      id: "demo-task-2",
+      title: "Approve launch reel copy",
+      priority: "medium",
+      dueDate: "2026-01-05",
+    },
+    {
+      id: "demo-task-3",
+      title: "Call top-20 donor list",
+      priority: "high",
+      dueDate: "2026-01-06",
+    },
+  ],
+  upcomingEvents: [
+    {
+      id: "demo-event-1",
+      title: "Ballard meet & greet",
+      eventType: "meet_greet",
+      startTime: "2026-01-08T18:00:00.000Z",
+      location: "Ballard Community Center",
+      isMilestone: false,
+    },
+    {
+      id: "demo-event-2",
+      title: "Filing deadline",
+      eventType: "deadline",
+      startTime: "2026-01-12T17:00:00.000Z",
+      location: null,
+      isMilestone: true,
+    },
+  ],
+  reviewAssets: [
+    {
+      id: "demo-asset-1",
+      title: "Launch reel script v2",
+      assetType: "social_post",
+    },
+  ],
+  pendingComplianceCount: 1,
+  recentActivity: [
+    {
+      id: "demo-log-1",
+      module: "research",
+      createdAt: "2025-12-31T22:10:00.000Z",
+      createdObjectType: "research_brief",
+    },
+    {
+      id: "demo-log-2",
+      module: "assets",
+      createdAt: "2025-12-31T19:40:00.000Z",
+      createdObjectType: "asset",
+    },
+  ],
+  fundraising: {
+    raisedAmount: 96500,
+    effectiveGoal: 250000,
+    progressPercent: 39,
+  },
 };
 
 export { DEMO_NODES, DEMO_EDGES };
