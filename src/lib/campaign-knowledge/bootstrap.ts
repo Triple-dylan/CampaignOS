@@ -58,17 +58,27 @@ export async function bootstrapCampaignKnowledge(
   const profileBody = [
     `# ${campaignDisplayName(input.campaign)}`,
     "",
-    input.campaign.office_sought
-      ? `**Office:** ${input.campaign.office_sought}`
-      : "",
-    input.campaign.jurisdiction
-      ? `**Jurisdiction:** ${input.campaign.jurisdiction}`
-      : "",
-    input.campaign.election_date
-      ? `**Election date:** ${input.campaign.election_date}`
-      : "",
+    "## Identity",
     "",
-    "_Seeded from onboarding._",
+    input.campaign.office_sought
+      ? `- **Office:** ${input.campaign.office_sought}`
+      : "- **Office:** _Fill in from Settings_",
+    input.campaign.jurisdiction
+      ? `- **Jurisdiction:** ${input.campaign.jurisdiction}`
+      : "- **Jurisdiction:** _Fill in from Settings_",
+    input.campaign.election_date
+      ? `- **Election date:** ${input.campaign.election_date}`
+      : "- **Election date:** _Fill in from Settings_",
+    "",
+    "## Message framework",
+    "",
+    "_Add your core value proposition and tone guidance. Link issue pages under `messaging/`._",
+    "",
+    "## Strategic priorities",
+    "",
+    "_Link initiative pages under `initiatives/` and field plans under `field/`._",
+    "",
+    "_Seeded from onboarding — update as the race develops._",
   ]
     .filter(Boolean)
     .join("\n");

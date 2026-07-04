@@ -6,8 +6,19 @@ folder: campaign
 
 # Campaign
 
-Core campaign identity — candidate, office, jurisdiction, election date, and profile summary.
+Core campaign identity — candidate, office, jurisdiction, election date, and profile summary. This is the **primary hub** of the knowledge graph.
 
-**When to descend here:** Queries about campaign topics or candidate graph nodes under `campaign/`.
+## When to descend here
 
-**When to skip:** Unrelated modules — check `index.md` at the knowledge root first.
+- Candidate name, office sought, jurisdiction, election timeline
+- Campaign-wide strategy, brand voice, or org identity
+- Links to every other folder cluster via the graph centre node
+
+## Key pages
+
+- `campaign/profile.md` — canonical candidate profile (synced to graph as `candidate` node)
+- Add subpages for coalition partners, endorsements-in-progress, or race metadata
+
+## When to skip
+
+- Module-specific work (assets, fundraising, field) — check `index.md` and the relevant folder `_context.md` first.

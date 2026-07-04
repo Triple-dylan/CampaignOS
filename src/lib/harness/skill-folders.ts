@@ -22,25 +22,25 @@ export const WORKFLOW_GRAPH_FOLDERS: Record<CampaignWorkflowId, CampaignFolderId
     "incumbent-research": ["research", "people", "polling"],
   };
 
-/** Campaign-knowledge context paths loaded per skill. */
+/**
+ * Campaign-knowledge context paths loaded per skill.
+ * Paths are relative to the per-campaign knowledge root (wiki-llm convention).
+ */
 export const SKILL_CONTEXT_PATHS: Record<string, string[]> = {
-  "campaign-signals": ["campaign-knowledge/templates/campaign/_context.md"],
+  "campaign-signals": ["campaign/_context.md"],
   "asset-studio": [
-    "campaign-knowledge/templates/assets/_context.md",
-    "campaign-knowledge/templates/messaging/_context.md",
-    "campaign-knowledge/templates/social-media/_context.md",
+    "assets/_context.md",
+    "messaging/_context.md",
+    "social-media/_context.md",
   ],
-  "research-brief": ["campaign-knowledge/templates/research/_context.md"],
-  "fundraising-outreach": [
-    "campaign-knowledge/templates/fundraising/_context.md",
-  ],
-  "compliance-review": [
-    "campaign-knowledge/templates/compliance/_context.md",
-  ],
-  automations: ["campaign-knowledge/templates/skills/_context.md"],
+  "research-brief": ["research/_context.md"],
+  "fundraising-outreach": ["fundraising/_context.md"],
+  "compliance-review": ["compliance/_context.md"],
+  automations: ["skills/_context.md"],
   "campaign-manager": [
-    "campaign-knowledge/templates/campaign/_context.md",
-    "campaign-knowledge/templates/initiatives/_context.md",
+    "campaign/_context.md",
+    "initiatives/_context.md",
+    "index.md",
   ],
 };
 
@@ -49,5 +49,5 @@ export function graphFoldersForSkill(skillId: string): CampaignFolderId[] {
 }
 
 export function contextPathsForSkill(skillId: string): string[] {
-  return SKILL_CONTEXT_PATHS[skillId] ?? ["campaign-knowledge/templates/index.md"];
+  return SKILL_CONTEXT_PATHS[skillId] ?? ["index.md"];
 }

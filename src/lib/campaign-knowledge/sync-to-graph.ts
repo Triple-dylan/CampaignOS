@@ -10,7 +10,10 @@ import {
   createGraphEdge,
   createGraphNode,
   getGraphNodeBySourceObject,
+  linkWikiDocumentsToFolderHubs,
 } from "@/lib/db/graph";
+import { listGraphNodes } from "@/lib/db/campaigns";
+import type { DbGraphNode } from "@/lib/db/schema";
 import type { GraphRelationshipType } from "@/lib/validators/enums";
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
@@ -32,6 +35,13 @@ function parseSimpleFrontmatter(block: string): KnowledgeFrontmatter {
     source_object_id: result.source_object_id,
     status: result.status as KnowledgeFrontmatter["status"],
   };
+}
+
+function findNodeByKnowledgePath(
+  nodes: DbGraphNode[],
+  path: string,
+): DbGraphNode | undefined {
+  return nodes.find((node) => node.metadata_json?.path === path);
 }
 
 export async function walkCampaignKnowledgeNodes(
@@ -67,11 +77,14 @@ export async function walkCampaignKnowledgeNodes(
 export async function syncCampaignKnowledgeToGraph(input: {
   campaignId: string;
   root: CampaignKnowledgeRoot;
-}): Promise<{ synced: number; skipped: number }> {
+}): Promise<{ synced: number; skipped: number; linked: number }> {
   const nodes = await walkCampaignKnowledgeNodes(input.root);
   let synced = 0;
   let skipped = 0;
 
+  const existingNodes = await listGraphNodes(input.campaignId).catch(
+    () => [] as DbGraphNode[],
+  );
   const pathToNodeId = new Map<string, string>();
 
   for (const node of nodes) {
@@ -93,6 +106,13 @@ export async function syncCampaignKnowledgeToGraph(input: {
       }
     }
 
+    const existingByPath = findNodeByKnowledgePath(existingNodes, node.path);
+    if (existingByPath) {
+      skipped += 1;
+      pathToNodeId.set(node.path, existingByPath.id);
+      continue;
+    }
+
     const result = await createGraphNode({
       campaignId: input.campaignId,
       nodeType: node.nodeType,
@@ -112,6 +132,7 @@ export async function syncCampaignKnowledgeToGraph(input: {
     if (result.node) {
       synced += 1;
       pathToNodeId.set(node.path, result.node.id);
+      existingNodes.push(result.node);
     }
   }
 
@@ -134,5 +155,10 @@ export async function syncCampaignKnowledgeToGraph(input: {
     }
   }
 
-  return { synced, skipped };
+  const { linked } = await linkWikiDocumentsToFolderHubs({
+    campaignId: input.campaignId,
+    nodeIds: [...pathToNodeId.values()],
+  });
+
+  return { synced, skipped, linked };
 }

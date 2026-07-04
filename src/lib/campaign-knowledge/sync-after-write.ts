@@ -9,9 +9,10 @@ export async function syncKnowledgeAfterWrite(input: {
 }): Promise<void> {
   const root = buildCampaignKnowledgeRoot(input);
   await rebuildKnowledgeIndex(root);
+  // Seed folder hubs before syncing documents so belongs_to edges can attach.
+  await seedFolderHubsForCampaign(input.campaignId);
   await syncCampaignKnowledgeToGraph({
     campaignId: input.campaignId,
     root,
   });
-  await seedFolderHubsForCampaign(input.campaignId);
 }

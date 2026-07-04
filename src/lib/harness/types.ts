@@ -93,6 +93,7 @@ export type ResolverOutput = {
 
 export type HarnessTurnInput = {
   campaignId: string;
+  organizationId?: string;
   userMessage: string;
   agentMode: HarnessAgentMode;
   campaignPath?: CampaignPath;
