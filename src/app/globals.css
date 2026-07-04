@@ -137,7 +137,9 @@
   --glass-blur: 28px;
   --glass-saturate: 210%;
   --glass-bar-bg: oklch(1 0 0 / 0.52);
-  --glass-rail-bg: oklch(1 0 0 / 0.45);
+  /* The rail reads as near-white: high fill opacity so the stage aurora only
+   * faintly tints it instead of bleeding through. */
+  --glass-rail-bg: oklch(1 0 0 / 0.82);
   --glass-panel-bg: oklch(1 0 0 / 0.5);
   --glass-composer-bg: oklch(1 0 0 / 0.6);
   --glass-border: oklch(0.205 0 0 / 0.16);
@@ -222,7 +224,7 @@
 
   /* Dark glass: a smoky translucency with a faint top highlight + crisp edge. */
   --glass-bar-bg: oklch(0.214 0 0 / 0.52);
-  --glass-rail-bg: oklch(0.2 0 0 / 0.46);
+  --glass-rail-bg: oklch(0.2 0 0 / 0.72);
   --glass-panel-bg: oklch(0.214 0 0 / 0.5);
   --glass-composer-bg: oklch(0.24 0 0 / 0.62);
   --glass-border: oklch(1 0 0 / 0.18);
@@ -410,13 +412,16 @@
     background-color: var(--accent);
   }
 
-  /* Active rail item — quiet neutral fill with a thin blue identity edge,
+  /* Active rail item — near-white raised fill with a thin blue identity edge,
    * the way Cursor highlights the selected item. */
   .rail-active {
-    background-color: var(--accent);
+    background-color: var(--surface);
     color: var(--foreground);
     font-weight: 500;
-    box-shadow: inset 2px 0 0 0 var(--brand-blue);
+    box-shadow:
+      inset 2px 0 0 0 var(--brand-blue),
+      0 0 0 1px var(--hairline),
+      var(--shadow-panel);
   }
 
   .rail-active :where(svg) {

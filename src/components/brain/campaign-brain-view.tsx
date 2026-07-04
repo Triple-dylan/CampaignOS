@@ -64,7 +64,7 @@ export function CampaignBrainView({
 
   if (graph.totalNodeCount === 0) {
     return (
-      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+      <div className="flex flex-1 flex-col gap-4 p-3 md:p-4">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">

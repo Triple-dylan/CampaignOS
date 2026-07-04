@@ -16,8 +16,8 @@ type RailItemBaseProps = {
 
 const railItemClass = (active?: boolean, disabled?: boolean) =>
   cn(
-    "glass-hover group/rail-item flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm outline-hidden transition-colors",
-    "focus-visible:ring-2 focus-visible:ring-ring/50",
+    "glass-hover group/rail-item flex min-h-[30px] w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-hidden transition-colors",
+    "focus-visible:ring-2 focus-visible:ring-ring/25",
     active
       ? "rail-active font-medium"
       : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",

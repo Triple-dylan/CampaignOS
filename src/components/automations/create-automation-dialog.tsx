@@ -122,7 +122,7 @@ function CreateAutomationForm({
             placeholder="Review last week's tasks and draft priorities for the field team…"
             required
             rows={4}
-            className="w-full resize-none rounded-lg border border-input bg-background/60 px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="w-full resize-none rounded-lg border border-input bg-background/60 px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
           />
         </div>
 

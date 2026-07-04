@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import type { ResearchType } from "@/lib/validators/research-briefs";
 
 const TEXTAREA_CLASS =
-  "flex w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm shadow-xs outline-none backdrop-blur-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+  "flex w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm shadow-xs outline-none backdrop-blur-sm transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25";
 
 export type GuidedWorkflow = "event" | "incumbent";
 

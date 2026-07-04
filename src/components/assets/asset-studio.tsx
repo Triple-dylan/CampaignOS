@@ -120,7 +120,7 @@ export function AssetStudio({
       />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        <div className="flex flex-col gap-4 p-4 md:p-5">
+        <div className="flex flex-col gap-4 p-3 md:p-4">
           <TemplateGallery onUseTemplate={handleUseTemplate} />
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -152,7 +152,7 @@ export function AssetStudio({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search assets"
-                  className="h-8 w-full rounded-lg border border-input bg-background/60 pr-2.5 pl-7 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-40"
+                  className="h-8 w-full rounded-lg border border-input bg-background/60 pr-2.5 pl-7 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 sm:w-40"
                 />
               </div>
               <ViewSwitcher view={view} onChange={setView} />

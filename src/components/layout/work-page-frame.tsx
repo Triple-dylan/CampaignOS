@@ -28,7 +28,7 @@ function GlassCommandBar({ title, description, actions }: GlassCommandBarProps) 
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
-    <header className="glass-bar flex shrink-0 items-center gap-3 rounded-xl px-3 py-2">
+    <header className="glass-bar sticky top-0 z-30 flex shrink-0 items-center gap-3 rounded-none border-x-0 border-t-0 px-3 py-2 md:px-4">
       <button
         type="button"
         onClick={toggleRailMobile}
@@ -107,15 +107,16 @@ export function WorkPageFrame({
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5 overflow-hidden p-2.5">
+      {/* Single scroll container holding both the sticky glass bar and the page
+          content, so content scrolls underneath the bar and shows through the
+          frosted blur instead of poking out around an inset island. */}
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-y-auto">
         <GlassCommandBar
           title={title}
           description={description}
           actions={actions}
         />
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          {children}
-        </div>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
       </div>
 
       {/* Always mounted on desktop so it can animate open/closed; the command

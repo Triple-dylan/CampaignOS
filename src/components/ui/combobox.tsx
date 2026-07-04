@@ -138,7 +138,7 @@ export function Combobox({
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background/60 px-2.5 text-left text-sm backdrop-blur-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30",
+          "flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background/60 px-2.5 text-left text-sm backdrop-blur-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:opacity-50 dark:bg-input/30",
           !value && "text-muted-foreground",
         )}
       >

@@ -12,7 +12,7 @@ const CampaignBrainView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+      <div className="flex flex-1 flex-col gap-4 p-3 md:p-4">
         <Skeleton className="h-28 w-full rounded-lg" />
         <Skeleton className="h-[min(70vh,720px)] min-h-[420px] w-full rounded-lg" />
       </div>

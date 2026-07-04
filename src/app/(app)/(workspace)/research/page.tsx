@@ -28,7 +28,7 @@ export default async function ResearchPage({
   if (!result.ok) {
     return (
       <WorkPageFrame title={page.title} description={page.description}>
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-6 p-3 md:p-4">
           <Card>
             <CardHeader>
               <CardTitle>Research Hub unavailable</CardTitle>

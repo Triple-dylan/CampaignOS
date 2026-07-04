@@ -560,7 +560,7 @@ function VotersStep({
                 aria-pressed={selected}
                 onClick={() => toggleSuggestion(suggestion)}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/25",
                   selected
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",
@@ -702,7 +702,7 @@ function BrandStep({
                 aria-pressed={selected}
                 onClick={() => toggleTone(tone)}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/25",
                   selected
                     ? "border-primary bg-primary text-primary-foreground shadow-[inset_0_1px_0_0_oklch(1_0_0_/_0.18)]"
                     : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",
@@ -734,7 +734,7 @@ function BrandStep({
                 {...field}
                 rows={3}
                 placeholder="Phrases to use or avoid, local references, etc."
-                className="w-full rounded-lg border border-input bg-background/60 px-2.5 py-2 text-sm backdrop-blur-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                className="w-full rounded-lg border border-input bg-background/60 px-2.5 py-2 text-sm backdrop-blur-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 dark:bg-input/30"
               />
             </FormControl>
             <FormMessage />
@@ -761,7 +761,7 @@ function BrandStep({
                     aria-pressed={selected}
                     onClick={() => selectGoalPreset(preset.value)}
                     className={cn(
-                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/25",
                       selected
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",
@@ -776,7 +776,7 @@ function BrandStep({
                 aria-pressed={customGoal || (field.value != null && !FUNDRAISING_GOAL_PRESETS.some((p) => p.value === field.value))}
                 onClick={() => setCustomGoal(true)}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/25",
                   customGoal
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-background/60 backdrop-blur-sm hover:bg-muted dark:bg-input/30",

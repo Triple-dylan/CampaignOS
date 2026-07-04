@@ -22,18 +22,11 @@ export type NavItem = {
   icon: LucideIcon;
 };
 
-export type NavGroup = {
-  /** Section heading shown in the rail. Empty string renders no label. */
-  label: string;
-  ariaLabel: string;
-  items: ReadonlyArray<NavItem>;
-};
-
 /**
- * Flat primary navigation. Every entry is a real destination — no agent
- * personas (those live in the composer picker) and no fake Work/Agents split.
- * Planner, Tasks, Compliance and Automations are grouped together under
- * "Workflows" so the operational tooling lives in one place.
+ * Flat primary navigation — one Cursor-like list of every real destination.
+ * The former "Workflows" group (Planner, Tasks, Compliance, Command center)
+ * is folded in so the rail carries a single scannable hierarchy: primary nav,
+ * recent chats, a collapsible Agents section, and Settings pinned at bottom.
  */
 export const primaryNav: ReadonlyArray<NavItem> = [
   { title: "Work desk", href: "/dashboard", icon: LayoutDashboard },
@@ -41,18 +34,17 @@ export const primaryNav: ReadonlyArray<NavItem> = [
   { title: "Research", href: "/research", icon: Lightbulb },
   { title: "Fundraising", href: "/fundraising", icon: PiggyBank },
   { title: "Knowledge graph", href: "/brain", icon: Brain },
-];
-
-export const workflowsNav: ReadonlyArray<NavItem> = [
   { title: "Planner", href: "/planner", icon: ClipboardList },
   { title: "Tasks", href: "/tasks", icon: SquareCheckBig },
   { title: "Compliance", href: "/compliance", icon: ShieldCheck },
   { title: "Command center", href: "/automations", icon: CalendarClock },
 ];
 
-export const customizeNav: ReadonlyArray<NavItem> = [
-  { title: "Settings", href: "/settings", icon: Settings },
-];
+export const settingsNavItem: NavItem = {
+  title: "Settings",
+  href: "/settings",
+  icon: Settings,
+};
 
 /** Agent consoles — each links to `/agents/[slug]`. */
 export const agentsNav: ReadonlyArray<NavItem> = [
@@ -69,13 +61,6 @@ export const agentsNav: ReadonlyArray<NavItem> = [
     href: "/agents/compliance-reviewer",
     icon: ScrollText,
   },
-];
-
-export const navGroups: ReadonlyArray<NavGroup> = [
-  { label: "", ariaLabel: "Primary", items: primaryNav },
-  { label: "Agents", ariaLabel: "Agents", items: agentsNav },
-  { label: "Workflows", ariaLabel: "Workflows", items: workflowsNav },
-  { label: "Customize", ariaLabel: "Customize", items: customizeNav },
 ];
 
 export const modulePages = {
