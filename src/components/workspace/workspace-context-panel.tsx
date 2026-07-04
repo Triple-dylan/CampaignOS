@@ -118,10 +118,23 @@ export function WorkspaceContextPanelContent({
   );
 }
 
-export function WorkspaceContextPanel(props: WorkspaceContextPanelProps) {
+export function WorkspaceContextPanel({
+  open = true,
+  ...props
+}: WorkspaceContextPanelProps & { open?: boolean }) {
   return (
-    <aside className="glass-frost hidden w-80 shrink-0 flex-col md:flex">
-      <WorkspaceContextPanelContent {...props} />
+    <aside
+      inert={!open}
+      aria-hidden={!open}
+      className={cn(
+        "glass-frost motion-panel hidden shrink-0 flex-col overflow-hidden md:flex",
+        open ? "w-80" : "w-0 border-transparent opacity-0 shadow-none",
+      )}
+    >
+      {/* Fixed-width inner column so content doesn't squish while animating. */}
+      <div className="flex h-full w-80 min-h-0 flex-col">
+        <WorkspaceContextPanelContent {...props} />
+      </div>
     </aside>
   );
 }

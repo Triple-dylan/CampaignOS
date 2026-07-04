@@ -118,21 +118,12 @@ export function WorkPageFrame({
         </div>
       </div>
 
-      {isChatRailOpen && !isBelowMd ? <WorkspaceChatPanel /> : null}
+      {/* Always mounted on desktop so it can animate open/closed; the command
+          bar owns the single chat toggle control. */}
+      {!isBelowMd ? <WorkspaceChatPanel open={isChatRailOpen} /> : null}
 
       {isChatRailOpen && isBelowMd ? (
         <MobileChatSheet open={isChatRailOpen} onOpenChange={setChatRailOpen} />
-      ) : null}
-
-      {!isChatRailOpen && !isBelowMd ? (
-        <button
-          type="button"
-          onClick={() => setChatRailOpen(true)}
-          aria-label="Show chat"
-          className="hidden w-10 shrink-0 items-start justify-center border-l border-border pt-3.5 text-muted-foreground transition-colors hover:text-foreground md:flex"
-        >
-          <MessageSquare className="size-4" aria-hidden />
-        </button>
       ) : null}
     </div>
   );

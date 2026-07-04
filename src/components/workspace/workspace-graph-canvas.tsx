@@ -47,14 +47,31 @@ const COMPACT_LABEL_ZOOM = 0.62;
  * Asymmetric padding so the constellation stays clear of the floating overlays:
  * the frosted breadcrumb bar at the top and the glass composer docked at the
  * bottom. Without the extra bottom space, nodes would hide behind the composer.
+ * The generous bottom padding biases the graph toward the upper portion of the
+ * canvas, where nothing floats over it.
  */
 const DESKTOP_FIT_VIEW_OPTIONS = {
-  padding: { top: "88px", right: "88px", bottom: "216px", left: "88px" },
+  padding: { top: "80px", right: "88px", bottom: "236px", left: "88px" },
+  duration: CAMERA_EASE_MS,
+} as const;
+
+/**
+ * With a conversation open, the chat card (up to 34vh) + composer cover
+ * roughly the bottom 40% of the canvas — the frame shifts visible nodes up
+ * into the uncovered area.
+ */
+const DESKTOP_DOCK_OPEN_FIT_VIEW_OPTIONS = {
+  padding: { top: "72px", right: "88px", bottom: "44%", left: "88px" },
   duration: CAMERA_EASE_MS,
 } as const;
 
 const MOBILE_FIT_VIEW_OPTIONS = {
   padding: { top: "72px", right: "48px", bottom: "148px", left: "48px" },
+  duration: CAMERA_EASE_MS,
+} as const;
+
+const MOBILE_DOCK_OPEN_FIT_VIEW_OPTIONS = {
+  padding: { top: "64px", right: "48px", bottom: "46%", left: "48px" },
   duration: CAMERA_EASE_MS,
 } as const;
 
@@ -64,6 +81,8 @@ type WorkspaceGraphCanvasProps = {
   selectedNodeId: string | null;
   highlightedNodeIds?: Set<string>;
   searching?: boolean;
+  /** True while a conversation card floats over the bottom of the canvas. */
+  chatDockOpen?: boolean;
   onSelectNode: (node: CampaignGraphNodeData | null, id: string | null) => void;
   onFocusComposer?: () => void;
   /** When provided, renders a "grow the graph" affordance (demo / live mode). */
@@ -90,6 +109,7 @@ function WorkspaceGraphCanvasInner({
   selectedNodeId,
   highlightedNodeIds,
   searching = false,
+  chatDockOpen = false,
   onSelectNode,
   onFocusComposer,
   onAddKnowledge,
@@ -101,8 +121,12 @@ function WorkspaceGraphCanvasInner({
   const highlighted = highlightedNodeIds ?? EMPTY_SET;
   const isMobile = useIsMobile();
   const fitViewOptions = isMobile
-    ? MOBILE_FIT_VIEW_OPTIONS
-    : DESKTOP_FIT_VIEW_OPTIONS;
+    ? chatDockOpen
+      ? MOBILE_DOCK_OPEN_FIT_VIEW_OPTIONS
+      : MOBILE_FIT_VIEW_OPTIONS
+    : chatDockOpen
+      ? DESKTOP_DOCK_OPEN_FIT_VIEW_OPTIONS
+      : DESKTOP_FIT_VIEW_OPTIONS;
   const { fitView, setCenter, getNode, getZoom } = useReactFlow();
   const zoom = useStore((state) => state.transform[2]);
   const compactLabels = zoom < COMPACT_LABEL_ZOOM;
@@ -254,6 +278,20 @@ function WorkspaceGraphCanvasInner({
     }
   }, [graph?.totalNodeCount, fitView, fitViewOptions]);
 
+  // When the chat dock opens or closes over the canvas, re-frame the graph so
+  // visible nodes glide up into (or back from) the uncovered area — a gentle
+  // ease using the shared camera duration, never a jump.
+  const dockOpenRef = useRef(chatDockOpen);
+  useEffect(() => {
+    if (dockOpenRef.current === chatDockOpen) return;
+    dockOpenRef.current = chatDockOpen;
+    // Wait a frame so the dock has mounted and the padding reflects reality.
+    const raf = requestAnimationFrame(() => {
+      fitView(fitViewOptions);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [chatDockOpen, fitView, fitViewOptions]);
+
   // Glide to the selected node (clicked on canvas, or chosen from chat / rail)
   // without changing the zoom — a gentle recenter, not a teleport.
   useEffect(() => {
@@ -328,10 +366,12 @@ function WorkspaceGraphCanvasInner({
           size={1}
           color="var(--border)"
         />
+        {/* Zoom controls live under the top-right cluster: the bottom corners
+            belong to the composer / chat card, which would overlap them. */}
         <Controls
           showInteractive={false}
-          position="bottom-right"
-          className="!rounded-lg !border !border-border !bg-card !shadow-[var(--shadow-panel)] [&_button]:!border-border [&_button]:!bg-card [&_button]:!text-foreground"
+          position="top-right"
+          className="!top-[136px] !right-3 !m-0 !rounded-lg !border !border-border !bg-card !shadow-[var(--shadow-panel)] [&_button]:!border-border [&_button]:!bg-card [&_button]:!text-foreground"
         />
       </ReactFlow>
 
@@ -396,20 +436,23 @@ function WorkspaceGraphCanvasInner({
         ) : null}
       </div>
 
-      {onAddKnowledge ? (
-        <button
-          type="button"
-          onClick={onAddKnowledge}
-          className="glass-bar absolute right-3 top-16 z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          <Plus className="size-3.5 text-brand-blue" aria-hidden />
-          {addKnowledgeLabel}
-        </button>
-      ) : null}
-
-      <div className="glass-bar pointer-events-none absolute bottom-3 left-3 z-10 rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
-        {visibleFlowNodes.length} visible · {graph.totalNodeCount} nodes ·{" "}
-        {edgeCount} edges
+      {/* Top-right cluster: growth affordance + graph stats. Lives up here so
+          nothing collides with the composer or the React Flow controls. */}
+      <div className="pointer-events-none absolute right-3 top-16 z-10 flex flex-col items-end gap-2">
+        {onAddKnowledge ? (
+          <button
+            type="button"
+            onClick={onAddKnowledge}
+            className="glass-bar pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Plus className="size-3.5 text-brand-blue" aria-hidden />
+            {addKnowledgeLabel}
+          </button>
+        ) : null}
+        <div className="glass-bar rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
+          {visibleFlowNodes.length} visible · {graph.totalNodeCount} nodes ·{" "}
+          {edgeCount} edges
+        </div>
       </div>
     </div>
   );

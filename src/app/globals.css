@@ -130,31 +130,38 @@
   /*
    * Liquid-glass tokens. Translucent frosted surfaces that float over the
    * knowledge graph (composer) or the stage (rail, bars, follow-chat, preview).
-   * Tuned for sharpness + legibility: higher white translucency, a crisp 1px
-   * border, and a tight, clean shadow rather than a soft diffuse halo.
+   * Tuned so the aurora/graph visibly refracts through the panes: heavy blur +
+   * saturation, lower fill opacity, a crisp 1px border and a bright inner top
+   * highlight. Text stays legible because the blur homogenizes the backdrop.
    */
-  --glass-blur: 20px;
-  --glass-saturate: 170%;
-  --glass-bar-bg: oklch(1 0 0 / 0.72);
-  --glass-rail-bg: oklch(1 0 0 / 0.62);
-  --glass-panel-bg: oklch(1 0 0 / 0.7);
-  --glass-composer-bg: oklch(1 0 0 / 0.8);
-  --glass-border: oklch(0.205 0 0 / 0.12);
-  --glass-highlight: oklch(1 0 0 / 0.85);
+  --glass-blur: 28px;
+  --glass-saturate: 210%;
+  --glass-bar-bg: oklch(1 0 0 / 0.52);
+  --glass-rail-bg: oklch(1 0 0 / 0.45);
+  --glass-panel-bg: oklch(1 0 0 / 0.5);
+  --glass-composer-bg: oklch(1 0 0 / 0.6);
+  --glass-border: oklch(0.205 0 0 / 0.16);
+  --glass-highlight: oklch(1 0 0 / 0.95);
   --glass-sheen: linear-gradient(
     to bottom,
-    oklch(1 0 0 / 0.55),
-    oklch(1 0 0 / 0) 38%
+    oklch(1 0 0 / 0.7),
+    oklch(1 0 0 / 0) 46%
   );
   --glass-shadow: 0 1px 1px oklch(0.205 0 0 / 0.06),
     0 6px 18px -10px oklch(0.205 0 0 / 0.18);
   --glass-shadow-pop: 0 1px 2px oklch(0.205 0 0 / 0.07),
     0 14px 34px -14px oklch(0.205 0 0 / 0.26);
 
-  /* Patriotic aurora behind the knowledge graph — soft, airy, light-mode first. */
-  --aurora-red: oklch(0.62 0.19 25 / 0.14);
-  --aurora-blue: oklch(0.56 0.17 256 / 0.16);
-  --aurora-white: oklch(1 0 0 / 0.5);
+  /* Patriotic aurora behind the knowledge graph — visible enough that the
+   * frosted panes clearly read as glass refracting it. */
+  --aurora-red: oklch(0.62 0.19 25 / 0.22);
+  --aurora-blue: oklch(0.56 0.17 256 / 0.24);
+  --aurora-white: oklch(1 0 0 / 0.6);
+
+  /* Shared motion system — fast, tasteful, Cursor-like. */
+  --motion-fast: 160ms;
+  --motion-med: 220ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dark {
@@ -214,25 +221,25 @@
   --shadow-pop: 0 6px 16px -4px oklch(0 0 0 / 0.5);
 
   /* Dark glass: a smoky translucency with a faint top highlight + crisp edge. */
-  --glass-bar-bg: oklch(0.214 0 0 / 0.7);
-  --glass-rail-bg: oklch(0.2 0 0 / 0.64);
-  --glass-panel-bg: oklch(0.214 0 0 / 0.68);
-  --glass-composer-bg: oklch(0.24 0 0 / 0.8);
-  --glass-border: oklch(1 0 0 / 0.14);
-  --glass-highlight: oklch(1 0 0 / 0.09);
+  --glass-bar-bg: oklch(0.214 0 0 / 0.52);
+  --glass-rail-bg: oklch(0.2 0 0 / 0.46);
+  --glass-panel-bg: oklch(0.214 0 0 / 0.5);
+  --glass-composer-bg: oklch(0.24 0 0 / 0.62);
+  --glass-border: oklch(1 0 0 / 0.18);
+  --glass-highlight: oklch(1 0 0 / 0.16);
   --glass-sheen: linear-gradient(
     to bottom,
-    oklch(1 0 0 / 0.07),
-    oklch(1 0 0 / 0) 38%
+    oklch(1 0 0 / 0.13),
+    oklch(1 0 0 / 0) 46%
   );
   --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.4),
     0 8px 22px -12px oklch(0 0 0 / 0.55);
   --glass-shadow-pop: 0 1px 3px oklch(0 0 0 / 0.45),
     0 16px 38px -16px oklch(0 0 0 / 0.65);
 
-  --aurora-red: oklch(0.5 0.17 25 / 0.12);
-  --aurora-blue: oklch(0.48 0.15 256 / 0.14);
-  --aurora-white: oklch(0.96 0 0 / 0.04);
+  --aurora-red: oklch(0.5 0.17 25 / 0.2);
+  --aurora-blue: oklch(0.48 0.15 256 / 0.22);
+  --aurora-white: oklch(0.96 0 0 / 0.08);
 }
 
 @layer base {
@@ -345,6 +352,58 @@
       color 0.15s ease,
       box-shadow 0.15s ease,
       border-color 0.15s ease;
+  }
+
+  /*
+   * Shared motion utilities. Rails/panels animate width + opacity as they
+   * expand/collapse; floating cards rise in with a slide-up + fade. All obey
+   * prefers-reduced-motion.
+   */
+  .motion-panel {
+    transition:
+      width var(--motion-med) var(--motion-ease),
+      opacity var(--motion-fast) ease-out,
+      border-color var(--motion-med) var(--motion-ease),
+      box-shadow var(--motion-med) var(--motion-ease);
+  }
+
+  .motion-rise {
+    animation: motion-rise var(--motion-med) var(--motion-ease) both;
+  }
+
+  .motion-fade {
+    animation: motion-fade var(--motion-fast) ease-out both;
+  }
+
+  @keyframes motion-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes motion-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .motion-panel {
+      transition: none;
+    }
+
+    .motion-rise,
+    .motion-fade {
+      animation: none;
+    }
   }
 
   .glass-hover:hover {

@@ -127,7 +127,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
   return (
     <div className="pointer-events-none">
       {hasMessages && !collapsed ? (
-        <div className="glass-frost pointer-events-auto mx-auto mb-2 w-full max-w-3xl rounded-2xl px-4 pb-2">
+        <div className="glass-frost motion-rise pointer-events-auto mx-auto mb-2 w-full max-w-3xl rounded-2xl px-4 pb-2">
           <div className="flex items-center justify-between pb-1 pt-3">
             <span className="text-xs font-medium text-muted-foreground">
               {agentOverride ? AGENT_LABELS[agentOverride] : "Campaign copilot"}
@@ -167,7 +167,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
       ) : null}
 
       <div
-        className="pointer-events-auto mx-auto w-full max-w-3xl px-4 pt-2 pb-4 pb-safe"
+        className="group/dock pointer-events-auto mx-auto w-full max-w-3xl px-4 pt-2 pb-4 pb-safe"
         style={
           keyboardOffset > 0
             ? { paddingBottom: `calc(var(--safe-area-inset-bottom, 0px) + ${keyboardOffset}px)` }
@@ -175,7 +175,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
         }
       >
         {!hasMessages ? (
-          <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 snap-x snap-mandatory sm:flex-wrap sm:overflow-visible sm:snap-none">
+          <div className="motion-rise mb-2 flex gap-1.5 overflow-x-auto pb-1 snap-x snap-mandatory sm:flex-wrap sm:overflow-visible sm:snap-none">
             {SUGGESTIONS.map((suggestion) => (
               <button
                 key={suggestion}
@@ -244,7 +244,7 @@ export function ChatDock({ composerRef }: ChatDockProps) {
             </div>
             <div className="flex items-center gap-1.5">
               {aiConfigured === false ? (
-                <span className="hidden text-[0.7rem] text-muted-foreground md:inline">
+                <span className="hidden rounded-full bg-muted/70 px-2 py-0.5 text-[0.65rem] text-muted-foreground/80 md:inline">
                   AI key off · guided help
                 </span>
               ) : null}
@@ -271,7 +271,16 @@ export function ChatDock({ composerRef }: ChatDockProps) {
             </div>
           </div>
         </div>
-        <p className="mt-1.5 px-1 text-center text-[0.7rem] text-muted-foreground">
+        {/* Keyboard hints appear only while the empty composer is focused
+            (CSS focus-within, so it needs no JS focus tracking). The slot keeps
+            its height so the composer never shifts or collides with the
+            compliance footer below. */}
+        <p
+          className={cn(
+            "mt-1 h-4 px-1 text-center text-[0.65rem] text-muted-foreground/80 opacity-0 transition-opacity duration-200",
+            !draft && "group-focus-within/dock:opacity-100",
+          )}
+        >
           <kbd className="font-sans font-medium text-foreground/70">Enter</kbd>{" "}
           to send ·{" "}
           <kbd className="font-sans font-medium text-foreground/70">

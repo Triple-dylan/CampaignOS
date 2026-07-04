@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { PanelRight } from "lucide-react";
 import { useChat } from "@/components/chat/chat-provider";
 import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { WorkspaceTopBar } from "@/components/workspace/workspace-top-bar";
@@ -211,7 +210,7 @@ export function WorkspaceHome({
   liveSeed = null,
   growthSteps = [],
 }: WorkspaceHomeProps) {
-  const { isSending, graphFoldersToHighlight, graphNodeIdsToHighlight, harnessContextPaths } = useChat();
+  const { isSending, activeThread, graphFoldersToHighlight, graphNodeIdsToHighlight, harnessContextPaths } = useChat();
   const { toggleRailMobile } = useWorkspaceShell();
   const [selectedNode, setSelectedNode] =
     React.useState<CampaignGraphNodeData | null>(null);
@@ -235,6 +234,10 @@ export function WorkspaceHome({
   const activeEdgeCount = liveMode
     ? liveController.graph.edges.length
     : edgeCount;
+
+  // With a conversation on screen, the chat card + composer cover the bottom
+  // of the canvas — the graph re-frames itself into the uncovered upper area.
+  const chatDockOpen = (activeThread?.messages.length ?? 0) > 0;
 
   // Hold the "thinking" pass on long enough to be visible even for fast replies.
   const thinkingActive = useMinimumActive(isSending, 1800);
@@ -336,6 +339,7 @@ export function WorkspaceHome({
             selectedNodeId={selectedNodeId}
             highlightedNodeIds={highlightedNodeIds}
             searching={thinkingActive}
+            chatDockOpen={chatDockOpen}
             onSelectNode={handleSelectNode}
             onFocusComposer={focusComposer}
             onAddKnowledge={
@@ -364,18 +368,11 @@ export function WorkspaceHome({
         </div>
       </section>
 
-      {/* Right rail: preview + accessibility (collapsible) */}
-      {panelOpen && !isMobile ? (
-        <WorkspaceContextPanel {...contextPanelProps} />
-      ) : !panelOpen && !isMobile ? (
-        <button
-          type="button"
-          onClick={() => setPanelOpen(true)}
-          aria-label="Open preview panel"
-          className="hidden w-10 shrink-0 items-start justify-center border-l border-border pt-3 text-muted-foreground transition-colors hover:text-foreground md:flex"
-        >
-          <PanelRight className="size-4" aria-hidden />
-        </button>
+      {/* Right rail: preview + accessibility (collapsible). Always mounted on
+          desktop so it can animate open/closed; the top bar owns the single
+          toggle control. */}
+      {!isMobile ? (
+        <WorkspaceContextPanel open={panelOpen} {...contextPanelProps} />
       ) : null}
 
       <MobileContextSheet
