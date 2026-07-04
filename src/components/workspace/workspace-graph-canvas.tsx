@@ -273,8 +273,9 @@ function WorkspaceGraphCanvasInner({
 
   if (isEmpty) {
     return (
-      <div className="flex h-full w-full items-center justify-center p-6">
-        <div className="max-w-md text-center">
+      <div className="relative flex h-full w-full items-center justify-center p-6">
+        <div className="graph-aurora" aria-hidden />
+        <div className="relative max-w-md text-center">
           <div className="brand-mark mx-auto mb-4 flex size-11 items-center justify-center rounded-xl">
             <Sparkles className="size-5" aria-hidden />
           </div>
@@ -302,6 +303,7 @@ function WorkspaceGraphCanvasInner({
 
   return (
     <div className="relative h-full w-full touch-none">
+      <div className="graph-aurora" aria-hidden />
       <ReactFlow
         nodes={nodes}
         edges={edges}

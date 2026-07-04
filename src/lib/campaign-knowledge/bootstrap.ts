@@ -1,13 +1,33 @@
-import { cp, mkdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   buildCampaignKnowledgeRoot,
   CAMPAIGN_KNOWLEDGE_TEMPLATE_ROOT,
 } from "@/lib/campaign-knowledge/paths";
+import { getKnowledgeStorage } from "@/lib/campaign-knowledge/storage";
 import { appendKnowledgeLog, buildIssueKnowledgePage, writeKnowledgePage } from "@/lib/campaign-knowledge/write";
 import { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";
 import type { DbCampaign } from "@/lib/db/schema";
 import { campaignDisplayName } from "@/lib/db/schema";
+
+async function walkTemplateFiles(
+  templateRoot: string,
+  dir = templateRoot,
+): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await walkTemplateFiles(templateRoot, fullPath)));
+    } else if (entry.isFile()) {
+      files.push(
+        path.relative(templateRoot, fullPath).split(path.sep).join("/"),
+      );
+    }
+  }
+  return files;
+}
 
 export type BootstrapCampaignKnowledgeInput = {
   organizationId: string;
@@ -24,11 +44,16 @@ export async function bootstrapCampaignKnowledge(
     organizationId: input.organizationId,
     campaignId: input.campaignId,
   });
-  const absoluteRoot = path.join(process.cwd(), root.rootPath);
+  const storage = getKnowledgeStorage(root);
   const templateRoot = path.join(process.cwd(), CAMPAIGN_KNOWLEDGE_TEMPLATE_ROOT);
 
-  await mkdir(absoluteRoot, { recursive: true });
-  await cp(templateRoot, absoluteRoot, { recursive: true, force: false });
+  // Copy the shipped empty template tree into storage without clobbering any
+  // page that already exists (mirrors the old `cp --force=false` semantics).
+  for (const relativePath of await walkTemplateFiles(templateRoot)) {
+    if (await storage.exists(relativePath)) continue;
+    const content = await readFile(path.join(templateRoot, relativePath), "utf8");
+    await storage.writeFile(relativePath, content);
+  }
 
   const profileBody = [
     `# ${campaignDisplayName(input.campaign)}`,

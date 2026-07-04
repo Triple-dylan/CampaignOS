@@ -9,7 +9,9 @@ import {
 } from "@/lib/db/campaigns";
 import { getOrganizationByClerkOrgId } from "@/lib/db/organizations";
 import { campaignDisplayName } from "@/lib/db/schema";
+import { knowledgeStorageBackend } from "@/lib/campaign-knowledge/storage";
 import { modulePages } from "@/lib/navigation";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -241,6 +243,31 @@ export default async function SettingsPage({
                 flashMessage={flashMessage}
               />
             </Suspense>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Campaign knowledge</CardTitle>
+            <CardDescription>
+              The file/folder base behind your context graph — markdown pages
+              organized into campaign folders.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Stored in{" "}
+              <span className="font-medium text-foreground">
+                {knowledgeStorageBackend() === "supabase"
+                  ? "cloud storage (Supabase)"
+                  : "local files on this server"}
+              </span>
+              . Download the whole tree anytime to keep a local copy or seed a
+              cloud folder of your own; Google Drive sync is planned next.
+            </p>
+            <Button variant="outline" size="sm" render={<a href="/api/knowledge/export" />}>
+              Download knowledge folder (.zip)
+            </Button>
           </CardContent>
         </Card>
 

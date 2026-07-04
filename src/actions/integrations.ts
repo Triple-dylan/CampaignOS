@@ -17,7 +17,8 @@ import {
   importEventsFromGoogleCalendar,
 } from "@/lib/integrations/providers/google-calendar";
 import type { IntegrationProvider } from "@/lib/integrations/types";
-import { integrationOAuthConfigured } from "@/lib/integrations/oauth-config";
+import { getFreshIntegrationAccessToken } from "@/lib/integrations/refresh";
+import { appBaseUrl, integrationOAuthConfigured } from "@/lib/integrations/oauth-config";
 import { isIntegrationsDemoMode } from "@/lib/integrations/token-crypto";
 import { persistPlannerEvent } from "@/lib/planner/persist-event";
 
@@ -44,6 +45,7 @@ export async function getIntegrationSummaries(): Promise<{
     "canva",
     "higgsfield",
     "google_calendar",
+    "gmail",
   ];
 
   return {
@@ -99,10 +101,15 @@ export async function exportPlannerEventsToGoogleCalendar() {
     campaignId: context.campaign.id,
   });
 
+  const accessToken = await getFreshIntegrationAccessToken({
+    organizationId: context.campaign.organization_id,
+    provider: "google_calendar",
+  });
+
   let exported = 0;
   for (const event of events) {
     const payload = await exportEventToGoogleCalendar({
-      accessToken: integration.accessToken,
+      accessToken,
       event,
     });
     await upsertExternalMapping({
@@ -143,8 +150,13 @@ export async function importGoogleCalendarEvents() {
     };
   }
 
+  const accessToken = await getFreshIntegrationAccessToken({
+    organizationId: context.campaign.organization_id,
+    provider: "google_calendar",
+  });
+
   const importedEvents = await importEventsFromGoogleCalendar({
-    accessToken: integration.accessToken,
+    accessToken,
   });
 
   let imported = 0;
@@ -188,7 +200,7 @@ export async function getIntegrationConnectUrl(provider: IntegrationProvider) {
   }
 
   const dbUser = await getUserByClerkId(userId);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const baseUrl = appBaseUrl();
   const path = `/api/integrations/${provider}/connect`;
 
   return {

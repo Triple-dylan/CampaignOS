@@ -182,7 +182,6 @@ export function ChatProvider({
         content: "",
         createdAt: Date.now(),
         pending: true,
-        workflowProgress: "Working…",
         agentId: routedAgent,
       };
 
