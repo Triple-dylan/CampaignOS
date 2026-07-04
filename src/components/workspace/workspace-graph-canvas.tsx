@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useState } from "react";
 import {
   Background,
   BackgroundVariant,
-  Controls,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -13,7 +13,7 @@ import {
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Loader2, Plus, Sparkles, X } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { GraphNodeCard } from "@/components/brain/graph-node-card";
 import { GraphFloatingEdge } from "@/components/brain/graph-floating-edge";
 import {
@@ -24,6 +24,7 @@ import {
   type CampaignGraphNodeData,
   type GraphViewMode,
 } from "@/lib/graph/to-react-flow";
+import { useGraphForceSimulation } from "@/lib/graph/use-force-simulation";
 import { getCampaignFolder } from "@/lib/campaign-knowledge/folders";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import { cn } from "@/lib/utils";
@@ -40,9 +41,24 @@ const edgeTypes = {
 const EMPTY_SET: Set<string> = new Set();
 
 /** Shared easing duration (ms) for all camera moves — calm, never jarring. */
-const CAMERA_EASE_MS = 720;
+const CAMERA_EASE_MS = 800;
 /** Entity labels hide below this zoom so zoomed-out views stay readable. */
 const COMPACT_LABEL_ZOOM = 0.62;
+
+/**
+ * Camera moves are queued per animation frame with a priority so overlapping
+ * triggers (select a node while a folder-focus push-in starts, chat dock
+ * opening while the graph grows) never fight: only the strongest intent runs.
+ */
+const CAMERA_PRIORITY = {
+  /** Ambient reframes: initial settle, growth, chat dock open/close. */
+  frame: 1,
+  /** Explicit node selection recenter. */
+  select: 2,
+  /** Folder-focus push-in / pull-back. */
+  focus: 3,
+} as const;
+
 /**
  * Asymmetric padding so the constellation stays clear of the floating overlays:
  * the frosted breadcrumb bar at the top and the glass composer docked at the
@@ -85,9 +101,6 @@ type WorkspaceGraphCanvasProps = {
   chatDockOpen?: boolean;
   onSelectNode: (node: CampaignGraphNodeData | null, id: string | null) => void;
   onFocusComposer?: () => void;
-  /** When provided, renders a "grow the graph" affordance (demo / live mode). */
-  onAddKnowledge?: () => void;
-  addKnowledgeLabel?: string;
   /** Show folder / entity view toggle (default true). */
   showViewToggle?: boolean;
   /** Optional controlled view mode. */
@@ -112,8 +125,6 @@ function WorkspaceGraphCanvasInner({
   chatDockOpen = false,
   onSelectNode,
   onFocusComposer,
-  onAddKnowledge,
-  addKnowledgeLabel = "Add knowledge",
   showViewToggle = true,
   viewMode: controlledViewMode,
   onViewModeChange,
@@ -129,6 +140,7 @@ function WorkspaceGraphCanvasInner({
       : DESKTOP_FIT_VIEW_OPTIONS;
   const { fitView, setCenter, getNode, getZoom } = useReactFlow();
   const zoom = useStore((state) => state.transform[2]);
+  const paneHeight = useStore((state) => state.height);
   const compactLabels = zoom < COMPACT_LABEL_ZOOM;
   const [internalViewMode, setInternalViewMode] = useState<GraphViewMode>("all");
   const viewMode = controlledViewMode ?? internalViewMode;
@@ -139,6 +151,10 @@ function WorkspaceGraphCanvasInner({
   const [focusFolderId, setFocusFolderId] = useState<CampaignFolderId | null>(
     null,
   );
+
+  // Hovered node: its touching edges brighten so the local neighbourhood
+  // reads at a glance (cheap CSS class toggle, no layout work).
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   const visibleFlowNodes = useMemo(() => {
     if (!graph) return [];
@@ -158,6 +174,16 @@ function WorkspaceGraphCanvasInner({
     );
   }, [graph, visibleNodeIds]);
 
+  // Live physics: a d3-force simulation owns node positions. The static layout
+  // in `visibleFlowNodes` only seeds where nodes are born; from there the
+  // graph settles, breathes, and elastically reacts to dragging — the
+  // Obsidian graph-view feel.
+  const simulation = useGraphForceSimulation({
+    nodes: visibleFlowNodes,
+    edges: visibleEdges,
+  });
+  const { positionsVersion, settleCount, getPosition } = simulation;
+
   // Map every visible node to its focus level (focus / foreground / midground /
   // background). Null when no folder is focused — the global graph.
   const focusLevels = useMemo(() => {
@@ -176,8 +202,12 @@ function WorkspaceGraphCanvasInner({
   const activeFocusFolderId = focusLevels ? focusFolderId : null;
 
   const nodes = useMemo<Node[]>(() => {
+    // `positionsVersion` re-runs this once per animation frame while the
+    // simulation is awake, streaming physics positions into React Flow.
+    void positionsVersion;
     return visibleFlowNodes.map((node) => ({
       ...node,
+      position: getPosition(node.id) ?? node.position,
       selected: node.id === selectedNodeId,
       data: {
         ...node.data,
@@ -186,7 +216,15 @@ function WorkspaceGraphCanvasInner({
         compactLabels,
       },
     })) as Node[];
-  }, [visibleFlowNodes, selectedNodeId, highlighted, focusLevels, compactLabels]);
+  }, [
+    visibleFlowNodes,
+    positionsVersion,
+    getPosition,
+    selectedNodeId,
+    highlighted,
+    focusLevels,
+    compactLabels,
+  ]);
 
   const edges = useMemo<Edge[]>(() => {
     return visibleEdges.map((edge) => {
@@ -199,6 +237,12 @@ function WorkspaceGraphCanvasInner({
       }
       if (highlighted.has(edge.source) && highlighted.has(edge.target)) {
         classes.push("is-active");
+      }
+      if (
+        hoveredNodeId &&
+        (edge.source === hoveredNodeId || edge.target === hoveredNodeId)
+      ) {
+        classes.push("is-hover");
       }
       if (focusLevels) {
         const sourceLevel = focusLevels.get(edge.source);
@@ -222,7 +266,106 @@ function WorkspaceGraphCanvasInner({
         className: classes.length > 0 ? classes.join(" ") : undefined,
       };
     }) as Edge[];
-  }, [visibleEdges, highlighted, focusLevels]);
+  }, [visibleEdges, highlighted, hoveredNodeId, focusLevels]);
+
+  /* ------------------------------------------------------------------ *
+   * Camera controller. Every programmatic move funnels through a single
+   * per-frame queue: within a frame only the highest-priority request runs,
+   * and while the user is actively panning/zooming, ambient reframes are
+   * deferred until shortly after the gesture ends — the camera cooperates
+   * with the user instead of seizing control.
+   * ------------------------------------------------------------------ */
+  const cameraPendingRef = useRef<{ priority: number; run: () => void } | null>(
+    null,
+  );
+  const cameraRafRef = useRef<number | null>(null);
+  const userGestureRef = useRef(false);
+  const deferredCameraRef = useRef<{
+    priority: number;
+    run: () => void;
+  } | null>(null);
+  const deferredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const requestCameraMove = useCallback(
+    (priority: number, run: () => void) => {
+      if (userGestureRef.current) {
+        const deferred = deferredCameraRef.current;
+        if (!deferred || priority >= deferred.priority) {
+          deferredCameraRef.current = { priority, run };
+        }
+        return;
+      }
+      const pending = cameraPendingRef.current;
+      if (pending && pending.priority > priority) return;
+      cameraPendingRef.current = { priority, run };
+      if (cameraRafRef.current === null) {
+        cameraRafRef.current = requestAnimationFrame(() => {
+          cameraRafRef.current = null;
+          const next = cameraPendingRef.current;
+          cameraPendingRef.current = null;
+          next?.run();
+        });
+      }
+    },
+    [],
+  );
+
+  const onMoveStart = useCallback(
+    (event: MouseEvent | TouchEvent | null | undefined) => {
+      // A real input event means the user grabbed the camera; programmatic
+      // transitions (fitView / setCenter) pass no event.
+      if (event) userGestureRef.current = true;
+    },
+    [],
+  );
+
+  const onMoveEnd = useCallback(() => {
+    if (!userGestureRef.current) return;
+    userGestureRef.current = false;
+    const deferred = deferredCameraRef.current;
+    deferredCameraRef.current = null;
+    if (!deferred) return;
+    // Breathe before applying a deferred reframe so it reads as a follow-up,
+    // not the app snatching the camera back the instant the user lets go.
+    if (deferredTimerRef.current) clearTimeout(deferredTimerRef.current);
+    deferredTimerRef.current = setTimeout(() => {
+      requestCameraMove(deferred.priority, deferred.run);
+    }, 350);
+  }, [requestCameraMove]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraRafRef.current !== null)
+        cancelAnimationFrame(cameraRafRef.current);
+      if (deferredTimerRef.current) clearTimeout(deferredTimerRef.current);
+    };
+  }, []);
+
+  /* ------------------------------------------------------------------ *
+   * Physics-aware dragging: pin the grabbed node (fx/fy) and re-heat the
+   * simulation so its neighbourhood elastically follows, then release on
+   * drop so everything re-settles.
+   * ------------------------------------------------------------------ */
+  const onNodeDragStart = useCallback(
+    (_event: MouseEvent | TouchEvent, node: Node) => {
+      simulation.startDrag(node.id, node.position);
+    },
+    [simulation],
+  );
+
+  const onNodeDrag = useCallback(
+    (_event: MouseEvent | TouchEvent, node: Node) => {
+      simulation.moveDrag(node.id, node.position);
+    },
+    [simulation],
+  );
+
+  const onNodeDragStop = useCallback(
+    (_event: MouseEvent | TouchEvent, node: Node) => {
+      simulation.endDrag(node.id);
+    },
+    [simulation],
+  );
 
   const exitFocus = useCallback(() => {
     setFocusFolderId(null);
@@ -260,6 +403,18 @@ function WorkspaceGraphCanvasInner({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeFocusFolderId, selectedNodeId, onSelectNode]);
 
+  // Once the physics settles for the first time, gently reframe the settled
+  // constellation. (The initial `fitView` prop frames the seeded layout, but
+  // the simulation contracts/expands it while finding equilibrium.)
+  const didSettleFitRef = useRef(false);
+  useEffect(() => {
+    if (settleCount === 0 || didSettleFitRef.current) return;
+    didSettleFitRef.current = true;
+    requestCameraMove(CAMERA_PRIORITY.frame, () => {
+      fitView(fitViewOptions);
+    });
+  }, [settleCount, requestCameraMove, fitView, fitViewOptions]);
+
   // Smooth re-frame whenever the graph grows: keep the whole constellation in
   // view, easing the camera out instead of snapping.
   const nodeCountRef = useRef(graph?.totalNodeCount ?? 0);
@@ -269,14 +424,12 @@ function WorkspaceGraphCanvasInner({
       const grew = count > nodeCountRef.current;
       nodeCountRef.current = count;
       if (grew) {
-        // Let the new node mount before fitting so it's included in the frame.
-        const raf = requestAnimationFrame(() => {
+        requestCameraMove(CAMERA_PRIORITY.frame, () => {
           fitView(fitViewOptions);
         });
-        return () => cancelAnimationFrame(raf);
       }
     }
-  }, [graph?.totalNodeCount, fitView, fitViewOptions]);
+  }, [graph?.totalNodeCount, requestCameraMove, fitView, fitViewOptions]);
 
   // When the chat dock opens or closes over the canvas, re-frame the graph so
   // visible nodes glide up into (or back from) the uncovered area — a gentle
@@ -285,27 +438,76 @@ function WorkspaceGraphCanvasInner({
   useEffect(() => {
     if (dockOpenRef.current === chatDockOpen) return;
     dockOpenRef.current = chatDockOpen;
-    // Wait a frame so the dock has mounted and the padding reflects reality.
-    const raf = requestAnimationFrame(() => {
+    requestCameraMove(CAMERA_PRIORITY.frame, () => {
       fitView(fitViewOptions);
     });
-    return () => cancelAnimationFrame(raf);
-  }, [chatDockOpen, fitView, fitViewOptions]);
+  }, [chatDockOpen, requestCameraMove, fitView, fitViewOptions]);
+
+  // Folder focus reads as a camera push-in toward the cluster; exiting eases
+  // back out to the full constellation.
+  const focusCameraRef = useRef<CampaignFolderId | null>(null);
+  useEffect(() => {
+    if (focusCameraRef.current === activeFocusFolderId) return;
+    const previous = focusCameraRef.current;
+    focusCameraRef.current = activeFocusFolderId;
+
+    if (activeFocusFolderId && focusLevels) {
+      const clusterIds: { id: string }[] = [];
+      for (const [id, level] of focusLevels) {
+        if (level === "focus" || level === "foreground") clusterIds.push({ id });
+      }
+      if (clusterIds.length === 0) return;
+      requestCameraMove(CAMERA_PRIORITY.focus, () => {
+        fitView({
+          nodes: clusterIds,
+          padding: fitViewOptions.padding,
+          duration: CAMERA_EASE_MS,
+          maxZoom: 1.15,
+        });
+      });
+      return;
+    }
+
+    // Exiting focus (but not the initial mount) — ease back to the full view.
+    if (previous) {
+      requestCameraMove(CAMERA_PRIORITY.focus, () => {
+        fitView(fitViewOptions);
+      });
+    }
+  }, [
+    activeFocusFolderId,
+    focusLevels,
+    requestCameraMove,
+    fitView,
+    fitViewOptions,
+  ]);
 
   // Glide to the selected node (clicked on canvas, or chosen from chat / rail)
-  // without changing the zoom — a gentle recenter, not a teleport.
+  // without changing the zoom — a gentle recenter, not a teleport. Folder hubs
+  // are skipped: their click triggers the focus push-in above, and centering
+  // on top of it would double-move the camera.
   useEffect(() => {
     if (!selectedNodeId) return;
     const node = getNode(selectedNodeId);
     if (!node) return;
+    const data = node.data as CampaignGraphNodeData;
+    if (data.isFolderHub) return;
     const width = node.measured?.width ?? 0;
     const height = node.measured?.height ?? 0;
     const targetZoom = Math.min(Math.max(getZoom(), 0.85), 1.25);
-    setCenter(node.position.x + width / 2, node.position.y + height / 2, {
-      zoom: targetZoom,
-      duration: CAMERA_EASE_MS,
+    const position = getPosition(selectedNodeId) ?? node.position;
+    // With the chat dock covering the bottom of the canvas, bias the target
+    // upward so the node centers within the *visible* area, not behind chat.
+    const dockBias = chatDockOpen ? (paneHeight * 0.19) / targetZoom : 0;
+    requestCameraMove(CAMERA_PRIORITY.select, () => {
+      setCenter(position.x + width / 2, position.y + height / 2 + dockBias, {
+        zoom: targetZoom,
+        duration: CAMERA_EASE_MS,
+      });
     });
-  }, [selectedNodeId, getNode, setCenter, getZoom]);
+    // Intentionally excludes live position/zoom deps: recenter once per selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeId, getNode, setCenter, getZoom, requestCameraMove]);
 
   const isEmpty = !graph || graph.totalNodeCount === 0;
 
@@ -349,6 +551,14 @@ function WorkspaceGraphCanvasInner({
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodeMouseEnter={(_event, node) => setHoveredNodeId(node.id)}
+        onNodeMouseLeave={() => setHoveredNodeId(null)}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
+        onMoveStart={(event) => onMoveStart(event)}
+        onMoveEnd={onMoveEnd}
+        nodeDragThreshold={4}
         fitView
         fitViewOptions={fitViewOptions}
         minZoom={isMobile ? 0.35 : 0.2}
@@ -365,13 +575,6 @@ function WorkspaceGraphCanvasInner({
           gap={28}
           size={1}
           color="var(--border)"
-        />
-        {/* Zoom controls live under the top-right cluster: the bottom corners
-            belong to the composer / chat card, which would overlap them. */}
-        <Controls
-          showInteractive={false}
-          position="top-right"
-          className="!top-[136px] !right-3 !m-0 !rounded-lg !border !border-border !bg-card !shadow-[var(--shadow-panel)] [&_button]:!border-border [&_button]:!bg-card [&_button]:!text-foreground"
         />
       </ReactFlow>
 
@@ -436,19 +639,9 @@ function WorkspaceGraphCanvasInner({
         ) : null}
       </div>
 
-      {/* Top-right cluster: growth affordance + graph stats. Lives up here so
-          nothing collides with the composer or the React Flow controls. */}
+      {/* Top-right: graph stats. Lives up here so nothing collides with the
+          composer. */}
       <div className="pointer-events-none absolute right-3 top-16 z-10 flex flex-col items-end gap-2">
-        {onAddKnowledge ? (
-          <button
-            type="button"
-            onClick={onAddKnowledge}
-            className="glass-bar pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            <Plus className="size-3.5 text-brand-blue" aria-hidden />
-            {addKnowledgeLabel}
-          </button>
-        ) : null}
         <div className="glass-bar rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
           {visibleFlowNodes.length} visible · {graph.totalNodeCount} nodes ·{" "}
           {edgeCount} edges

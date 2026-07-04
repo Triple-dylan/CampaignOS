@@ -671,6 +671,11 @@
   animation: graph-node-fade 460ms ease;
 }
 
+/* Dragging a node re-heats the physics — signal "grabbed" while held. */
+.react-flow__node.dragging {
+  cursor: grabbing;
+}
+
 .react-flow__edge {
   pointer-events: none;
 }
@@ -695,6 +700,16 @@
   stroke: color-mix(in oklch, var(--muted-foreground) 20%, transparent);
   stroke-width: 0.9;
   opacity: 0.6;
+}
+
+/*
+ * Hovering a node brightens the edges touching it, so its local neighbourhood
+ * reads at a glance while the physics keeps everything in motion.
+ */
+.react-flow__edge.is-hover .react-flow__edge-path {
+  stroke: color-mix(in oklch, var(--muted-foreground) 72%, transparent);
+  stroke-width: 1.6;
+  opacity: 1;
 }
 
 /*

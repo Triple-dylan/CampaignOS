@@ -11,7 +11,6 @@ import {
   DEMO_DIGEST,
   DEMO_EDGES,
   DEMO_GRAPH,
-  DEMO_GROWTH_STEPS,
   DEMO_METRICS,
   DEMO_NODES,
   DEMO_PROFILE,
@@ -37,7 +36,6 @@ export function PreviewWorkspaceClient() {
               digest={DEMO_DIGEST}
               onboardingData={null}
               liveSeed={{ nodes: DEMO_NODES, edges: DEMO_EDGES }}
-              growthSteps={DEMO_GROWTH_STEPS}
             />
           </WorkspaceShell>
         </ChatProvider>

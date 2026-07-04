@@ -27,7 +27,6 @@ import type {
   DbGraphEdge,
   DbGraphNode,
 } from "@/lib/db/schema";
-import type { KnowledgeNode } from "@/lib/campaign-knowledge/types";
 import type { WorkspaceDigest } from "@/lib/workspace/digest";
 
 type WorkspaceHomeProps = {
@@ -46,8 +45,6 @@ type WorkspaceHomeProps = {
    * as knowledge is added — demonstrating the dynamic knowledge graph.
    */
   liveSeed?: { nodes: DbGraphNode[]; edges: DbGraphEdge[] } | null;
-  /** Knowledge steps cycled through by the "Add knowledge" affordance. */
-  growthSteps?: KnowledgeNode[];
 };
 
 /**
@@ -208,7 +205,6 @@ export function WorkspaceHome({
   digest = null,
   onboardingData,
   liveSeed = null,
-  growthSteps = [],
 }: WorkspaceHomeProps) {
   const { isSending, activeThread, graphFoldersToHighlight, graphNodeIdsToHighlight, harnessContextPaths } = useChat();
   const { toggleRailMobile } = useWorkspaceShell();
@@ -220,7 +216,6 @@ export function WorkspaceHome({
   const [panelOpen, setPanelOpen] = React.useState(false);
   const isMobile = useIsMobile();
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
-  const growthStepRef = React.useRef(0);
 
   // Live (client-side, growable) graph. Seeded only in live mode; otherwise the
   // server-provided `graph` prop is the source of truth.
@@ -259,13 +254,6 @@ export function WorkspaceHome({
     if (thinkingActive) return activationIds;
     return new Set(topicNodeIds);
   }, [thinkingActive, activationIds, topicNodeIds]);
-
-  const handleAddKnowledge = React.useCallback(() => {
-    if (growthSteps.length === 0) return;
-    const step = growthSteps[growthStepRef.current % growthSteps.length];
-    growthStepRef.current += 1;
-    liveController.syncFromKnowledgeFile(step);
-  }, [growthSteps, liveController]);
 
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
@@ -342,23 +330,17 @@ export function WorkspaceHome({
             chatDockOpen={chatDockOpen}
             onSelectNode={handleSelectNode}
             onFocusComposer={focusComposer}
-            onAddKnowledge={
-              liveMode && growthSteps.length > 0
-                ? handleAddKnowledge
-                : undefined
-            }
           />
         </div>
 
-        {/* Floating frosted breadcrumb bar — graph shows faintly through it. */}
-        <div className="pointer-events-none relative z-20 p-2.5">
-          <WorkspaceTopBar
-            onToggleRail={toggleRailMobile}
-            onTogglePanel={() => setPanelOpen((v) => !v)}
-            panelOpen={panelOpen}
-            showPanelToggle
-          />
-        </div>
+        {/* Full-bleed frosted breadcrumb bar — graph shows through the blur,
+            edge to edge like every module page's command bar. */}
+        <WorkspaceTopBar
+          onToggleRail={toggleRailMobile}
+          onTogglePanel={() => setPanelOpen((v) => !v)}
+          panelOpen={panelOpen}
+          showPanelToggle
+        />
 
         {/* Floating glass composer docked at the bottom. The wrapper lets
             pointer events fall through to the graph everywhere except the
