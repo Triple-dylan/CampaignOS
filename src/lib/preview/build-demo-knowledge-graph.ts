@@ -1,4 +1,8 @@
 import {
+  TEST_CANDIDATE_NAME,
+  TEST_CANDIDATE_OPPONENT,
+} from "@/lib/campaign/test-candidate";
+import {
   CAMPAIGN_FOLDERS,
   getCampaignFolder,
 } from "@/lib/campaign-knowledge/folders";
@@ -112,8 +116,8 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
     path: "campaign/profile.md",
     folder: "campaign",
     nodeType: "candidate",
-    title: "Maria Alvarez",
-    summary: "Candidate for Seattle City Council, District 3.",
+    title: TEST_CANDIDATE_NAME,
+    summary: "Republican candidate for U.S. House, Washington's 8th District.",
   },
   // messaging/ — issues & themes as wiki pages
   {
@@ -126,44 +130,44 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
   },
   {
     id: "doc-housing-issue",
-    path: "messaging/affordable-housing.md",
+    path: "messaging/education-funding.md",
     folder: "messaging",
     nodeType: "issue",
-    title: "Affordable housing",
-    summary: "Top campaign issue — build more, protect renters.",
+    title: "Education funding",
+    summary: "Strong schools and parental choice across WA-08 communities.",
   },
   {
     id: "doc-transit-issue",
-    path: "messaging/transit.md",
+    path: "messaging/public-safety.md",
     folder: "messaging",
     nodeType: "issue",
-    title: "Transit",
-    summary: "Reliable, frequent transit across District 3.",
+    title: "Public safety",
+    summary: "Safe streets and community-centered policing in eastside suburbs.",
   },
   {
     id: "doc-smallbiz-issue",
     path: "messaging/small-business.md",
     folder: "messaging",
     nodeType: "issue",
-    title: "Small business",
-    summary: "Support local main-street small businesses.",
+    title: "Small business & economy",
+    summary: "People-first economy for local employers and working families.",
   },
   {
     id: "doc-theme",
     path: "messaging/value-proposition.md",
     folder: "messaging",
     nodeType: "message_theme",
-    title: "A District 3 that works for everyone",
-    summary: "Core value-proposition message theme.",
+    title: "Defend freedom. Empower families.",
+    summary: "Core Trinh Ha for Congress message theme.",
   },
   // people/ — voter segments as wiki pages
   {
     id: "doc-renters",
-    path: "people/renters.md",
+    path: "people/suburban-moderates.md",
     folder: "people",
     nodeType: "voter_segment",
-    title: "Renters",
-    summary: "Key audience: cost-burdened renters.",
+    title: "Suburban moderates",
+    summary: "Persuasion voters across Issaquah, Sammamish, and eastside suburbs.",
   },
   {
     id: "doc-families",
@@ -171,32 +175,32 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
     folder: "people",
     nodeType: "voter_segment",
     title: "Young families",
-    summary: "Key audience: young families.",
+    summary: "Working families focused on schools, safety, and affordability.",
   },
   {
     id: "doc-seniors",
-    path: "people/seniors.md",
+    path: "people/senior-voters.md",
     folder: "people",
     nodeType: "voter_segment",
-    title: "Seniors",
-    summary: "Key audience: older, high-turnout voters.",
+    title: "Senior voters",
+    summary: "High-turnout voters focused on public safety and veterans issues.",
   },
   {
     id: "doc-latino",
-    path: "people/latino-community.md",
+    path: "people/vietnamese-american-community.md",
     folder: "people",
     nodeType: "voter_segment",
-    title: "Latino community",
-    summary: "Spanish-language outreach audience.",
+    title: "Vietnamese-American community",
+    summary: "Immigrant success-story outreach and in-language engagement.",
   },
   // field/
   {
     id: "doc-turf",
-    path: "field/turf-plan-d3.md",
+    path: "field/wa08-turf-plan.md",
     folder: "field",
     nodeType: "strategic_priority",
-    title: "District 3 turf plan",
-    summary: "Canvass turf cut for the first GOTV weekend.",
+    title: "WA-08 turf plan",
+    summary: "Canvass turf cut for Pierce and King county persuasion targets.",
   },
   {
     id: "doc-union",
@@ -212,24 +216,24 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
     folder: "field",
     nodeType: "voter_segment",
     title: "Suburban moderates",
-    summary: "Persuasion universe in north District 3.",
+    summary: "Persuasion universe across eastside WA-08 suburbs.",
   },
   // research/
   {
     id: "doc-townhall-research",
-    path: "research/event-town-hall-3-15.md",
+    path: "research/event-town-hall-issaquah.md",
     folder: "research",
     nodeType: "research",
-    title: "Event research: Town hall 3/15",
-    summary: "Beacon Hill town hall prep — audience concerns and local intel.",
+    title: "Event research: Issaquah town hall",
+    summary: "Issaquah town hall prep — public safety and education concerns.",
   },
   {
     id: "doc-poll",
-    path: "research/housing-poll.md",
+    path: "research/wa08-poll-tracker.md",
     folder: "research",
     nodeType: "research",
-    title: "Housing poll",
-    summary: "District-wide affordability poll.",
+    title: "WA-08 poll tracker",
+    summary: "District-wide persuasion and turnout modeling.",
   },
   {
     id: "doc-oppo",
@@ -244,8 +248,8 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
     path: "research/dan-pike.md",
     folder: "research",
     nodeType: "opponent",
-    title: "Dan Pike (incumbent)",
-    summary: "Two-term incumbent council member.",
+    title: `${TEST_CANDIDATE_OPPONENT} (incumbent)`,
+    summary: "Three-term incumbent U.S. Representative (D-WA-08).",
   },
   // assets/
   {
@@ -275,19 +279,19 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
   // events/
   {
     id: "doc-townhall",
-    path: "events/town-hall-beacon-hill.md",
+    path: "events/town-hall-issaquah.md",
     folder: "events",
     nodeType: "event",
-    title: "Town hall — Beacon Hill",
-    summary: "Community town hall on March 15.",
+    title: "Town hall — Issaquah",
+    summary: "Community town hall on public safety and schools.",
   },
   {
     id: "doc-roundtable",
-    path: "events/renters-roundtable.md",
+    path: "events/veterans-roundtable.md",
     folder: "events",
     nodeType: "event",
-    title: "Renters roundtable",
-    summary: "Listening session with renters.",
+    title: "Veterans roundtable",
+    summary: "Listening session with veterans and military families.",
   },
   // fundraising/
   {
@@ -309,11 +313,11 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
   // team/
   {
     id: "doc-chamber",
-    path: "team/beacon-hill-chamber.md",
+    path: "team/issaquah-chamber.md",
     folder: "team",
     nodeType: "organization",
-    title: "Beacon Hill Chamber",
-    summary: "Local small-business coalition.",
+    title: "Issaquah Chamber",
+    summary: "Eastside small-business coalition.",
   },
   {
     id: "doc-volunteers",
@@ -400,7 +404,7 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
     folder: "endorsements",
     nodeType: "prospect",
     title: "Labor union targets",
-    summary: "Priority labor endorsements for District 3.",
+    summary: "Priority labor endorsements for WA-08.",
   },
   // ballot-access/
   {

@@ -38,5 +38,19 @@ export function decryptIntegrationToken(payload: string): string {
 }
 
 export function isIntegrationsDemoMode(): boolean {
-  return process.env.INTEGRATIONS_DEMO_MODE === "true";
+  if (process.env.INTEGRATIONS_DEMO_MODE === "true") {
+    return true;
+  }
+
+  const credentialPairs = [
+    ["CANVA_CLIENT_ID", "CANVA_CLIENT_SECRET"],
+    ["HIGGSFIELD_CLIENT_ID", "HIGGSFIELD_CLIENT_SECRET"],
+    ["GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET"],
+    ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET"],
+  ] as const;
+
+  return credentialPairs.every(
+    ([clientId, clientSecret]) =>
+      !process.env[clientId]?.trim() || !process.env[clientSecret]?.trim(),
+  );
 }

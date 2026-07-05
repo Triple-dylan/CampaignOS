@@ -96,7 +96,7 @@ export const DEFAULT_CAMPAIGN_GRAPH_PREFERENCES: CampaignGraphPreferences = {
     renderer: "2d",
   },
   positions: {
-    pinLayout: false,
+    pinLayout: true,
     pinned: {},
   },
 };
