@@ -4,8 +4,12 @@
  * @see docs/design/graph-customization.md
  */
 
+import type { CenterDisplayMode } from "@/lib/graph/center-display";
 import type { GraphViewMode } from "@/lib/graph/to-react-flow";
 import { DEFAULT_GRAPH_FORCE_SLIDERS } from "@/lib/graph/graph-physics-config";
+import { folderAccentColor } from "@/lib/graph/folder-clusters";
+import { FOLDER_CLUSTER_ORDER } from "@/lib/graph/folder-clusters";
+import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 
 /** Default zoom threshold below which entity labels compact (CSS fade). */
 export const BASE_COMPACT_LABEL_ZOOM = 0.62;
@@ -47,6 +51,24 @@ export type CampaignGraphPreferences = {
     query: string;
     color: string;
   }>;
+
+  /** Pinned campaign centre display mode + optional custom copy. */
+  center: {
+    displayMode: CenterDisplayMode;
+    customLabel: string;
+    customSubtitle: string;
+  };
+
+  /** 2D React Flow (default) or experimental 3D force-graph view. */
+  view: {
+    renderer: "2d" | "3d";
+  };
+
+  /** Saved node positions — applied when pinLayout is enabled. */
+  positions: {
+    pinLayout: boolean;
+    pinned: Record<string, { x: number; y: number }>;
+  };
 };
 
 export const DEFAULT_CAMPAIGN_GRAPH_PREFERENCES: CampaignGraphPreferences = {
@@ -64,8 +86,29 @@ export const DEFAULT_CAMPAIGN_GRAPH_PREFERENCES: CampaignGraphPreferences = {
     lineSizeMultiplier: 1,
   },
   forces: { ...DEFAULT_GRAPH_FORCE_SLIDERS },
-  colorGroups: [],
+  colorGroups: buildDefaultFolderColorGroups(),
+  center: {
+    displayMode: "election_dates",
+    customLabel: "",
+    customSubtitle: "",
+  },
+  view: {
+    renderer: "2d",
+  },
+  positions: {
+    pinLayout: false,
+    pinned: {},
+  },
 };
+
+/** Preset color groups by campaign-knowledge folder. */
+export function buildDefaultFolderColorGroups(): CampaignGraphPreferences["colorGroups"] {
+  return FOLDER_CLUSTER_ORDER.map((folder) => ({
+    id: `folder-${folder}`,
+    query: `folder:${folder}`,
+    color: folderAccentColor(folder as CampaignFolderId),
+  }));
+}
 
 /** Deep-merge persisted partial preferences onto defaults. */
 export function mergeCampaignGraphPreferences(
@@ -87,7 +130,26 @@ export function mergeCampaignGraphPreferences(
       ...DEFAULT_CAMPAIGN_GRAPH_PREFERENCES.forces,
       ...stored.forces,
     },
-    colorGroups: stored.colorGroups ?? [],
+    colorGroups:
+      stored.colorGroups && stored.colorGroups.length > 0
+        ? stored.colorGroups
+        : DEFAULT_CAMPAIGN_GRAPH_PREFERENCES.colorGroups,
+    center: {
+      ...DEFAULT_CAMPAIGN_GRAPH_PREFERENCES.center,
+      ...stored.center,
+    },
+    view: {
+      ...DEFAULT_CAMPAIGN_GRAPH_PREFERENCES.view,
+      ...stored.view,
+    },
+    positions: {
+      ...DEFAULT_CAMPAIGN_GRAPH_PREFERENCES.positions,
+      ...stored.positions,
+      pinned: {
+        ...DEFAULT_CAMPAIGN_GRAPH_PREFERENCES.positions.pinned,
+        ...stored.positions?.pinned,
+      },
+    },
   };
 }
 

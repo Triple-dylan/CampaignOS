@@ -22,6 +22,7 @@ import { useDynamicCampaignGraph } from "@/lib/graph/dynamic-graph";
 import { nodeIdsForFolders } from "@/lib/graph/folder-clusters";
 import { resolveRetrievalNodeIdsFromFlow } from "@/lib/graph/retrieval-highlights";
 import { useCampaignGraphPreferences } from "@/hooks/use-campaign-graph-preferences";
+import { applyCenterDisplayToGraph } from "@/lib/graph/apply-center-display";
 import type {
   DbCampaign,
   DbCampaignProfile,
@@ -239,6 +240,25 @@ export function WorkspaceHome({
     ? liveController.graph.edges.length
     : edgeCount;
 
+  const displayGraph = React.useMemo(
+    () =>
+      applyCenterDisplayToGraph(activeGraph, {
+        displayMode: graphPreferences.center.displayMode,
+        customLabel: graphPreferences.center.customLabel,
+        customSubtitle: graphPreferences.center.customSubtitle,
+        campaign,
+        profile,
+        digest,
+      }),
+    [
+      activeGraph,
+      graphPreferences.center,
+      campaign,
+      profile,
+      digest,
+    ],
+  );
+
   // With a conversation on screen, the chat card + composer cover the bottom
   // of the canvas — the graph re-frames itself into the uncovered upper area.
   const chatDockOpen = (activeThread?.messages.length ?? 0) > 0;
@@ -246,13 +266,13 @@ export function WorkspaceHome({
   // Hold the "thinking" pass on long enough to be visible even for fast replies.
   const thinkingActive = useMinimumActive(isSending, 1800);
   const topicNodeIds = useResolverGraphSeeds(
-    activeGraph,
+    displayGraph,
     graphFoldersToHighlight,
     graphNodeIdsToHighlight,
     harnessContextPaths,
   );
   const activationIds = useGraphActivityHighlights(
-    activeGraph,
+    displayGraph,
     thinkingActive,
     topicNodeIds,
   );
@@ -282,10 +302,12 @@ export function WorkspaceHome({
     profile,
     metrics,
     digest,
-    graph: activeGraph,
+    graph: displayGraph,
     selectedNode,
     onClose: () => setPanelOpen(false),
     onClearSelection: () => handleSelectNode(null, null),
+    graphPreferences,
+    onGraphPreferencesChange: updateGraphPreferences,
   };
 
   if (!isSetupComplete) {
@@ -331,7 +353,7 @@ export function WorkspaceHome({
             floating top bar and composer — Cursor/Codex style. */}
         <div className="absolute inset-0 z-0">
           <WorkspaceGraphCanvas
-            graph={activeGraph}
+            graph={displayGraph}
             edgeCount={activeEdgeCount}
             selectedNodeId={selectedNodeId}
             highlightedNodeIds={highlightedNodeIds}

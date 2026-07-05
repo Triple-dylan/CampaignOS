@@ -6,7 +6,6 @@ import {
   forceCollide,
   forceLink,
   forceManyBody,
-  forceRadial,
   forceSimulation,
   forceX,
   forceY,
@@ -68,6 +67,8 @@ type SimNode = SimulationNodeDatum & {
   degree: number;
   /** Per-hub orbit radius — varies by folder for a natural constellation. */
   orbitRadius: number;
+  /** Y-axis squash for elliptical orbit (0.5–1). Lower = flatter ellipse. */
+  orbitAspectY: number;
   /** Last position written to the DOM — skips sub-pixel writes. */
   domX?: number;
   domY?: number;
@@ -118,12 +119,61 @@ function hubOrbitRadius(nodeId: string, fallback: number): number {
   return HUB_ORBIT_MIN + t * (HUB_ORBIT_MAX - HUB_ORBIT_MIN) || fallback;
 }
 
+/** Per-hub Y squash for elliptical orbits — pseudo-3D constellation feel. */
+function hubOrbitAspectY(nodeId: string): number {
+  let hash = 0;
+  for (let i = 0; i < nodeId.length; i += 1) {
+    hash = (hash * 17 + nodeId.charCodeAt(i)) | 0;
+  }
+  const t = (((hash % 1000) + 1000) % 1000) / 1000;
+  return 0.52 + t * 0.28;
+}
+
+/**
+ * Elliptical radial force — pulls hubs onto an orbit ring squashed on Y so
+ * clusters read as tilted ellipses rather than flat circles.
+ */
+function forceEllipticalRadial(
+  strength: number,
+  driftAngleRef: React.RefObject<number>,
+) {
+  let nodes: SimNode[] = [];
+
+  function force(alpha: number) {
+    const drift = driftAngleRef.current ?? 0;
+    const cosD = Math.cos(drift);
+    const sinD = Math.sin(drift);
+    for (const node of nodes) {
+      if (!node.isHub) continue;
+      const targetR = node.orbitRadius || STRUCTURAL_HUB_DISTANCE;
+      const aspectY = node.orbitAspectY || 0.65;
+      const x = node.x ?? 0;
+      const y = node.y ?? 0;
+      const rx = x * cosD + y * sinD;
+      const ry = (-x * sinD + y * cosD) / aspectY;
+      const dist = Math.hypot(rx, ry) || 1;
+      const k = ((targetR - dist) / dist) * alpha * strength;
+      const fx = rx * k;
+      const fy = ry * k * aspectY;
+      node.vx = (node.vx ?? 0) + fx * cosD - fy * sinD;
+      node.vy = (node.vy ?? 0) + fx * sinD + fy * cosD;
+    }
+  }
+
+  force.initialize = (n: SimNode[]) => {
+    nodes = n;
+  };
+
+  return force;
+}
+
 function applyScaledForces(
   sim: Simulation<SimNode, SimLink>,
   simLinks: SimLink[],
   physics: ScaledGraphPhysics,
   hubOrbit: number,
   hubs: SimNode[],
+  driftAngleRef: React.RefObject<number>,
 ): void {
   sim.force(
     "link",
@@ -205,11 +255,7 @@ function applyScaledForces(
   sim.force(
     "hub-orbit",
     hubs.length > 0
-      ? forceRadial<SimNode>(
-          (node) => node.orbitRadius || hubOrbit,
-          0,
-          0,
-        ).strength((node) => (node.isHub ? physics.hubRadialStrength : 0))
+      ? forceEllipticalRadial(physics.hubRadialStrength * 1.35, driftAngleRef)
       : null,
   );
 }
@@ -230,12 +276,18 @@ export function useGraphForceSimulation(input: {
   flowEdges: CampaignFlowEdge[];
   forces?: GraphForceSliders;
   nodeSizeMultiplier?: number;
+  pinnedPositions?: Record<string, { x: number; y: number }>;
+  pinLayout?: boolean;
+  onDragEnd?: (id: string, position: { x: number; y: number }) => void;
 }): GraphPhysicsHandle {
   const {
     flowNodes,
     flowEdges,
     forces,
     nodeSizeMultiplier = 1,
+    pinnedPositions = {},
+    pinLayout = false,
+    onDragEnd,
   } = input;
 
   const { setNodes } = useReactFlow();
@@ -258,6 +310,15 @@ export function useGraphForceSimulation(input: {
   const physicsRef = React.useRef<ScaledGraphPhysics>(
     scalePhysicsForUserForces(forces ?? DEFAULT_GRAPH_FORCE_SLIDERS),
   );
+  const driftAngleRef = React.useRef(0);
+  const driftRafRef = React.useRef<number | null>(null);
+  const pinLayoutRef = React.useRef(pinLayout);
+  const pinnedRef = React.useRef(pinnedPositions);
+  const onDragEndRef = React.useRef(onDragEnd);
+
+  pinLayoutRef.current = pinLayout;
+  pinnedRef.current = pinnedPositions;
+  onDragEndRef.current = onDragEnd;
 
   const stopLoop = React.useCallback(() => {
     if (rafRef.current !== null) {
@@ -383,6 +444,32 @@ export function useGraphForceSimulation(input: {
     rafRef.current = requestAnimationFrame(step);
   }, [applyDomPositions, publishPositions]);
 
+  // Very slow orbital drift when idle — pseudo-3D parallax (respects reduced motion).
+  React.useEffect(() => {
+    if (prefersReducedMotion()) return;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(now - last, 48);
+      last = now;
+      if (
+        !draggingRef.current &&
+        simRef.current &&
+        simRef.current.alpha() < ALPHA_MIN + 0.002
+      ) {
+        driftAngleRef.current += (dt / 1000) * 0.012;
+        simRef.current.alpha(0.008);
+        ensureLoop();
+      }
+      driftRafRef.current = requestAnimationFrame(tick);
+    };
+    driftRafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (driftRafRef.current !== null) {
+        cancelAnimationFrame(driftRafRef.current);
+      }
+    };
+  }, [ensureLoop]);
+
   React.useEffect(() => {
     const previous = nodeByIdRef.current;
     const mult = nodeSizeMultiplier;
@@ -407,13 +494,16 @@ export function useGraphForceSimulation(input: {
             flow.id,
             STRUCTURAL_HUB_DISTANCE,
           );
+          existing.orbitAspectY = hubOrbitAspectY(flow.id);
         }
         return existing;
       }
+      const pinned = pinnedRef.current[flow.id];
+      const seedPos = pinned ?? flow.position;
       return {
         id: flow.id,
-        x: flow.position.x,
-        y: flow.position.y,
+        x: seedPos.x,
+        y: seedPos.y,
         radius,
         isHub: flow.data.isFolderHub,
         isCandidate: flow.data.nodeType === "candidate",
@@ -422,6 +512,7 @@ export function useGraphForceSimulation(input: {
         orbitRadius: flow.data.isFolderHub
           ? hubOrbitRadius(flow.id, STRUCTURAL_HUB_DISTANCE)
           : 0,
+        orbitAspectY: flow.data.isFolderHub ? hubOrbitAspectY(flow.id) : 1,
       };
     });
 
@@ -431,6 +522,12 @@ export function useGraphForceSimulation(input: {
         node.y = 0;
         node.fx = 0;
         node.fy = 0;
+      } else if (pinLayoutRef.current && pinnedRef.current[node.id]) {
+        const pin = pinnedRef.current[node.id];
+        node.x = pin.x;
+        node.y = pin.y;
+        node.fx = pin.x;
+        node.fy = pin.y;
       }
     }
 
@@ -470,7 +567,7 @@ export function useGraphForceSimulation(input: {
     simRef.current = sim as Simulation<SimNode, SimLink>;
 
     sim.nodes(simNodes);
-    applyScaledForces(sim, simLinks, physics, hubOrbit, hubs);
+    applyScaledForces(sim, simLinks, physics, hubOrbit, hubs, driftAngleRef);
 
     linksRef.current = simLinks.map((link, index) => ({
       id: flowEdges[index].id,
@@ -597,6 +694,7 @@ export function useGraphForceSimulation(input: {
         physicsRef.current,
         hubOrbitRef.current,
         hubs,
+        driftAngleRef,
       );
 
       sim
@@ -658,8 +756,18 @@ export function useGraphForceSimulation(input: {
     const node = nodeByIdRef.current.get(id);
     draggingRef.current = false;
     if (node) {
-      node.fx = null;
-      node.fy = null;
+      if (
+        pinLayoutRef.current &&
+        typeof node.x === "number" &&
+        typeof node.y === "number"
+      ) {
+        node.fx = node.x;
+        node.fy = node.y;
+        onDragEndRef.current?.(id, { x: node.x, y: node.y });
+      } else {
+        node.fx = null;
+        node.fy = null;
+      }
     }
     for (const n of nodeByIdRef.current.values()) {
       if (n.isCampaignCenter) {

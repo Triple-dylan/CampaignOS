@@ -31,7 +31,7 @@ export const COLLIDE_PADDING_ENTITY = 16;
 export const CENTER_PULL = 0.04;
 export const CANDIDATE_CENTER_PULL = 0.14;
 /** Gentle radial force keeping folder hubs on their orbit ring. */
-export const HUB_RADIAL_STRENGTH = 0.09;
+export const HUB_RADIAL_STRENGTH = 0.14;
 /** Campaign centre is pinned — strongest centripetal hold. */
 export const CENTER_PIN_STRENGTH = 0.55;
 /** Settle pacing: ~1.5–2s of visible organic motion, then sleep. */

@@ -30,6 +30,12 @@ import {
   daysUntilElection,
   formatElectionCountdown,
 } from "@/lib/campaign/utils";
+import {
+  CENTER_DISPLAY_MODES,
+  buildCenterDisplayContent,
+  type CenterDisplayMode,
+} from "@/lib/graph/center-display";
+import type { CampaignGraphPreferences } from "@/lib/graph/graph-preferences";
 import { cn } from "@/lib/utils";
 
 export type WorkspaceMetrics = {
@@ -51,6 +57,11 @@ export type WorkspaceContextPanelProps = {
   selectedNode: CampaignGraphNodeData | null;
   onClose: () => void;
   onClearSelection: () => void;
+  /** Graph gear preferences — centre display editor when centre node selected. */
+  graphPreferences?: CampaignGraphPreferences;
+  onGraphPreferencesChange?: (
+    patch: Partial<CampaignGraphPreferences>,
+  ) => void;
 };
 
 export function WorkspaceContextPanelContent({
@@ -62,6 +73,8 @@ export function WorkspaceContextPanelContent({
   selectedNode,
   onClose,
   onClearSelection,
+  graphPreferences,
+  onGraphPreferencesChange,
 }: WorkspaceContextPanelProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -93,7 +106,16 @@ export function WorkspaceContextPanelContent({
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
         {selectedNode ? (
-          selectedNode.isFolderHub && selectedNode.folder ? (
+          selectedNode.isCampaignCenter ? (
+            <CenterNodeEditor
+              campaign={campaign}
+              profile={profile}
+              digest={digest}
+              node={selectedNode}
+              preferences={graphPreferences}
+              onPreferencesChange={onGraphPreferencesChange}
+            />
+          ) : selectedNode.isFolderHub && selectedNode.folder ? (
             <FolderHubDetail
               folderId={selectedNode.folder}
               graph={graph}
@@ -220,6 +242,141 @@ function FolderHubDetail({
             sync it here.
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CenterNodeEditor({
+  campaign,
+  profile,
+  digest,
+  node,
+  preferences,
+  onPreferencesChange,
+}: {
+  campaign: DbCampaign | null;
+  profile: DbCampaignProfile | null;
+  digest: WorkspaceDigest | null | undefined;
+  node: CampaignGraphNodeData;
+  preferences?: CampaignGraphPreferences;
+  onPreferencesChange?: (patch: Partial<CampaignGraphPreferences>) => void;
+}) {
+  const mode = preferences?.center.displayMode ?? "election_dates";
+  const customLabel = preferences?.center.customLabel ?? "";
+  const customSubtitle = preferences?.center.customSubtitle ?? "";
+
+  const preview = buildCenterDisplayContent({
+    mode,
+    customLabel,
+    customSubtitle,
+    campaign,
+    profile,
+    digest: digest ?? null,
+  });
+
+  const setMode = (displayMode: CenterDisplayMode) => {
+    onPreferencesChange?.({
+      center: {
+        displayMode,
+        customLabel,
+        customSubtitle,
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+          Campaign centre
+        </p>
+        <h3 className="mt-1 text-base font-semibold leading-snug">{node.title}</h3>
+      </div>
+
+      <div>
+        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+          Center display
+        </p>
+        <ul className="mt-2 space-y-1">
+          {CENTER_DISPLAY_MODES.map((option) => (
+            <li key={option.id}>
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border px-2.5 py-2 transition-colors hover:bg-accent has-[:checked]:border-brand-blue/50 has-[:checked]:bg-brand-blue/5">
+                <input
+                  type="radio"
+                  name="center-display"
+                  checked={mode === option.id}
+                  onChange={() => setMode(option.id)}
+                  className="mt-0.5 accent-brand-blue"
+                />
+                <span>
+                  <span className="block text-sm font-medium">{option.label}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {option.description}
+                  </span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {mode === "custom" ? (
+        <div className="space-y-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[0.7rem] font-medium text-muted-foreground">
+              Custom title
+            </span>
+            <input
+              type="text"
+              value={customLabel}
+              onChange={(e) =>
+                onPreferencesChange?.({
+                  center: {
+                    displayMode: mode,
+                    customLabel: e.target.value,
+                    customSubtitle,
+                  },
+                })
+              }
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[0.7rem] font-medium text-muted-foreground">
+              Subtitle
+            </span>
+            <input
+              type="text"
+              value={customSubtitle}
+              onChange={(e) =>
+                onPreferencesChange?.({
+                  center: {
+                    displayMode: mode,
+                    customLabel,
+                    customSubtitle: e.target.value,
+                  },
+                })
+              }
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </label>
+        </div>
+      ) : null}
+
+      <div className="rounded-lg border border-border bg-card p-3">
+        <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+          Preview
+        </p>
+        <p className="mt-1.5 text-sm font-semibold">{preview.title}</p>
+        {preview.electionCountdown ? (
+          <p className="mt-0.5 text-xs font-medium text-brand-blue">
+            {preview.electionCountdown}
+          </p>
+        ) : null}
+        {preview.summary ? (
+          <p className="mt-1 text-xs text-muted-foreground">{preview.summary}</p>
+        ) : null}
       </div>
     </div>
   );

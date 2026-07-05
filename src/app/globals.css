@@ -649,6 +649,31 @@
     contain: strict;
   }
 
+  /* Pseudo-3D orbit stage — subtle perspective tilt on the 2D React Flow canvas. */
+  .graph-stage-orbit {
+    perspective: 1400px;
+    perspective-origin: 50% 46%;
+  }
+
+  .graph-stage-orbit .react-flow {
+    transform: rotateX(4deg);
+    transform-origin: 50% 50%;
+  }
+
+  .graph-stage-orbit .react-flow__viewport {
+    transform-style: preserve-3d;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .graph-stage-orbit .react-flow {
+      transform: none;
+    }
+  }
+
+  .graph-edge-arrow-head {
+    fill: color-mix(in oklch, var(--foreground) 45%, transparent);
+  }
+
   .graph-aurora::before,
   .graph-aurora::after {
     content: "";

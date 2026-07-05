@@ -16,13 +16,19 @@ import { Loader2, Settings2, Sparkles, X } from "lucide-react";
 import { GraphNodeCard } from "@/components/brain/graph-node-card";
 import { GraphFloatingEdge } from "@/components/brain/graph-floating-edge";
 import { GraphSettingsPanel } from "@/components/workspace/graph-settings-panel";
+import { Graph3DCanvas } from "@/components/workspace/graph-3d-canvas";
 import {
   computeFolderFocusLevels,
+  computeLocalGraphLevels,
   filterNodesByViewMode,
+  localGraphHopToFocusLevel,
+  resolveColorGroup,
   type CampaignGraphFlow,
   type CampaignGraphNodeData,
+  type GraphFocusLevel,
   type GraphViewMode,
 } from "@/lib/graph/to-react-flow";
+import { graphSearchMatchIds } from "@/lib/graph/graph-search";
 import { useGraphForceSimulation } from "@/lib/graph/use-force-simulation";
 import {
   compactLabelZoomFromTextFade,
@@ -150,6 +156,13 @@ function WorkspaceGraphCanvasInner({
   const nodeSizeMultiplier = displayPrefs?.nodeSizeMultiplier ?? 1;
   const forcePrefs = graphPreferences?.forces;
   const showOrphans = graphPreferences?.filters.showOrphans ?? true;
+  const searchQuery = graphPreferences?.filters.search ?? "";
+  const localGraphDepth = graphPreferences?.filters.localGraphDepth ?? 1;
+  const showArrows = graphPreferences?.display.showArrows ?? false;
+  const colorGroups = graphPreferences?.colorGroups ?? [];
+  const viewRenderer = graphPreferences?.view.renderer ?? "2d";
+  const pinLayout = graphPreferences?.positions.pinLayout ?? false;
+  const pinnedPositions = graphPreferences?.positions.pinned ?? {};
   const [settingsOpen, setSettingsOpen] = useState(false);
   const fitViewOptions = isMobile
     ? chatDockOpen
@@ -165,15 +178,17 @@ function WorkspaceGraphCanvasInner({
     (state) => state.transform[2] < compactLabelZoom,
   );
   const paneHeight = useStore((state) => state.height);
-  const [internalViewMode, setInternalViewMode] = useState<GraphViewMode>("all");
+  const [internalViewMode, setInternalViewMode] = useState<GraphViewMode>(
+    graphPreferences?.filters.viewMode ?? "all",
+  );
   const viewMode = controlledViewMode ?? internalViewMode;
   const setViewMode = onViewModeChange ?? setInternalViewMode;
 
-  // Obsidian-style local-graph focus: clicking a folder hub pops its children
-  // to the foreground while everything else dims to ambient context.
+  // Obsidian-style local-graph focus: folder hub OR entity neighbourhood.
   const [focusFolderId, setFocusFolderId] = useState<CampaignFolderId | null>(
     null,
   );
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
 
   // Hovered node: its touching edges brighten so the local neighbourhood
   // reads at a glance (cheap CSS class toggle, no layout work).
@@ -215,6 +230,20 @@ function WorkspaceGraphCanvasInner({
     flowEdges: visibleEdges,
     forces: forcePrefs,
     nodeSizeMultiplier,
+    pinnedPositions,
+    pinLayout,
+    onDragEnd: (id, position) => {
+      if (!onGraphPreferencesChange || !graphPreferences) return;
+      onGraphPreferencesChange({
+        positions: {
+          ...graphPreferences.positions,
+          pinned: {
+            ...graphPreferences.positions.pinned,
+            [id]: position,
+          },
+        },
+      });
+    },
   });
   const { settleCount, getPosition } = simulation;
   const { setNodes } = useReactFlow();
@@ -236,6 +265,53 @@ function WorkspaceGraphCanvasInner({
   // without a state-resetting effect.
   const activeFocusFolderId = focusLevels ? focusFolderId : null;
 
+  const searchMatchIds = useMemo(
+    () => graphSearchMatchIds(visibleFlowNodes, searchQuery),
+    [visibleFlowNodes, searchQuery],
+  );
+
+  const entityFocusLevels = useMemo(() => {
+    if (!focusNodeId || focusFolderId) return null;
+    const hops = computeLocalGraphLevels({
+      rootId: focusNodeId,
+      depth: localGraphDepth,
+      nodes: visibleFlowNodes,
+      edges: visibleEdges,
+    });
+    if (hops.size === 0) return null;
+    const levels = new Map<string, GraphFocusLevel>();
+    for (const node of visibleFlowNodes) {
+      const hop = hops.get(node.id);
+      levels.set(
+        node.id,
+        localGraphHopToFocusLevel(hop, localGraphDepth),
+      );
+    }
+    return levels;
+  }, [focusNodeId, focusFolderId, localGraphDepth, visibleFlowNodes, visibleEdges]);
+
+  const combinedFocusLevels = useMemo(() => {
+    const base = focusLevels ?? entityFocusLevels;
+    if (!searchQuery.trim() && !base) return null;
+    const combined = new Map<string, GraphFocusLevel>();
+    for (const node of visibleFlowNodes) {
+      let level = base?.get(node.id);
+      if (searchQuery.trim() && !searchMatchIds.has(node.id)) {
+        level = "background";
+      }
+      if (level) combined.set(node.id, level);
+    }
+    return combined.size > 0 ? combined : null;
+  }, [
+    focusLevels,
+    entityFocusLevels,
+    searchQuery,
+    searchMatchIds,
+    visibleFlowNodes,
+  ]);
+
+  const focusActive = Boolean(activeFocusFolderId || focusNodeId);
+
   // Apply transient per-node flags (chat highlight, folder-focus level,
   // selection) by mutating only the nodes whose flags actually changed.
   // Untouched nodes keep their object + data identity, so this never causes
@@ -246,12 +322,18 @@ function WorkspaceGraphCanvasInner({
       const next = current.map((node) => {
         const data = node.data as CampaignGraphNodeData;
         const isHighlighted = highlighted.has(node.id);
-        const focusLevel = focusLevels?.get(node.id);
+        const focusLevel = combinedFocusLevels?.get(node.id);
         const isSelected = node.id === selectedNodeId;
+        const dist = Math.hypot(node.position.x, node.position.y);
+        const depthLayer = Math.max(0, Math.min(1, 1 - dist / 680));
+        const colorOverride =
+          resolveColorGroup(data, colorGroups) ?? data.colorOverride;
         if (
           (data.highlighted ?? false) === isHighlighted &&
           data.focusLevel === focusLevel &&
-          (node.selected ?? false) === isSelected
+          (node.selected ?? false) === isSelected &&
+          data.depthLayer === depthLayer &&
+          data.colorOverride === colorOverride
         ) {
           return node;
         }
@@ -259,16 +341,19 @@ function WorkspaceGraphCanvasInner({
         return {
           ...node,
           selected: isSelected,
+          zIndex: Math.round(depthLayer * 1000),
           data: {
             ...data,
             highlighted: isHighlighted,
             focusLevel,
+            depthLayer,
+            colorOverride: colorOverride ?? undefined,
           },
         };
       });
       return changed ? next : current;
     });
-  }, [highlighted, focusLevels, selectedNodeId, setNodes]);
+  }, [highlighted, combinedFocusLevels, selectedNodeId, colorGroups, setNodes]);
 
   // Push display multipliers into node data so memoized cards re-render once.
   useEffect(() => {
@@ -287,12 +372,11 @@ function WorkspaceGraphCanvasInner({
     });
   }, [nodeSizeMultiplier, setNodes]);
 
+  const arrowMarker = showArrows ? "url(#graph-edge-arrow)" : undefined;
+
   const edges = useMemo<Edge[]>(() => {
     return visibleEdges.map((edge) => {
       const classes: string[] = [];
-      // Structural `belongs_to` links (member → folder hub → candidate) are the
-      // quiet scaffolding of the graph; relationship edges carry the meaning, so
-      // they read a touch stronger. This separation cuts visual noise.
       if (edge.data?.relationshipType === "belongs_to") {
         classes.push("is-structural");
       }
@@ -305,9 +389,9 @@ function WorkspaceGraphCanvasInner({
       ) {
         classes.push("is-hover");
       }
-      if (focusLevels) {
-        const sourceLevel = focusLevels.get(edge.source);
-        const targetLevel = focusLevels.get(edge.target);
+      if (combinedFocusLevels) {
+        const sourceLevel = combinedFocusLevels.get(edge.source);
+        const targetLevel = combinedFocusLevels.get(edge.target);
         const inside = (level: string | undefined) =>
           level === "focus" || level === "foreground";
         if (inside(sourceLevel) && inside(targetLevel)) {
@@ -324,10 +408,11 @@ function WorkspaceGraphCanvasInner({
         selectable: false,
         focusable: false,
         interactionWidth: 0,
+        markerEnd: arrowMarker,
         className: classes.length > 0 ? classes.join(" ") : undefined,
       };
     }) as Edge[];
-  }, [visibleEdges, highlighted, hoveredNodeId, focusLevels]);
+  }, [visibleEdges, highlighted, hoveredNodeId, combinedFocusLevels, showArrows, arrowMarker]);
 
   /* ------------------------------------------------------------------ *
    * Camera controller. Every programmatic move funnels through a single
@@ -430,15 +515,17 @@ function WorkspaceGraphCanvasInner({
 
   const exitFocus = useCallback(() => {
     setFocusFolderId(null);
+    setFocusNodeId(null);
   }, []);
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
       const data = node.data as CampaignGraphNodeData;
-      // Clicking a folder hub commits folder focus; clicking elsewhere keeps
-      // any active focus so children can be inspected without losing context.
       if (data.isFolderHub && data.folder) {
         setFocusFolderId(data.folder);
+        setFocusNodeId(null);
+      } else if (!data.isCampaignCenter) {
+        setFocusNodeId(node.id);
       }
       onSelectNode(data, node.id);
     },
@@ -447,6 +534,7 @@ function WorkspaceGraphCanvasInner({
 
   const onPaneClick = useCallback(() => {
     setFocusFolderId(null);
+    setFocusNodeId(null);
     onSelectNode(null, null);
   }, [onSelectNode]);
 
@@ -456,6 +544,7 @@ function WorkspaceGraphCanvasInner({
       if (event.key !== "Escape") return;
       if (activeFocusFolderId) {
         setFocusFolderId(null);
+        setFocusNodeId(null);
       } else if (selectedNodeId) {
         onSelectNode(null, null);
       }
@@ -608,7 +697,26 @@ function WorkspaceGraphCanvasInner({
       }
     >
       <div className="graph-aurora" aria-hidden />
-      <ReactFlow
+      {viewRenderer === "3d" && graph ? (
+        <Graph3DCanvas
+          graph={{
+            ...graph,
+            nodes: visibleFlowNodes,
+            edges: visibleEdges,
+          }}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={(id) => {
+            if (!id) {
+              onSelectNode(null, null);
+              return;
+            }
+            const flowNode = visibleFlowNodes.find((n) => n.id === id);
+            if (flowNode) onSelectNode(flowNode.data, id);
+          }}
+        />
+      ) : (
+        <div className="graph-stage-orbit absolute inset-0">
+          <ReactFlow
         defaultNodes={EMPTY_NODES}
         edges={edges}
         nodeTypes={nodeTypes}
@@ -643,7 +751,27 @@ function WorkspaceGraphCanvasInner({
           size={1}
           color="var(--border)"
         />
-      </ReactFlow>
+          <svg aria-hidden className="absolute size-0">
+            <defs>
+              <marker
+                id="graph-edge-arrow"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="4"
+                markerHeight="4"
+                orient="auto-start-reverse"
+              >
+                <path
+                  d="M 0 0 L 10 5 L 0 10 z"
+                  className="graph-edge-arrow-head"
+                />
+              </marker>
+            </defs>
+          </svg>
+        </ReactFlow>
+        </div>
+      )}
 
       <div className="pointer-events-none absolute left-3 top-16 z-10 flex items-center gap-2">
         {searching ? (
@@ -735,6 +863,7 @@ function WorkspaceGraphCanvasInner({
             onOpenChange={setSettingsOpen}
             preferences={graphPreferences}
             onChange={onGraphPreferencesChange}
+            focusActive={focusActive}
             onRestoreDefaults={() => {
               onRestoreGraphDefaults?.();
             }}

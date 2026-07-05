@@ -47,6 +47,10 @@ export type CampaignGraphNodeData = {
   focusLevel?: GraphFocusLevel;
   /** Transient display scale from graph gear panel. */
   nodeSizeMultiplier?: number;
+  /** Pseudo-3D depth layer 0 (far) – 1 (near) — drives z-index + opacity. */
+  depthLayer?: number;
+  /** Override accent from color group rules. */
+  colorOverride?: string;
 };
 
 export type GraphViewMode = "all" | "folders" | "entities";
@@ -352,6 +356,7 @@ export function getNodeDiameter(
 
 /** Accent for a node — folder hubs use their cluster colour. */
 export function getNodeVisualAccent(data: CampaignGraphNodeData): string {
+  if (data.colorOverride) return data.colorOverride;
   if (data.isCampaignCenter) return "#3b82f6";
   if (data.isFolderHub && data.folder) {
     return folderAccentColor(data.folder);
@@ -426,6 +431,97 @@ export function computeFolderFocusLevels(input: {
   }
 
   return levels;
+}
+
+/**
+ * BFS hop levels from any focused node — Obsidian local-graph depth.
+ * Returns a map of node id → hop distance (0 = root). Nodes beyond `maxDepth`
+ * are omitted (caller dims them to background).
+ */
+export function computeLocalGraphLevels(input: {
+  rootId: string;
+  depth: number;
+  nodes: CampaignFlowNode[];
+  edges: CampaignFlowEdge[];
+}): Map<string, number> {
+  const { rootId, depth, nodes, edges } = input;
+  const levels = new Map<string, number>();
+  if (depth < 1 || !nodes.some((n) => n.id === rootId)) return levels;
+
+  const visibleIds = new Set(nodes.map((n) => n.id));
+  const adjacency = new Map<string, Set<string>>();
+  const link = (a: string, b: string) => {
+    let set = adjacency.get(a);
+    if (!set) {
+      set = new Set<string>();
+      adjacency.set(a, set);
+    }
+    set.add(b);
+  };
+  for (const edge of edges) {
+    if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) continue;
+    link(edge.source, edge.target);
+    link(edge.target, edge.source);
+  }
+
+  const queue: Array<{ id: string; hop: number }> = [{ id: rootId, hop: 0 }];
+  levels.set(rootId, 0);
+
+  while (queue.length > 0) {
+    const { id, hop } = queue.shift()!;
+    if (hop >= depth) continue;
+    for (const neighbor of adjacency.get(id) ?? []) {
+      if (levels.has(neighbor)) continue;
+      levels.set(neighbor, hop + 1);
+      queue.push({ id: neighbor, hop: hop + 1 });
+    }
+  }
+
+  return levels;
+}
+
+/** Map hop distance to Obsidian-style focus level for local graph. */
+export function localGraphHopToFocusLevel(
+  hop: number | undefined,
+  maxDepth: number,
+): GraphFocusLevel {
+  if (hop === undefined) return "background";
+  if (hop === 0) return "focus";
+  if (hop === 1) return "foreground";
+  if (hop <= maxDepth) return "midground";
+  return "background";
+}
+
+/** First matching color group wins (Obsidian groups semantics). */
+export function resolveColorGroup(
+  node: CampaignGraphNodeData,
+  groups: Array<{ query: string; color: string }>,
+): string | null {
+  for (const group of groups) {
+    const q = group.query.trim();
+    if (!q) continue;
+    if (q.startsWith("folder:")) {
+      const folder = q.slice("folder:".length);
+      if ((node.folder ?? "").toLowerCase() === folder.toLowerCase()) {
+        return group.color;
+      }
+      continue;
+    }
+    if (q.startsWith("type:") || q.startsWith("node_type:")) {
+      const prefix = q.startsWith("type:") ? "type:" : "node_type:";
+      const type = q.slice(prefix.length);
+      if (node.nodeType.toLowerCase().includes(type.toLowerCase())) {
+        return group.color;
+      }
+      continue;
+    }
+    const haystack = [node.title, node.summary, node.knowledgePath]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (haystack.includes(q.toLowerCase())) return group.color;
+  }
+  return null;
 }
 
 /** Filter nodes by folder-hub / entity view mode. */

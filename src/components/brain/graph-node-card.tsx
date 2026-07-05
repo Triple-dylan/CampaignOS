@@ -51,6 +51,11 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
     data.nodeSizeMultiplier ?? 1,
   );
   const focus = data.focusLevel ? FOCUS_LEVEL_STYLE[data.focusLevel] : null;
+  const depth = data.depthLayer;
+  const depthScale =
+    depth != null ? 0.82 + depth * 0.22 : 1;
+  const depthOpacity =
+    depth != null ? 0.55 + depth * 0.45 : 1;
 
   return (
     <div
@@ -58,13 +63,20 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
         "group relative flex items-center justify-center",
         data.focusLevel && "graph-node-focusable",
         data.focusLevel === "background" && "graph-node-shadowed",
+        depth != null && "graph-node-depth-layer",
       )}
       style={{
         width: diameter,
         height: diameter,
+        zIndex: depth != null ? Math.round(depth * 100) : undefined,
         ...(focus
-          ? { opacity: focus.opacity, transform: `scale(${focus.scale})` }
-          : null),
+          ? {
+              opacity: focus.opacity * depthOpacity,
+              transform: `scale(${focus.scale * depthScale})`,
+            }
+          : depth != null
+            ? { opacity: depthOpacity, transform: `scale(${depthScale})` }
+            : null),
       }}
       title={graphNodeTooltip(data)}
     >
