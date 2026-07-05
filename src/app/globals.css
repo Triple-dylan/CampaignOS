@@ -136,12 +136,12 @@
    */
   --glass-blur: 28px;
   --glass-saturate: 210%;
-  --glass-bar-bg: oklch(1 0 0 / 0.52);
-  /* The rail reads as near-white: high fill opacity so the stage aurora only
-   * faintly tints it instead of bleeding through. */
-  --glass-rail-bg: oklch(1 0 0 / 0.82);
+  /* Shared near-white chrome for rail, top bar, and graph controls. */
+  --glass-chrome-bg: oklch(1 0 0 / 0.94);
+  --glass-bar-bg: var(--glass-chrome-bg);
+  --glass-rail-bg: var(--glass-chrome-bg);
   --glass-panel-bg: oklch(1 0 0 / 0.5);
-  --glass-composer-bg: oklch(1 0 0 / 0.6);
+  --glass-composer-bg: oklch(1 0 0 / 0.9);
   --glass-border: oklch(0.205 0 0 / 0.16);
   --glass-highlight: oklch(1 0 0 / 0.95);
   --glass-sheen: linear-gradient(
@@ -331,6 +331,23 @@
 
   .glass-bar {
     background-color: var(--glass-bar-bg);
+  }
+
+  /* Seamless workspace chrome: no horizontal divider under the top bar. */
+  .glass-chrome-top {
+    border-bottom: none;
+    box-shadow: none;
+  }
+
+  .glass-chrome-pill {
+    background-color: var(--glass-chrome-bg);
+    border-color: oklch(0.205 0 0 / 0.08);
+  }
+
+  .glass-chrome-pill [data-active="true"],
+  .glass-chrome-pill .is-active-pill {
+    background-color: oklch(1 0 0);
+    box-shadow: var(--shadow-panel);
   }
 
   .glass-rail {
@@ -525,6 +542,27 @@
     border-radius: 9999px;
     border-width: 2px;
     border-style: dashed;
+  }
+
+  /* Campaign goal centre — pinned sun of the constellation. */
+  .graph-campaign-center {
+    border-radius: 9999px;
+    border-width: 2.5px;
+    border-style: solid;
+    box-shadow:
+      0 0 0 6px color-mix(in oklch, var(--brand-blue) 14%, transparent),
+      0 0 20px 2px color-mix(in oklch, var(--brand-blue) 12%, transparent);
+  }
+
+  .graph-campaign-center-selected {
+    border-color: var(--brand-blue) !important;
+    box-shadow:
+      0 0 0 8px color-mix(in oklch, var(--brand-blue) 22%, transparent),
+      0 0 24px 4px color-mix(in oklch, var(--brand-blue) 18%, transparent);
+  }
+
+  .graph-center-label {
+    opacity: 1;
   }
 
   .graph-folder-hub-selected {

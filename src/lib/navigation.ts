@@ -1,6 +1,4 @@
 import {
-  Brain,
-  CalendarClock,
   ClipboardList,
   FolderOpen,
   LayoutDashboard,
@@ -10,7 +8,6 @@ import {
   PiggyBank,
   ScrollText,
   Settings,
-  ShieldCheck,
   SquareCheckBig,
   Telescope,
   type LucideIcon,
@@ -33,11 +30,8 @@ export const primaryNav: ReadonlyArray<NavItem> = [
   { title: "Assets", href: "/assets", icon: FolderOpen },
   { title: "Research", href: "/research", icon: Lightbulb },
   { title: "Fundraising", href: "/fundraising", icon: PiggyBank },
-  { title: "Knowledge graph", href: "/brain", icon: Brain },
   { title: "Planner", href: "/planner", icon: ClipboardList },
   { title: "Tasks", href: "/tasks", icon: SquareCheckBig },
-  { title: "Compliance", href: "/compliance", icon: ShieldCheck },
-  { title: "Command center", href: "/automations", icon: CalendarClock },
 ];
 
 export const settingsNavItem: NavItem = {

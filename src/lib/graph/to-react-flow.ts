@@ -27,6 +27,10 @@ export type CampaignGraphNodeData = {
   folder: CampaignFolderId | null;
   /** True for wiki-llm folder hub / cluster anchor nodes. */
   isFolderHub: boolean;
+  /** True for the pinned campaign goal node at the graph centre. */
+  isCampaignCenter: boolean;
+  /** Human-readable countdown line (e.g. "122 days until election"). */
+  electionCountdown: string | null;
   /** Relative wiki path (e.g. `research/housing-poll.md`). */
   knowledgePath: string | null;
   knowledgeKind: KnowledgeGraphNodeKind | null;
@@ -62,6 +66,7 @@ export type CampaignFlowNode = {
   id: string;
   type: "graphNode";
   position: { x: number; y: number };
+  draggable?: boolean;
   data: CampaignGraphNodeData;
 };
 
@@ -103,6 +108,10 @@ const CENTER_SPACING = 168;
  */
 function clusterRadiusFor(folderCount: number): number {
   return BASE_CLUSTER_RADIUS + Math.max(0, folderCount - 6) * 64;
+}
+
+function isCampaignCenterNode(node: DbGraphNode): boolean {
+  return node.metadata_json?.campaignCenter === true;
 }
 
 function isFolderHubNode(node: DbGraphNode): boolean {
@@ -161,11 +170,24 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
     byFolder.set(folder, bucket);
   }
 
-  // Centre cluster (candidate + core campaign nodes) sits at the origin.
+  // Campaign goal centre sits at the origin — the sun of the constellation.
+  const centerNode = nodes.find(isCampaignCenterNode);
+  if (centerNode && !positions.has(centerNode.id)) {
+    positions.set(centerNode.id, { x: 0, y: 0 });
+  }
+
+  // Centre cluster (candidate + core campaign nodes) sits near the origin.
   const centerNodes = byFolder.get(CENTER_FOLDER) ?? [];
   const candidateNode = centerNodes.find((node) => node.node_type === "candidate");
   if (candidateNode && !positions.has(candidateNode.id)) {
-    positions.set(candidateNode.id, { x: 0, y: 0 });
+    if (centerNode) {
+      positions.set(candidateNode.id, {
+        x: CENTER_SPACING * 0.72,
+        y: CENTER_SPACING * 0.25,
+      });
+    } else {
+      positions.set(candidateNode.id, { x: 0, y: 0 });
+    }
   }
 
   const otherCenter = centerNodes.filter((node) => node.id !== candidateNode?.id);
@@ -261,11 +283,8 @@ export function toReactFlowGraph(input: {
     );
   }
 
-  const flowNodes: CampaignFlowNode[] = displayNodes.map((node) => ({
-    id: node.id,
-    type: "graphNode",
-    position: positions.get(node.id) ?? { x: 0, y: 0 },
-    data: enrichGraphNodeData({
+  const flowNodes: CampaignFlowNode[] = displayNodes.map((node) => {
+    const enriched = enrichGraphNodeData({
       dbId: node.id,
       title: node.title,
       summary: node.summary,
@@ -274,8 +293,15 @@ export function toReactFlowGraph(input: {
       sourceObjectId: node.source_object_id,
       metadata: node.metadata_json,
       degree: degreeById.get(node.id) ?? 0,
-    }),
-  }));
+    });
+    return {
+      id: node.id,
+      type: "graphNode",
+      position: positions.get(node.id) ?? { x: 0, y: 0 },
+      draggable: !enriched.isCampaignCenter,
+      data: enriched,
+    };
+  });
 
   const flowEdges: CampaignFlowEdge[] = visibleEdges.map((edge) => ({
     id: edge.id,
@@ -310,7 +336,12 @@ export function getNodeAccentColor(nodeType: GraphNodeType): string {
  * connection count so a highly-linked node reads as bigger without the graph
  * turning into a field of wildly different blobs.
  */
-export function getNodeDiameter(degree: number, isFolderHub = false): number {
+export function getNodeDiameter(
+  degree: number,
+  isFolderHub = false,
+  isCampaignCenter = false,
+): number {
+  if (isCampaignCenter) return 58;
   if (isFolderHub) return 46;
   const scaled = 15 + Math.sqrt(Math.max(0, degree)) * 7;
   return Math.round(Math.min(36, Math.max(15, scaled)));
@@ -318,6 +349,7 @@ export function getNodeDiameter(degree: number, isFolderHub = false): number {
 
 /** Accent for a node — folder hubs use their cluster colour. */
 export function getNodeVisualAccent(data: CampaignGraphNodeData): string {
+  if (data.isCampaignCenter) return "#3b82f6";
   if (data.isFolderHub && data.folder) {
     return folderAccentColor(data.folder);
   }
@@ -402,8 +434,12 @@ export function filterNodesByViewMode(
   if (mode === "folders") {
     return nodes.filter(
       (node) =>
-        node.data.isFolderHub || node.data.nodeType === "candidate",
+        node.data.isFolderHub ||
+        node.data.isCampaignCenter ||
+        node.data.nodeType === "candidate",
     );
   }
-  return nodes.filter((node) => !node.data.isFolderHub);
+  return nodes.filter(
+    (node) => !node.data.isFolderHub && !node.data.isCampaignCenter,
+  );
 }

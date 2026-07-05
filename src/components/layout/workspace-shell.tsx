@@ -59,7 +59,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         {/* Stage-wide aurora so every frosted pane (rail, bars, panels) has the
             drifting red/white/blue field refracting behind its blur. */}
         <div className="graph-aurora -z-10" aria-hidden />
-        <aside className="glass-rail hidden w-[232px] shrink-0 sm:flex">
+        <aside className="glass-rail hidden w-[232px] shrink-0 border-r-0 sm:flex">
           <AppRail />
         </aside>
 

@@ -28,7 +28,7 @@ function GlassCommandBar({ title, description, actions }: GlassCommandBarProps) 
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
-    <header className="glass-bar sticky top-0 z-30 flex shrink-0 items-center gap-3 rounded-none border-x-0 border-t-0 px-3 py-2 md:px-4">
+    <header className="glass-bar glass-chrome-top sticky top-0 z-30 flex shrink-0 items-center gap-3 rounded-none border-x-0 border-t-0 border-b-0 px-3 py-2 md:px-4">
       <button
         type="button"
         onClick={toggleRailMobile}

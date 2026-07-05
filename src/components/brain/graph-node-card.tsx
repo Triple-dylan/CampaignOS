@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
-import { Folder } from "lucide-react";
+import { Folder, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getNodeDiameter,
@@ -44,7 +44,11 @@ const FOCUS_LEVEL_STYLE: Record<
  */
 function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
   const accent = getNodeVisualAccent(data);
-  const diameter = getNodeDiameter(data.degree ?? 0, data.isFolderHub);
+  const diameter = getNodeDiameter(
+    data.degree ?? 0,
+    data.isFolderHub,
+    data.isCampaignCenter,
+  );
   const focus = data.focusLevel ? FOCUS_LEVEL_STYLE[data.focusLevel] : null;
 
   return (
@@ -68,27 +72,45 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
       <div
         className={cn(
           "relative flex items-center justify-center",
-          data.isFolderHub ? "graph-folder-hub size-full" : "graph-dot size-full",
+          data.isCampaignCenter
+            ? "graph-campaign-center size-full"
+            : data.isFolderHub
+              ? "graph-folder-hub size-full"
+              : "graph-dot size-full",
           data.entering && "graph-node-enter",
-          !data.isFolderHub && selected && "graph-dot-selected",
+          !data.isFolderHub &&
+            !data.isCampaignCenter &&
+            selected &&
+            "graph-dot-selected",
           data.highlighted && "graph-node-active",
           data.isFolderHub && selected && "graph-folder-hub-selected",
+          data.isCampaignCenter && selected && "graph-campaign-center-selected",
         )}
         style={
           {
             width: diameter,
             height: diameter,
-            backgroundColor: data.isFolderHub
-              ? `color-mix(in oklch, ${accent} 14%, var(--card))`
-              : `color-mix(in oklch, ${accent} 30%, var(--card))`,
-            borderColor: data.isFolderHub
-              ? `color-mix(in oklch, ${accent} 65%, transparent)`
-              : `color-mix(in oklch, ${accent} 85%, transparent)`,
+            backgroundColor: data.isCampaignCenter
+              ? `color-mix(in oklch, ${accent} 18%, var(--card))`
+              : data.isFolderHub
+                ? `color-mix(in oklch, ${accent} 14%, var(--card))`
+                : `color-mix(in oklch, ${accent} 30%, var(--card))`,
+            borderColor: data.isCampaignCenter
+              ? `color-mix(in oklch, ${accent} 75%, transparent)`
+              : data.isFolderHub
+                ? `color-mix(in oklch, ${accent} 65%, transparent)`
+                : `color-mix(in oklch, ${accent} 85%, transparent)`,
             "--node-accent": accent,
           } as React.CSSProperties
         }
       >
-        {data.isFolderHub ? (
+        {data.isCampaignCenter ? (
+          <Target
+            className="size-[38%] shrink-0"
+            style={{ color: accent }}
+            aria-hidden
+          />
+        ) : data.isFolderHub ? (
           <Folder
             className="size-[42%] shrink-0"
             style={{ color: accent }}
@@ -100,16 +122,32 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
       <span
         className={cn(
           "graph-node-label pointer-events-none absolute left-1/2 top-[calc(100%+6px)] -translate-x-1/2 text-center font-medium leading-tight",
-          data.isFolderHub
-            ? "graph-hub-label max-w-[170px] text-[12px] font-semibold"
-            : "graph-entity-label max-w-[132px] truncate text-[10.5px]",
+          data.isCampaignCenter
+            ? "graph-center-label max-w-[200px] text-[11px] font-semibold"
+            : data.isFolderHub
+              ? "graph-hub-label max-w-[170px] text-[12px] font-semibold"
+              : "graph-entity-label max-w-[132px] truncate text-[10.5px]",
           selected || data.highlighted
             ? "is-emphasized text-foreground"
             : "text-muted-foreground",
           data.focusLevel === "background" && "!opacity-0",
         )}
       >
-        {data.isFolderHub ? (
+        {data.isCampaignCenter ? (
+          <span className="inline-flex flex-col items-center gap-0.5">
+            <span>{data.title}</span>
+            {data.electionCountdown ? (
+              <span className="text-[0.65rem] font-medium text-brand-blue">
+                {data.electionCountdown}
+              </span>
+            ) : null}
+            {data.summary ? (
+              <span className="text-[0.62rem] font-normal text-muted-foreground/80">
+                {data.summary.split(" · ")[1] ?? data.summary}
+              </span>
+            ) : null}
+          </span>
+        ) : data.isFolderHub ? (
           <span className="inline-flex flex-col items-center gap-0.5">
             <span className="text-[0.62rem] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
               {data.folder}/

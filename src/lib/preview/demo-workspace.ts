@@ -4,6 +4,8 @@ import type {
   DbCampaignProfile,
 } from "@/lib/db/schema";
 import { toReactFlowGraph } from "@/lib/graph/to-react-flow";
+import { injectFolderHubs } from "@/lib/graph/inject-folder-hubs";
+import { injectCampaignCenter } from "@/lib/graph/inject-campaign-center";
 import type { KnowledgeNode } from "@/lib/campaign-knowledge/types";
 import type { WorkspaceMetrics } from "@/components/workspace/workspace-context-panel";
 import type { WorkspaceDigest } from "@/lib/workspace/digest";
@@ -145,10 +147,26 @@ export const DEMO_DIGEST: WorkspaceDigest = {
 
 export { DEMO_NODES, DEMO_EDGES };
 
-export const DEMO_GRAPH = toReactFlowGraph({
+const withHubs = injectFolderHubs({
   nodes: DEMO_NODES,
   edges: DEMO_EDGES,
+  campaignId: DEMO_CAMPAIGN.id,
 });
+
+const withCenter = injectCampaignCenter({
+  nodes: withHubs.nodes,
+  edges: withHubs.edges,
+  campaign: DEMO_CAMPAIGN,
+  campaignId: DEMO_CAMPAIGN.id,
+});
+
+export const DEMO_GRAPH = toReactFlowGraph(withCenter);
+
+/** Pre-injected seed for the live dynamic graph in preview mode. */
+export const DEMO_LIVE_SEED = {
+  nodes: withCenter.nodes,
+  edges: withCenter.edges,
+};
 
 /**
  * Knowledge steps the preview "Add knowledge" affordance cycles through to show

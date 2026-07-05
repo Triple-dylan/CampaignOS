@@ -9,10 +9,9 @@ import {
   DEMO_CAMPAIGN,
   DEMO_CONTEXT,
   DEMO_DIGEST,
-  DEMO_EDGES,
   DEMO_GRAPH,
+  DEMO_LIVE_SEED,
   DEMO_METRICS,
-  DEMO_NODES,
   DEMO_PROFILE,
 } from "@/lib/preview/demo-workspace";
 
@@ -35,7 +34,7 @@ export function PreviewWorkspaceClient() {
               metrics={DEMO_METRICS}
               digest={DEMO_DIGEST}
               onboardingData={null}
-              liveSeed={{ nodes: DEMO_NODES, edges: DEMO_EDGES }}
+              liveSeed={DEMO_LIVE_SEED}
             />
           </WorkspaceShell>
         </ChatProvider>

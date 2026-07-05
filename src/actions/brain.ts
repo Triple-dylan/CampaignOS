@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/require-campaign-context";
 import { listGraphEdges, listGraphNodes } from "@/lib/db/campaigns";
 import { injectFolderHubs } from "@/lib/graph/inject-folder-hubs";
+import { injectCampaignCenter } from "@/lib/graph/inject-campaign-center";
 import { injectWikiPages } from "@/lib/graph/inject-wiki-pages";
 import { toReactFlowGraph, type CampaignGraphFlow } from "@/lib/graph/to-react-flow";
 
@@ -54,10 +55,17 @@ export async function getCampaignGraph(): Promise<GetCampaignGraphResult> {
     campaignId: context.campaign.id,
   });
 
+  const withCenter = injectCampaignCenter({
+    nodes: withHubs.nodes,
+    edges: withHubs.edges,
+    campaign: context.campaign,
+    campaignId: context.campaign.id,
+  });
+
   return {
     ok: true,
-    graph: toReactFlowGraph(withHubs),
-    edgeCount: withHubs.edges.length,
+    graph: toReactFlowGraph(withCenter),
+    edgeCount: withCenter.edges.length,
   };
 }
 

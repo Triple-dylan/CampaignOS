@@ -595,7 +595,7 @@ function WorkspaceGraphCanvasInner({
           </span>
         ) : null}
         {showViewToggle ? (
-          <div className="glass-bar pointer-events-auto inline-flex rounded-full p-0.5">
+          <div className="glass-chrome-pill pointer-events-auto inline-flex rounded-full p-0.5">
             {(
               [
                 ["folders", "Folders"],
@@ -610,7 +610,7 @@ function WorkspaceGraphCanvasInner({
                 className={cn(
                   "rounded-full px-2.5 py-1 text-[0.7rem] font-medium transition-colors",
                   viewMode === mode
-                    ? "bg-card text-foreground shadow-[var(--shadow-panel)]"
+                    ? "is-active-pill bg-card text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -621,7 +621,7 @@ function WorkspaceGraphCanvasInner({
         ) : null}
 
         {activeFocusFolderId ? (
-          <div className="glass-bar pointer-events-auto inline-flex items-center gap-1.5 rounded-full py-1 pl-2.5 pr-1 text-[0.7rem]">
+          <div className="glass-chrome-pill pointer-events-auto inline-flex items-center gap-1.5 rounded-full py-1 pl-2.5 pr-1 text-[0.7rem]">
             <button
               type="button"
               onClick={exitFocus}
@@ -651,7 +651,7 @@ function WorkspaceGraphCanvasInner({
       {/* Top-right: graph stats. Lives up here so nothing collides with the
           composer. */}
       <div className="pointer-events-none absolute right-3 top-16 z-10 flex flex-col items-end gap-2">
-        <div className="glass-bar rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
+        <div className="glass-chrome-pill rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
           {visibleFlowNodes.length} visible · {graph.totalNodeCount} nodes ·{" "}
           {edgeCount} edges
         </div>

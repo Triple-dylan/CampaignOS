@@ -45,7 +45,10 @@ type SimNode = SimulationNodeDatum & {
   radius: number;
   isHub: boolean;
   isCandidate: boolean;
+  isCampaignCenter: boolean;
   degree: number;
+  /** Per-hub orbit radius — varies by folder for a natural constellation. */
+  orbitRadius: number;
   /** Last position written to the DOM — skips sub-pixel writes. */
   domX?: number;
   domY?: number;
@@ -66,8 +69,11 @@ type SimLink = {
 
 /** Member → folder-hub distance (before node radii are added). */
 const STRUCTURAL_MEMBER_DISTANCE = 96;
-/** Folder-hub → candidate orbit distance — the cluster ring. */
-const STRUCTURAL_HUB_DISTANCE = 400;
+/** Folder-hub → campaign-centre orbit — the cluster ring. */
+const STRUCTURAL_HUB_DISTANCE = 420;
+/** Min / max hub orbit radii for varied constellation spacing. */
+const HUB_ORBIT_MIN = 340;
+const HUB_ORBIT_MAX = 520;
 /** Cross-folder relationship links stay long and springy. */
 const RELATIONSHIP_DISTANCE = 230;
 /** Structural links are stiff (clusters form); relationships are loose. */
@@ -86,7 +92,9 @@ const COLLIDE_PADDING_ENTITY = 16;
 const CENTER_PULL = 0.04;
 const CANDIDATE_CENTER_PULL = 0.14;
 /** Gentle radial force keeping folder hubs on their orbit ring. */
-const HUB_RADIAL_STRENGTH = 0.06;
+const HUB_RADIAL_STRENGTH = 0.09;
+/** Campaign centre is pinned — strongest centripetal hold. */
+const CENTER_PIN_STRENGTH = 0.55;
 /** Settle pacing: ~1.5–2s of visible organic motion, then sleep. */
 const ALPHA_DECAY = 0.045;
 const ALPHA_MIN = 0.005;
@@ -127,10 +135,20 @@ function sameCoreData(
     a.nodeType === b.nodeType &&
     a.folder === b.folder &&
     a.isFolderHub === b.isFolderHub &&
+    a.isCampaignCenter === b.isCampaignCenter &&
     a.degree === b.degree &&
     a.knowledgePath === b.knowledgePath &&
     a.knowledgeKind === b.knowledgeKind
   );
+}
+
+function hubOrbitRadius(nodeId: string, fallback: number): number {
+  let hash = 0;
+  for (let i = 0; i < nodeId.length; i += 1) {
+    hash = (hash * 31 + nodeId.charCodeAt(i)) | 0;
+  }
+  const t = (((hash % 1000) + 1000) % 1000) / 1000;
+  return HUB_ORBIT_MIN + t * (HUB_ORBIT_MAX - HUB_ORBIT_MIN) || fallback;
 }
 
 export type GraphPhysicsHandle = {
@@ -313,13 +331,24 @@ export function useGraphForceSimulation(input: {
 
     const simNodes: SimNode[] = flowNodes.map((flow) => {
       const radius =
-        getNodeDiameter(flow.data.degree ?? 0, flow.data.isFolderHub) / 2;
+        getNodeDiameter(
+          flow.data.degree ?? 0,
+          flow.data.isFolderHub,
+          flow.data.isCampaignCenter,
+        ) / 2;
       const existing = previous.get(flow.id);
       if (existing) {
         existing.radius = radius;
         existing.isHub = flow.data.isFolderHub;
         existing.isCandidate = flow.data.nodeType === "candidate";
+        existing.isCampaignCenter = flow.data.isCampaignCenter;
         existing.degree = flow.data.degree ?? 0;
+        if (flow.data.isFolderHub) {
+          existing.orbitRadius = hubOrbitRadius(
+            flow.id,
+            STRUCTURAL_HUB_DISTANCE,
+          );
+        }
         return existing;
       }
       return {
@@ -329,9 +358,24 @@ export function useGraphForceSimulation(input: {
         radius,
         isHub: flow.data.isFolderHub,
         isCandidate: flow.data.nodeType === "candidate",
+        isCampaignCenter: flow.data.isCampaignCenter,
         degree: flow.data.degree ?? 0,
+        orbitRadius: flow.data.isFolderHub
+          ? hubOrbitRadius(flow.id, STRUCTURAL_HUB_DISTANCE)
+          : 0,
       };
     });
+
+    // Pin the campaign goal node at the canvas origin — the sun of the orbit.
+    for (const node of simNodes) {
+      if (node.isCampaignCenter) {
+        node.x = 0;
+        node.y = 0;
+        node.fx = 0;
+        node.fy = 0;
+      }
+    }
+
     nodeByIdRef.current = new Map(simNodes.map((node) => [node.id, node]));
 
     // d3 mutates link endpoints in place, so links are rebuilt every time.
@@ -376,12 +420,19 @@ export function useGraphForceSimulation(input: {
           const source = link.source as SimNode;
           const target = link.target as SimNode;
           if (link.structural) {
-            // Hub ↔ candidate scaffolding forms the cluster ring.
+            // Hub ↔ campaign centre — each hub sits on its own orbit ring.
+            if (
+              (source.isHub && target.isCampaignCenter) ||
+              (target.isHub && source.isCampaignCenter)
+            ) {
+              return source.isHub ? source.orbitRadius : target.orbitRadius;
+            }
+            // Hub ↔ candidate (inner orbit near the centre).
             if (
               (source.isHub && target.isCandidate) ||
               (target.isHub && source.isCandidate)
             ) {
-              return hubOrbit;
+              return hubOrbit * 0.35;
             }
             return STRUCTURAL_MEMBER_DISTANCE + source.radius + target.radius;
           }
@@ -394,13 +445,12 @@ export function useGraphForceSimulation(input: {
     sim.force(
       "charge",
       forceManyBody<SimNode>()
-        .strength((node) =>
-          node.isHub
-            ? HUB_CHARGE
-            : node.isCandidate
-              ? CANDIDATE_CHARGE
-              : ENTITY_CHARGE_BASE + node.degree * ENTITY_CHARGE_PER_DEGREE,
-        )
+        .strength((node) => {
+          if (node.isCampaignCenter) return 0;
+          if (node.isHub) return HUB_CHARGE;
+          if (node.isCandidate) return CANDIDATE_CHARGE;
+          return ENTITY_CHARGE_BASE + node.degree * ENTITY_CHARGE_PER_DEGREE;
+        })
         .distanceMax(CHARGE_MAX_DISTANCE),
     );
     sim.force(
@@ -409,29 +459,39 @@ export function useGraphForceSimulation(input: {
         .radius(
           (node) =>
             node.radius +
-            (node.isHub ? COLLIDE_PADDING_HUB : COLLIDE_PADDING_ENTITY),
+            (node.isCampaignCenter
+              ? 36
+              : node.isHub
+                ? COLLIDE_PADDING_HUB
+                : COLLIDE_PADDING_ENTITY),
         )
         .strength(0.9)
         .iterations(2),
     );
     sim.force(
       "x",
-      forceX<SimNode>(0).strength((node) =>
-        node.isCandidate ? CANDIDATE_CENTER_PULL : CENTER_PULL,
-      ),
+      forceX<SimNode>(0).strength((node) => {
+        if (node.isCampaignCenter) return CENTER_PIN_STRENGTH;
+        if (node.isCandidate) return CANDIDATE_CENTER_PULL;
+        return CENTER_PULL;
+      }),
     );
     sim.force(
       "y",
-      forceY<SimNode>(0).strength((node) =>
-        node.isCandidate ? CANDIDATE_CENTER_PULL : CENTER_PULL,
-      ),
+      forceY<SimNode>(0).strength((node) => {
+        if (node.isCampaignCenter) return CENTER_PIN_STRENGTH;
+        if (node.isCandidate) return CANDIDATE_CENTER_PULL;
+        return CENTER_PULL;
+      }),
     );
     sim.force(
       "hub-orbit",
       hubs.length > 0
-        ? forceRadial<SimNode>(hubOrbit, 0, 0).strength((node) =>
-            node.isHub ? HUB_RADIAL_STRENGTH : 0,
-          )
+        ? forceRadial<SimNode>(
+            (node) => node.orbitRadius || hubOrbit,
+            0,
+            0,
+          ).strength((node) => (node.isHub ? HUB_RADIAL_STRENGTH : 0))
         : null,
     );
 
@@ -478,6 +538,7 @@ export function useGraphForceSimulation(input: {
           id: flow.id,
           type: flow.type,
           position,
+          draggable: flow.draggable ?? true,
           data: {
             ...flow.data,
             entering,
@@ -548,7 +609,7 @@ export function useGraphForceSimulation(input: {
     (id: string, position: { x: number; y: number }) => {
       const sim = simRef.current;
       const node = nodeByIdRef.current.get(id);
-      if (!sim || !node) return;
+      if (!sim || !node || node.isCampaignCenter) return;
       draggingRef.current = true;
       node.fx = position.x;
       node.fy = position.y;
@@ -579,6 +640,13 @@ export function useGraphForceSimulation(input: {
       // Release the pin so the node (and its neighbourhood) re-settles.
       node.fx = null;
       node.fy = null;
+    }
+    // Re-pin the campaign centre after any drag settles.
+    for (const n of nodeByIdRef.current.values()) {
+      if (n.isCampaignCenter) {
+        n.fx = 0;
+        n.fy = 0;
+      }
     }
     sim?.alphaTarget(0);
   }, []);

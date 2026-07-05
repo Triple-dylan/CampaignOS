@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 import { getIntegrationSummaries } from "@/actions/integrations";
 import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { WorkPageFrame } from "@/components/layout/work-page-frame";
@@ -220,6 +222,27 @@ export default async function SettingsPage({
             </CardContent>
           </Card>
         ) : null}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-muted-foreground" aria-hidden />
+              Compliance
+            </CardTitle>
+            <CardDescription>
+              Content review queue, flags, and compliance recordkeeping.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Review flagged assets, track disclosure requirements, and keep a
+              compliance audit trail for your campaign.
+            </p>
+            <Button variant="outline" size="sm" render={<Link href="/compliance" />}>
+              Open compliance queue
+            </Button>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
