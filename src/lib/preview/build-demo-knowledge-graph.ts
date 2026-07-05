@@ -1,4 +1,8 @@
 import {
+  TEST_CANDIDATE_NAME,
+  TEST_CANDIDATE_OPPONENT,
+} from "@/lib/campaign/test-candidate";
+import {
   CAMPAIGN_FOLDERS,
   getCampaignFolder,
 } from "@/lib/campaign-knowledge/folders";
@@ -112,8 +116,8 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
     path: "campaign/profile.md",
     folder: "campaign",
     nodeType: "candidate",
-    title: "Maria Alvarez",
-    summary: "Candidate for Seattle City Council, District 3.",
+    title: TEST_CANDIDATE_NAME,
+    summary: "Republican candidate for U.S. House, Washington's 8th District.",
   },
   // messaging/ — issues & themes as wiki pages
   {
@@ -244,8 +248,8 @@ const DEMO_DOCUMENTS: DemoDocument[] = [
     path: "research/dan-pike.md",
     folder: "research",
     nodeType: "opponent",
-    title: "Dan Pike (incumbent)",
-    summary: "Two-term incumbent council member.",
+    title: `${TEST_CANDIDATE_OPPONENT} (incumbent)`,
+    summary: "Three-term incumbent U.S. Representative (D-WA-08).",
   },
   // assets/
   {

@@ -18,6 +18,7 @@ import {
   upsertCampaignProfile,
 } from "@/lib/db/campaigns";
 import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
+import { resolveOnboardingFormDefaults } from "@/lib/campaign/test-candidate";
 import {
   onboardingFormSchema,
   onboardingStepSchemas,
@@ -183,7 +184,10 @@ export async function getOnboardingData(): Promise<
     campaignId: campaign?.id ?? null,
     campaign,
     profile,
-    formDefaults: mapCampaignToFormDefaults(campaign, profile),
+    formDefaults: resolveOnboardingFormDefaults(
+      mapCampaignToFormDefaults(campaign, profile),
+      campaign,
+    ),
   };
 }
 

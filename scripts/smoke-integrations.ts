@@ -112,7 +112,7 @@ async function main() {
   if (canvaTemplate) {
     const generated = await generateFromCanvaTemplate({
       template: canvaTemplate,
-      candidateName: "Demo Candidate",
+      candidateName: "Trinh Ha",
     });
     check(
       "canva demo generation",
@@ -122,7 +122,7 @@ async function main() {
   if (higgsTemplate) {
     const generated = await generateFromHiggsfieldTemplate({
       template: higgsTemplate,
-      candidateName: "Demo Candidate",
+      candidateName: "Trinh Ha",
     });
     check(
       "higgsfield demo generation",
