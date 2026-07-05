@@ -8,7 +8,7 @@ import {
   resolveEventKnowledgeFolder,
 } from "@/lib/graph/folder-routing";
 import { buildEntityGraphMetadata } from "@/lib/graph/entity-metadata";
-import { CENTER_FOLDER } from "@/lib/graph/folder-clusters";
+import { CENTER_FOLDER, folderForNode } from "@/lib/graph/folder-clusters";
 import { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";
 import type { CalendarEventType } from "@/lib/validators/calendar-events";
 import {
@@ -120,54 +120,27 @@ export async function seedCampaignGraphNodes(input: {
   topIssues: string[];
   voterSegments: Array<{ name: string; description?: string }>;
 }) {
-  const nodes: Array<{ type: GraphNodeType; title: string; summary?: string }> =
-    [
-      {
-        type: "candidate",
-        title: input.candidateName,
-        summary: "Campaign candidate seeded from onboarding",
-      },
-      ...input.topIssues.map((issue) => ({
-        type: "issue" as const,
-        title: issue,
-        summary: "Top campaign issue from onboarding",
-      })),
-      ...input.voterSegments.map((segment) => ({
-        type: "voter_segment" as const,
-        title: segment.name,
-        summary: segment.description,
-      })),
-    ];
+  // Candidate only — issues and voter segments are compiled from wiki pages
+  // during bootstrap + syncCampaignKnowledgeToGraph (avoids duplicate nodes).
+  void input.topIssues;
+  void input.voterSegments;
 
-  const results = [];
+  const result = await createGraphNode({
+    campaignId: input.campaignId,
+    nodeType: "candidate",
+    title: input.candidateName,
+    summary: "Campaign candidate seeded from onboarding",
+    sourceObjectType: "campaign",
+    sourceObjectId: input.campaignId,
+    metadata: buildEntityGraphMetadata({
+      folder: "campaign",
+      path: "campaign/profile.md",
+      source: "onboarding",
+      knowledgeKind: "document",
+    }),
+  });
 
-  for (const node of nodes) {
-    const folder =
-      node.type === "candidate"
-        ? "campaign"
-        : node.type === "issue"
-          ? "messaging"
-          : "people";
-    const path =
-      node.type === "candidate"
-        ? "campaign/profile.md"
-        : `${folder}/${slugifyKnowledgeTitle(node.title)}.md`;
-
-    const result = await createGraphNode({
-      campaignId: input.campaignId,
-      nodeType: node.type,
-      title: node.title,
-      summary: node.summary,
-      metadata: buildEntityGraphMetadata({
-        folder,
-        path,
-        source: "onboarding",
-      }),
-    });
-    results.push(result);
-  }
-
-  return results;
+  return [result];
 }
 
 const BRAIN_GRAPH_SOURCE = "campaign_brain";
@@ -722,6 +695,69 @@ export async function seedFolderHubsForCampaign(campaignId: string) {
   }
 
   return { synced: true as const, seeded };
+}
+
+/** Wire wiki document nodes to their folder hub via `belongs_to` edges. */
+export async function linkWikiDocumentsToFolderHubs(input: {
+  campaignId: string;
+  nodeIds: string[];
+}): Promise<{ linked: number }> {
+  if (!isSupabaseConfigured() || input.nodeIds.length === 0) {
+    return { linked: 0 };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: existingNodes, error: nodesError } = await supabase
+    .from("graph_nodes")
+    .select("*")
+    .eq("campaign_id", input.campaignId);
+
+  if (nodesError) {
+    throw nodesError;
+  }
+
+  const nodes = (existingNodes ?? []) as DbGraphNode[];
+  let linked = 0;
+
+  for (const nodeId of input.nodeIds) {
+    const node = nodes.find((row) => row.id === nodeId);
+    if (!node || node.metadata_json?.cluster === true) {
+      continue;
+    }
+
+    const folder = folderForNode({
+      nodeType: node.node_type,
+      metadata: node.metadata_json,
+    });
+    if (folder === CENTER_FOLDER) {
+      continue;
+    }
+
+    const hub = findFolderHub(nodes, folder);
+    if (!hub || hub.id === nodeId) {
+      continue;
+    }
+
+    const exists = await belongsToEdgeExists({
+      campaignId: input.campaignId,
+      sourceNodeId: nodeId,
+      targetNodeId: hub.id,
+    });
+    if (exists) {
+      continue;
+    }
+
+    await createGraphEdge({
+      campaignId: input.campaignId,
+      sourceNodeId: nodeId,
+      targetNodeId: hub.id,
+      relationshipType: "belongs_to",
+      metadata: { source: "wiki_sync" },
+    });
+    linked += 1;
+  }
+
+  return { linked };
 }
 
 async function linkObjectNodeToAsset(input: {

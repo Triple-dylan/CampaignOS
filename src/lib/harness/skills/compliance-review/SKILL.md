@@ -8,8 +8,8 @@ triggers:
   - disclaimer
   - disclosure
 campaignKnowledgePaths:
-  - campaign-knowledge/templates/compliance/
-  - campaign-knowledge/templates/accounting/
+  - compliance/
+  - accounting/
 mutating: false
 ---
 

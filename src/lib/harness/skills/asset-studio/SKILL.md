@@ -12,9 +12,9 @@ triggers:
   - stump speech
   - content creation
 campaignKnowledgePaths:
-  - campaign-knowledge/templates/assets/
-  - campaign-knowledge/templates/messaging/
-  - campaign-knowledge/templates/social-media/
+  - assets/
+  - messaging/
+  - social-media/
 tools:
   - generateAssetContent
   - syncCampaignBrainToGraph

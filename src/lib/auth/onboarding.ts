@@ -1,4 +1,4 @@
-import type { User } from "@clerk/nextjs/server";
+import { clerkClient, type User } from "@clerk/nextjs/server";
 import {
   getCampaignByOrganizationId,
   getCampaignProfile,
@@ -51,19 +51,44 @@ export async function hasCampaignOnboardingInDatabase(
   return Boolean(hasBasics && hasProfileData);
 }
 
+async function syncOnboardingMetadataIfDatabaseComplete(
+  user: User,
+  clerkOrgId: string,
+): Promise<boolean> {
+  const databaseComplete = await hasCampaignOnboardingInDatabase(clerkOrgId);
+  if (!databaseComplete) {
+    return false;
+  }
+
+  if (isOnboardingCompleteInMetadata(user)) {
+    return true;
+  }
+
+  try {
+    const client = await clerkClient();
+    await client.users.updateUser(user.id, {
+      publicMetadata: {
+        ...user.publicMetadata,
+        [ONBOARDING_COMPLETE_METADATA_KEY]: true,
+      },
+    });
+  } catch (error) {
+    // DB completeness is the source of truth; metadata is a Clerk cache flag.
+    console.error("[onboarding] Failed to sync Clerk metadata", error);
+  }
+
+  return true;
+}
+
 export async function isOnboardingComplete(
   user: User,
   clerkOrgId?: string | null,
 ): Promise<boolean> {
-  const metadataComplete = isOnboardingCompleteInMetadata(user);
-
   if (!clerkOrgId) {
-    return metadataComplete;
+    return isOnboardingCompleteInMetadata(user);
   }
 
-  const databaseComplete = await hasCampaignOnboardingInDatabase(clerkOrgId);
-
-  return metadataComplete && databaseComplete;
+  return syncOnboardingMetadataIfDatabaseComplete(user, clerkOrgId);
 }
 
 /** @deprecated Use isOnboardingComplete instead */

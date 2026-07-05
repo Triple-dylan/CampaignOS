@@ -130,21 +130,40 @@
   /*
    * Liquid-glass tokens. Translucent frosted surfaces that float over the
    * knowledge graph (composer) or the stage (rail, bars, follow-chat, preview).
-   * Tuned for sharpness + legibility: higher white translucency, a crisp 1px
-   * border, and a tight, clean shadow rather than a soft diffuse halo.
+   * Tuned so the aurora/graph visibly refracts through the panes: heavy blur +
+   * saturation, lower fill opacity, a crisp 1px border and a bright inner top
+   * highlight. Text stays legible because the blur homogenizes the backdrop.
    */
-  --glass-blur: 16px;
-  --glass-saturate: 140%;
-  --glass-bar-bg: oklch(1 0 0 / 0.74);
-  --glass-rail-bg: oklch(1 0 0 / 0.64);
-  --glass-panel-bg: oklch(1 0 0 / 0.72);
-  --glass-composer-bg: oklch(1 0 0 / 0.82);
-  --glass-border: oklch(0.205 0 0 / 0.1);
-  --glass-highlight: oklch(1 0 0 / 0.72);
-  --glass-shadow: 0 1px 2px oklch(0.205 0 0 / 0.05),
-    0 6px 16px -10px oklch(0.205 0 0 / 0.16);
-  --glass-shadow-pop: 0 1px 2px oklch(0.205 0 0 / 0.06),
-    0 12px 30px -14px oklch(0.205 0 0 / 0.24);
+  --glass-blur: 28px;
+  --glass-saturate: 210%;
+  /* Shared near-white chrome for rail, top bar, and graph controls. */
+  --glass-chrome-bg: oklch(1 0 0 / 0.94);
+  --glass-bar-bg: var(--glass-chrome-bg);
+  --glass-rail-bg: var(--glass-chrome-bg);
+  --glass-panel-bg: oklch(1 0 0 / 0.5);
+  --glass-composer-bg: oklch(1 0 0 / 0.9);
+  --glass-border: oklch(0.205 0 0 / 0.16);
+  --glass-highlight: oklch(1 0 0 / 0.95);
+  --glass-sheen: linear-gradient(
+    to bottom,
+    oklch(1 0 0 / 0.7),
+    oklch(1 0 0 / 0) 46%
+  );
+  --glass-shadow: 0 1px 1px oklch(0.205 0 0 / 0.06),
+    0 6px 18px -10px oklch(0.205 0 0 / 0.18);
+  --glass-shadow-pop: 0 1px 2px oklch(0.205 0 0 / 0.07),
+    0 14px 34px -14px oklch(0.205 0 0 / 0.26);
+
+  /* Patriotic aurora behind the knowledge graph — visible enough that the
+   * frosted panes clearly read as glass refracting it. */
+  --aurora-red: oklch(0.62 0.19 25 / 0.22);
+  --aurora-blue: oklch(0.56 0.17 256 / 0.24);
+  --aurora-white: oklch(1 0 0 / 0.6);
+
+  /* Shared motion system — fast, tasteful, Cursor-like. */
+  --motion-fast: 160ms;
+  --motion-med: 220ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dark {
@@ -204,16 +223,25 @@
   --shadow-pop: 0 6px 16px -4px oklch(0 0 0 / 0.5);
 
   /* Dark glass: a smoky translucency with a faint top highlight + crisp edge. */
-  --glass-bar-bg: oklch(0.214 0 0 / 0.7);
-  --glass-rail-bg: oklch(0.2 0 0 / 0.64);
-  --glass-panel-bg: oklch(0.214 0 0 / 0.68);
-  --glass-composer-bg: oklch(0.24 0 0 / 0.8);
-  --glass-border: oklch(1 0 0 / 0.12);
-  --glass-highlight: oklch(1 0 0 / 0.06);
+  --glass-bar-bg: oklch(0.214 0 0 / 0.52);
+  --glass-rail-bg: oklch(0.2 0 0 / 0.72);
+  --glass-panel-bg: oklch(0.214 0 0 / 0.5);
+  --glass-composer-bg: oklch(0.24 0 0 / 0.62);
+  --glass-border: oklch(1 0 0 / 0.18);
+  --glass-highlight: oklch(1 0 0 / 0.16);
+  --glass-sheen: linear-gradient(
+    to bottom,
+    oklch(1 0 0 / 0.13),
+    oklch(1 0 0 / 0) 46%
+  );
   --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.4),
     0 8px 22px -12px oklch(0 0 0 / 0.55);
   --glass-shadow-pop: 0 1px 3px oklch(0 0 0 / 0.45),
     0 16px 38px -16px oklch(0 0 0 / 0.65);
+
+  --aurora-red: oklch(0.5 0.17 25 / 0.2);
+  --aurora-blue: oklch(0.48 0.15 256 / 0.22);
+  --aurora-white: oklch(0.96 0 0 / 0.08);
 }
 
 @layer base {
@@ -284,6 +312,7 @@
   .glass-frost,
   .glass-composer {
     border: 1px solid var(--glass-border);
+    background-image: var(--glass-sheen);
     box-shadow:
       var(--glass-shadow),
       inset 0 1px 0 0 var(--glass-highlight);
@@ -302,6 +331,23 @@
 
   .glass-bar {
     background-color: var(--glass-bar-bg);
+  }
+
+  /* Seamless workspace chrome: no horizontal divider under the top bar. */
+  .glass-chrome-top {
+    border-bottom: none;
+    box-shadow: none;
+  }
+
+  .glass-chrome-pill {
+    background-color: var(--glass-chrome-bg);
+    border-color: oklch(0.205 0 0 / 0.08);
+  }
+
+  .glass-chrome-pill [data-active="true"],
+  .glass-chrome-pill .is-active-pill {
+    background-color: oklch(1 0 0);
+    box-shadow: var(--shadow-panel);
   }
 
   .glass-rail {
@@ -327,17 +373,72 @@
       border-color 0.15s ease;
   }
 
+  /*
+   * Shared motion utilities. Rails/panels animate width + opacity as they
+   * expand/collapse; floating cards rise in with a slide-up + fade. All obey
+   * prefers-reduced-motion.
+   */
+  .motion-panel {
+    transition:
+      width var(--motion-med) var(--motion-ease),
+      opacity var(--motion-fast) ease-out,
+      border-color var(--motion-med) var(--motion-ease),
+      box-shadow var(--motion-med) var(--motion-ease);
+  }
+
+  .motion-rise {
+    animation: motion-rise var(--motion-med) var(--motion-ease) both;
+  }
+
+  .motion-fade {
+    animation: motion-fade var(--motion-fast) ease-out both;
+  }
+
+  @keyframes motion-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes motion-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .motion-panel {
+      transition: none;
+    }
+
+    .motion-rise,
+    .motion-fade {
+      animation: none;
+    }
+  }
+
   .glass-hover:hover {
     background-color: var(--accent);
   }
 
-  /* Active rail item — quiet neutral fill with a thin blue identity edge,
+  /* Active rail item — near-white raised fill with a thin blue identity edge,
    * the way Cursor highlights the selected item. */
   .rail-active {
-    background-color: var(--accent);
+    background-color: var(--surface);
     color: var(--foreground);
     font-weight: 500;
-    box-shadow: inset 2px 0 0 0 var(--brand-blue);
+    box-shadow:
+      inset 2px 0 0 0 var(--brand-blue),
+      0 0 0 1px var(--hairline),
+      var(--shadow-panel);
   }
 
   .rail-active :where(svg) {
@@ -366,10 +467,28 @@
     border-color: color-mix(in oklch, var(--brand-blue) 30%, transparent);
   }
 
-  /* Obsidian-style graph dot. A soft, type-tinted node; the only interactive
-   * surface in the graph. */
+  /* Obsidian-style graph dot: a small, flat, type-tinted circle. No default
+   * box-shadow or entrance animation — cheap to paint by the hundreds, and
+   * entrance pops are opt-in via `.graph-node-enter` for genuinely-new nodes
+   * only (never replayed on filter toggles or data refreshes). */
   .graph-dot {
-    box-shadow: var(--shadow-panel);
+    border-radius: 9999px;
+    border-width: 1.5px;
+    border-style: solid;
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .group:hover .graph-dot {
+    transform: scale(1.12);
+    box-shadow: 0 0 10px 1px
+      color-mix(in oklch, var(--node-accent) 35%, transparent);
+  }
+
+  /* Entrance pop, applied only to nodes entering the graph for the first
+   * time (chat adds knowledge, a sync lands). */
+  .graph-node-enter {
     animation: graph-dot-pop 460ms cubic-bezier(0.2, 0.85, 0.25, 1);
   }
 
@@ -388,9 +507,34 @@
    */
   .graph-node-label {
     text-shadow:
-      0 0 2px var(--background),
-      0 0 6px var(--background),
+      0 0 3px var(--background),
       0 1px 2px var(--background);
+    transition: opacity 240ms ease, color 150ms ease;
+  }
+
+  /*
+   * Obsidian-style label fading. Entity labels are quiet ambient context that
+   * brighten on hover / selection, and fade out entirely when zoomed out
+   * (`.graph-labels-compact` set on the canvas from a zoom threshold) —
+   * pure CSS, zero React re-renders while zooming.
+   */
+  .graph-entity-label {
+    opacity: 0.7;
+  }
+
+  .group:hover .graph-entity-label,
+  .graph-entity-label.is-emphasized {
+    opacity: 1;
+    color: var(--foreground);
+  }
+
+  .graph-labels-compact .graph-entity-label {
+    opacity: 0;
+  }
+
+  .graph-labels-compact .group:hover .graph-entity-label,
+  .graph-labels-compact .graph-entity-label.is-emphasized {
+    opacity: 1;
   }
 
   /* Folder hub nodes — wiki-llm cluster containers. */
@@ -398,8 +542,27 @@
     border-radius: 9999px;
     border-width: 2px;
     border-style: dashed;
-    box-shadow: var(--shadow-panel);
-    animation: graph-dot-pop 460ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  }
+
+  /* Campaign goal centre — pinned sun of the constellation. */
+  .graph-campaign-center {
+    border-radius: 9999px;
+    border-width: 2.5px;
+    border-style: solid;
+    box-shadow:
+      0 0 0 6px color-mix(in oklch, var(--brand-blue) 14%, transparent),
+      0 0 20px 2px color-mix(in oklch, var(--brand-blue) 12%, transparent);
+  }
+
+  .graph-campaign-center-selected {
+    border-color: var(--brand-blue) !important;
+    box-shadow:
+      0 0 0 8px color-mix(in oklch, var(--brand-blue) 22%, transparent),
+      0 0 24px 4px color-mix(in oklch, var(--brand-blue) 18%, transparent);
+  }
+
+  .graph-center-label {
+    opacity: 1;
   }
 
   .graph-folder-hub-selected {
@@ -462,12 +625,108 @@
     }
   }
 
-  @keyframes graph-node-fade {
+  /* One-time canvas fade-in so the initial settle reads as a calm reveal
+   * instead of 60+ dots popping individually. */
+  @keyframes graph-canvas-fade {
     from {
       opacity: 0;
     }
     to {
       opacity: 1;
+    }
+  }
+
+  /*
+   * Animated red/white/blue aurora behind the knowledge graph. Two soft
+   * gradient fields drift slowly in opposite directions under the dot grid so
+   * the stage feels alive without competing with nodes for attention.
+   */
+  .graph-aurora {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    contain: strict;
+  }
+
+  /* Pseudo-3D orbit stage — subtle perspective tilt on the 2D React Flow canvas. */
+  .graph-stage-orbit {
+    perspective: 1400px;
+    perspective-origin: 50% 46%;
+  }
+
+  .graph-stage-orbit .react-flow {
+    transform: rotateX(4deg);
+    transform-origin: 50% 50%;
+  }
+
+  .graph-stage-orbit .react-flow__viewport {
+    transform-style: preserve-3d;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .graph-stage-orbit .react-flow {
+      transform: none;
+    }
+  }
+
+  .graph-edge-arrow-head {
+    fill: color-mix(in oklch, var(--foreground) 45%, transparent);
+  }
+
+  .graph-aurora::before,
+  .graph-aurora::after {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    will-change: transform;
+  }
+
+  /*
+   * The drift animations run with `steps()` timing on purpose: several glass
+   * panes with backdrop-filter sit above this layer, and a smoothly-animating
+   * backdrop forces them to re-blur on every display frame (measured ~40fps
+   * whole-app idle). Stepped drift moves ~0.5px every ~250ms — visually
+   * identical under 28px of blur, but the blur regions recompute ~4×/s
+   * instead of 60×/s, keeping the idle workspace at a full 60fps.
+   */
+  .graph-aurora::before {
+    background:
+      radial-gradient(38% 42% at 22% 30%, var(--aurora-blue), transparent 70%),
+      radial-gradient(34% 38% at 78% 68%, var(--aurora-red), transparent 70%);
+    animation: aurora-drift-a 46s steps(184) infinite alternate;
+  }
+
+  .graph-aurora::after {
+    background:
+      radial-gradient(30% 34% at 68% 22%, var(--aurora-red), transparent 72%),
+      radial-gradient(42% 46% at 34% 78%, var(--aurora-blue), transparent 72%),
+      radial-gradient(26% 30% at 52% 48%, var(--aurora-white), transparent 75%);
+    animation: aurora-drift-b 58s steps(232) infinite alternate;
+  }
+
+  @keyframes aurora-drift-a {
+    from {
+      transform: translate3d(-4%, -3%, 0) scale(1);
+    }
+    to {
+      transform: translate3d(4%, 3%, 0) scale(1.12);
+    }
+  }
+
+  @keyframes aurora-drift-b {
+    from {
+      transform: translate3d(3%, 4%, 0) scale(1.1) rotate(0.001deg);
+    }
+    to {
+      transform: translate3d(-3%, -4%, 0) scale(1) rotate(0.001deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .graph-aurora::before,
+    .graph-aurora::after {
+      animation: none;
     }
   }
 
@@ -499,13 +758,16 @@
 
   /* Shadowed (background) nodes drop their entrance animation so the dim reads
    * cleanly without a competing pop. */
-  .graph-node-shadowed .graph-dot,
-  .graph-node-shadowed .graph-folder-hub {
+  .graph-node-shadowed .graph-node-enter {
     animation: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .graph-node-active {
+      animation: none;
+    }
+
+    .graph-node-enter {
       animation: none;
     }
 
@@ -523,8 +785,18 @@
 /* Only nodes are interactive; edges are quiet visual connectors. */
 .react-flow__node {
   cursor: pointer;
-  /* Gentle fade-in for every node as it mounts / the graph grows. */
-  animation: graph-node-fade 460ms ease;
+}
+
+/* The whole constellation fades in once as the canvas mounts — a calm reveal
+ * while the physics settles, instead of every node popping individually. */
+.react-flow__nodes,
+.react-flow__edges {
+  animation: graph-canvas-fade 520ms ease;
+}
+
+/* Dragging a node re-heats the physics — signal "grabbed" while held. */
+.react-flow__node.dragging {
+  cursor: grabbing;
 }
 
 .react-flow__edge {
@@ -533,7 +805,7 @@
 
 .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
-  stroke-width: 1;
+  stroke-width: calc(1px * var(--graph-edge-width, 1));
   opacity: 0.85;
   transition:
     stroke 0.3s ease,
@@ -549,8 +821,18 @@
  */
 .react-flow__edge.is-structural .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--muted-foreground) 20%, transparent);
-  stroke-width: 0.9;
+  stroke-width: calc(0.9px * var(--graph-edge-width, 1));
   opacity: 0.6;
+}
+
+/*
+ * Hovering a node brightens the edges touching it, so its local neighbourhood
+ * reads at a glance while the physics keeps everything in motion.
+ */
+.react-flow__edge.is-hover .react-flow__edge-path {
+  stroke: color-mix(in oklch, var(--muted-foreground) 72%, transparent);
+  stroke-width: calc(1.6px * var(--graph-edge-width, 1));
+  opacity: 1;
 }
 
 /*
@@ -559,7 +841,7 @@
  */
 .react-flow__edge.is-active .react-flow__edge-path {
   stroke: var(--brand-blue);
-  stroke-width: 2;
+  stroke-width: calc(2px * var(--graph-edge-width, 1));
   opacity: 1;
   filter: drop-shadow(
     0 0 4px color-mix(in oklch, var(--brand-blue) 55%, transparent)
@@ -584,7 +866,7 @@
  */
 .react-flow__edge.is-focus-path .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--muted-foreground) 68%, transparent);
-  stroke-width: 1.75;
+  stroke-width: calc(1.75px * var(--graph-edge-width, 1));
   opacity: 1;
 }
 
@@ -593,8 +875,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .react-flow__node,
-  .graph-dot {
+  .react-flow__nodes,
+  .react-flow__edges,
+  .graph-node-enter {
     animation: none;
   }
 
@@ -606,9 +889,7 @@
 /* Dark mode: stronger label halos and edge contrast on the graph canvas. */
 .dark .graph-node-label {
   text-shadow:
-    0 0 3px var(--background),
-    0 0 8px var(--background),
-    0 0 12px color-mix(in oklch, var(--background) 85%, transparent),
+    0 0 4px var(--background),
     0 1px 2px var(--background);
 }
 

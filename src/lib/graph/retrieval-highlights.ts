@@ -10,6 +10,14 @@ function isCampaignFolderId(value: string): value is CampaignFolderId {
 
 /** Parse a resolver `contextPaths` entry into a campaign-knowledge folder id. */
 export function folderFromContextPath(contextPath: string): CampaignFolderId | null {
+  // Runtime knowledge root: campaign/_context.md
+  const relativeMatch = contextPath.match(/^([a-z-]+)\/_context\.md$/);
+  if (relativeMatch) {
+    const slug = relativeMatch[1];
+    if (isCampaignFolderId(slug)) return slug;
+  }
+
+  // Shipped template / legacy paths
   const match = contextPath.match(
     /(?:campaign-knowledge\/(?:templates|wiki)|wiki)\/([^/]+)/,
   );

@@ -44,7 +44,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
   if (!result.ok) {
     return (
       <WorkPageFrame title={agent.label} description={agent.blurb}>
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-6 p-3 md:p-4">
           <Card>
             <CardHeader>
               <CardTitle>Agent console unavailable</CardTitle>

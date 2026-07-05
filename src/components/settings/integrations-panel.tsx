@@ -15,6 +15,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   canva: "Canva Connect",
   higgsfield: "Higgsfield MCP",
   google_calendar: "Google Calendar",
+  gmail: "Gmail",
 };
 
 type IntegrationsPanelProps = {
@@ -36,6 +37,7 @@ export function IntegrationsPanel({
     (row) => row.provider === "canva" || row.provider === "higgsfield",
   );
   const calendar = integrations.find((row) => row.provider === "google_calendar");
+  const gmail = integrations.find((row) => row.provider === "gmail");
 
   const handleDisconnect = async (provider: IntegrationSummary["provider"]) => {
     setPending(provider);
@@ -80,8 +82,8 @@ export function IntegrationsPanel({
     <div className="space-y-6">
       {demoMode ? (
         <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          Demo mode is on (<code>INTEGRATIONS_DEMO_MODE=true</code>). Connect
-          buttons simulate OAuth and return placeholder exports.
+          Demo mode is on — connect buttons simulate OAuth and return
+          placeholder exports when real provider credentials are not configured.
         </p>
       ) : null}
 
@@ -163,6 +165,18 @@ export function IntegrationsPanel({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {gmail ? (
+        <IntegrationCard
+          title={PROVIDER_LABELS.gmail}
+          description="Send approved outreach drafts from your campaign mailbox — used by fundraising and outreach workflows."
+          connected={gmail.status === "connected"}
+          configured={gmail.configured}
+          pending={pending === gmail.provider}
+          connectHref={`/api/integrations/${gmail.provider}/connect`}
+          onDisconnect={() => handleDisconnect(gmail.provider)}
+        />
       ) : null}
     </div>
   );

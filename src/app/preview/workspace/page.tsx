@@ -11,9 +11,15 @@ export const metadata: Metadata = {
  * Development-only, auth-free preview of the workspace shell. Returns 404 in
  * production so it never exposes a shell route publicly. Renders only static
  * demo content (no secrets, no user/org/Supabase data).
+ *
+ * `ALLOW_WORKSPACE_PREVIEW=1` opts in for local production-build profiling
+ * (`next start`); it is never set on the deployment.
  */
 export default function WorkspacePreviewPage() {
-  if (process.env.NODE_ENV === "production") {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_WORKSPACE_PREVIEW !== "1"
+  ) {
     notFound();
   }
 

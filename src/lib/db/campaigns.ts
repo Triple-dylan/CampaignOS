@@ -5,6 +5,7 @@ import type {
   DbGraphEdge,
   DbGraphNode,
 } from "@/lib/db/schema";
+import type { CampaignGraphPreferences } from "@/lib/graph/graph-preferences";
 import { toCampaignSummary } from "@/lib/db/schema";
 import { getOrganizationByClerkOrgId } from "@/lib/db/organizations";
 import {
@@ -320,4 +321,51 @@ export async function countGraphNodes(campaignId: string): Promise<number> {
   }
 
   return count ?? 0;
+}
+
+export async function getCampaignGraphPreferences(
+  campaignId: string,
+): Promise<Partial<CampaignGraphPreferences> | null> {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("campaigns")
+    .select("graph_preferences")
+    .eq("id", campaignId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return (
+    (data?.graph_preferences as Partial<CampaignGraphPreferences> | null) ?? null
+  );
+}
+
+export async function updateCampaignGraphPreferences(
+  campaignId: string,
+  preferences: CampaignGraphPreferences,
+): Promise<{ synced: boolean }> {
+  if (!isSupabaseConfigured()) {
+    return { synced: false };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("campaigns")
+    .update({
+      graph_preferences: preferences,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", campaignId);
+
+  if (error) {
+    throw error;
+  }
+
+  return { synced: true };
 }

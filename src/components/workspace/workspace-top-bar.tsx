@@ -22,12 +22,12 @@ export function WorkspaceTopBar({
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
 
   return (
-    <header className="glass-bar pointer-events-auto flex h-11 items-center gap-2 rounded-xl px-3">
+    <header className="glass-bar glass-chrome-top pointer-events-auto sticky top-0 z-30 flex h-11 shrink-0 items-center gap-2 rounded-none border-x-0 border-t-0 border-b-0 px-3 md:px-4">
       <button
         type="button"
         onClick={onToggleRail}
         aria-label="Open navigation"
-        className="-ml-1 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden"
+        className="-ml-1 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:hidden"
       >
         <PanelLeft className="size-4" aria-hidden />
       </button>

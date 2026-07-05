@@ -11,9 +11,9 @@ triggers:
   - event research
   - incumbent research
 campaignKnowledgePaths:
-  - campaign-knowledge/templates/research/
-  - campaign-knowledge/templates/events/
-  - campaign-knowledge/templates/people/
+  - research/
+  - events/
+  - people/
 tools:
   - generateResearchBriefContent
   - list-research-context

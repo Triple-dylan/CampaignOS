@@ -8,7 +8,7 @@ triggers:
   - automate
   - cron
 campaignKnowledgePaths:
-  - campaign-knowledge/templates/skills/
+  - skills/
 mutating: true
 ---
 

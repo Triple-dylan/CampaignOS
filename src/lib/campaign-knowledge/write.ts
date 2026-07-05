@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { getKnowledgeStorage } from "@/lib/campaign-knowledge/storage";
 import type { CampaignFolderId, CampaignKnowledgeRoot } from "@/lib/campaign-knowledge/types";
 import { slugifyKnowledgeTitle } from "@/lib/campaign-knowledge/slug";
 
@@ -38,11 +37,10 @@ function serializeFrontmatter(data: Record<string, unknown>): string {
 
 export async function writeKnowledgePage(input: KnowledgePageInput): Promise<string> {
   const relativePath = `${input.folder}/${input.slug}.md`;
-  const absolutePath = path.join(process.cwd(), input.root.rootPath, relativePath);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
+  const storage = getKnowledgeStorage(input.root);
 
   const content = `${serializeFrontmatter(input.frontmatter)}${input.body.trim()}\n`;
-  await writeFile(absolutePath, content, "utf8");
+  await storage.writeFile(relativePath, content);
   return relativePath;
 }
 
@@ -52,7 +50,7 @@ export async function appendKnowledgeLog(input: {
   pagesTouched: string[];
   actor?: string;
 }): Promise<void> {
-  const logPath = path.join(process.cwd(), input.root.rootPath, "log.md");
+  const storage = getKnowledgeStorage(input.root);
   const date = new Date().toISOString().slice(0, 10);
   const entry = [
     "",
@@ -64,14 +62,11 @@ export async function appendKnowledgeLog(input: {
     "",
   ].join("\n");
 
-  let existing = "";
-  try {
-    existing = await readFile(logPath, "utf8");
-  } catch {
-    existing = "---\ntitle: Campaign knowledge log\ntype: log\n---\n\n# Log\n";
-  }
+  const existing =
+    (await storage.readFile("log.md")) ??
+    "---\ntitle: Campaign knowledge log\ntype: log\n---\n\n# Log\n";
 
-  await writeFile(logPath, `${existing.trimEnd()}${entry}`, "utf8");
+  await storage.writeFile("log.md", `${existing.trimEnd()}${entry}`);
 }
 
 export function buildAssetKnowledgePage(input: {

@@ -8,8 +8,8 @@ triggers:
   - fundraising
   - call time
 campaignKnowledgePaths:
-  - campaign-knowledge/templates/fundraising/
-  - campaign-knowledge/templates/people/
+  - fundraising/
+  - people/
 tools:
   - generateProspectOutreachContent
 mutating: true

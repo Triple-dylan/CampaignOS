@@ -16,6 +16,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCampaignGraphPreferences } from "@/hooks/use-campaign-graph-preferences";
+import { applyCenterDisplayToGraph } from "@/lib/graph/apply-center-display";
 import type { CampaignGraphFlow, CampaignGraphNodeData } from "@/lib/graph/to-react-flow";
 
 type CampaignBrainViewProps = {
@@ -35,6 +37,26 @@ export function CampaignBrainView({
     null,
   );
   const [panelOpen, setPanelOpen] = React.useState(false);
+  const {
+    preferences: graphPreferences,
+    updatePreferences: updateGraphPreferences,
+    resetPreferences: resetGraphPreferences,
+  } = useCampaignGraphPreferences(
+    campaign?.id,
+    campaign?.graph_preferences,
+  );
+
+  const displayGraph = React.useMemo(
+    () =>
+      applyCenterDisplayToGraph(graph, {
+        displayMode: graphPreferences.center.displayMode,
+        customLabel: graphPreferences.center.customLabel,
+        customSubtitle: graphPreferences.center.customSubtitle,
+        campaign,
+        profile,
+      }),
+    [graph, graphPreferences.center, campaign, profile],
+  );
 
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
@@ -56,15 +78,17 @@ export function CampaignBrainView({
       researchBriefCount: 0,
       prospectCount: 0,
     },
-    graph,
+    graph: displayGraph,
     selectedNode,
     onClose: () => setPanelOpen(false),
     onClearSelection: () => handleSelectNode(null, null),
+    graphPreferences,
+    onGraphPreferencesChange: updateGraphPreferences,
   };
 
   if (graph.totalNodeCount === 0) {
     return (
-      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+      <div className="flex flex-1 flex-col gap-4 p-3 md:p-4">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -113,11 +137,14 @@ export function CampaignBrainView({
 
         <div className="absolute inset-0">
           <WorkspaceGraphCanvas
-            graph={graph}
+            graph={displayGraph}
             edgeCount={edgeCount}
             selectedNodeId={selectedNodeId}
             onSelectNode={handleSelectNode}
             showViewToggle
+            graphPreferences={graphPreferences}
+            onGraphPreferencesChange={updateGraphPreferences}
+            onRestoreGraphDefaults={resetGraphPreferences}
           />
         </div>
       </section>

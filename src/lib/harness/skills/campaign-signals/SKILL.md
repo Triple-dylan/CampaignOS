@@ -7,8 +7,8 @@ description: |
 triggers:
   - every inbound message (always-on)
 campaignKnowledgePaths:
-  - campaign-knowledge/templates/campaign/
-  - campaign-knowledge/templates/log.md
+  - campaign/
+  - log.md
 mutating: false
 ---
 

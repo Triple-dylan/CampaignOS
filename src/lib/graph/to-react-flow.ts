@@ -27,6 +27,10 @@ export type CampaignGraphNodeData = {
   folder: CampaignFolderId | null;
   /** True for wiki-llm folder hub / cluster anchor nodes. */
   isFolderHub: boolean;
+  /** True for the pinned campaign goal node at the graph centre. */
+  isCampaignCenter: boolean;
+  /** Human-readable countdown line (e.g. "122 days until election"). */
+  electionCountdown: string | null;
   /** Relative wiki path (e.g. `research/housing-poll.md`). */
   knowledgePath: string | null;
   knowledgeKind: KnowledgeGraphNodeKind | null;
@@ -34,13 +38,19 @@ export type CampaignGraphNodeData = {
   degree: number;
   /** Transient UI flag: node is being "searched" by the assistant. */
   highlighted?: boolean;
-  /** Hide entity labels when zoomed out (hub labels stay visible). */
-  compactLabels?: boolean;
+  /** Transient UI flag: genuinely-new node — plays the entrance pop once. */
+  entering?: boolean;
   /**
    * Transient UI flag: Obsidian-style folder-focus relevance level. Undefined
    * when no folder is focused (the global graph).
    */
   focusLevel?: GraphFocusLevel;
+  /** Transient display scale from graph gear panel. */
+  nodeSizeMultiplier?: number;
+  /** Pseudo-3D depth layer 0 (far) – 1 (near) — drives z-index + opacity. */
+  depthLayer?: number;
+  /** Override accent from color group rules. */
+  colorOverride?: string;
 };
 
 export type GraphViewMode = "all" | "folders" | "entities";
@@ -62,6 +72,7 @@ export type CampaignFlowNode = {
   id: string;
   type: "graphNode";
   position: { x: number; y: number };
+  draggable?: boolean;
   data: CampaignGraphNodeData;
 };
 
@@ -103,6 +114,10 @@ const CENTER_SPACING = 168;
  */
 function clusterRadiusFor(folderCount: number): number {
   return BASE_CLUSTER_RADIUS + Math.max(0, folderCount - 6) * 64;
+}
+
+function isCampaignCenterNode(node: DbGraphNode): boolean {
+  return node.metadata_json?.campaignCenter === true;
 }
 
 function isFolderHubNode(node: DbGraphNode): boolean {
@@ -161,11 +176,24 @@ function layoutNodes(nodes: DbGraphNode[]): Map<string, { x: number; y: number }
     byFolder.set(folder, bucket);
   }
 
-  // Centre cluster (candidate + core campaign nodes) sits at the origin.
+  // Campaign goal centre sits at the origin — the sun of the constellation.
+  const centerNode = nodes.find(isCampaignCenterNode);
+  if (centerNode && !positions.has(centerNode.id)) {
+    positions.set(centerNode.id, { x: 0, y: 0 });
+  }
+
+  // Centre cluster (candidate + core campaign nodes) sits near the origin.
   const centerNodes = byFolder.get(CENTER_FOLDER) ?? [];
   const candidateNode = centerNodes.find((node) => node.node_type === "candidate");
   if (candidateNode && !positions.has(candidateNode.id)) {
-    positions.set(candidateNode.id, { x: 0, y: 0 });
+    if (centerNode) {
+      positions.set(candidateNode.id, {
+        x: CENTER_SPACING * 0.72,
+        y: CENTER_SPACING * 0.25,
+      });
+    } else {
+      positions.set(candidateNode.id, { x: 0, y: 0 });
+    }
   }
 
   const otherCenter = centerNodes.filter((node) => node.id !== candidateNode?.id);
@@ -261,11 +289,8 @@ export function toReactFlowGraph(input: {
     );
   }
 
-  const flowNodes: CampaignFlowNode[] = displayNodes.map((node) => ({
-    id: node.id,
-    type: "graphNode",
-    position: positions.get(node.id) ?? { x: 0, y: 0 },
-    data: enrichGraphNodeData({
+  const flowNodes: CampaignFlowNode[] = displayNodes.map((node) => {
+    const enriched = enrichGraphNodeData({
       dbId: node.id,
       title: node.title,
       summary: node.summary,
@@ -274,8 +299,15 @@ export function toReactFlowGraph(input: {
       sourceObjectId: node.source_object_id,
       metadata: node.metadata_json,
       degree: degreeById.get(node.id) ?? 0,
-    }),
-  }));
+    });
+    return {
+      id: node.id,
+      type: "graphNode",
+      position: positions.get(node.id) ?? { x: 0, y: 0 },
+      draggable: true,
+      data: enriched,
+    };
+  });
 
   const flowEdges: CampaignFlowEdge[] = visibleEdges.map((edge) => ({
     id: edge.id,
@@ -310,14 +342,22 @@ export function getNodeAccentColor(nodeType: GraphNodeType): string {
  * connection count so a highly-linked node reads as bigger without the graph
  * turning into a field of wildly different blobs.
  */
-export function getNodeDiameter(degree: number, isFolderHub = false): number {
-  if (isFolderHub) return 46;
+export function getNodeDiameter(
+  degree: number,
+  isFolderHub = false,
+  isCampaignCenter = false,
+  sizeMultiplier = 1,
+): number {
+  if (isCampaignCenter) return Math.round(58 * sizeMultiplier);
+  if (isFolderHub) return Math.round(46 * sizeMultiplier);
   const scaled = 15 + Math.sqrt(Math.max(0, degree)) * 7;
-  return Math.round(Math.min(36, Math.max(15, scaled)));
+  return Math.round(Math.min(36, Math.max(15, scaled)) * sizeMultiplier);
 }
 
 /** Accent for a node — folder hubs use their cluster colour. */
 export function getNodeVisualAccent(data: CampaignGraphNodeData): string {
+  if (data.colorOverride) return data.colorOverride;
+  if (data.isCampaignCenter) return "#3b82f6";
   if (data.isFolderHub && data.folder) {
     return folderAccentColor(data.folder);
   }
@@ -393,6 +433,97 @@ export function computeFolderFocusLevels(input: {
   return levels;
 }
 
+/**
+ * BFS hop levels from any focused node — Obsidian local-graph depth.
+ * Returns a map of node id → hop distance (0 = root). Nodes beyond `maxDepth`
+ * are omitted (caller dims them to background).
+ */
+export function computeLocalGraphLevels(input: {
+  rootId: string;
+  depth: number;
+  nodes: CampaignFlowNode[];
+  edges: CampaignFlowEdge[];
+}): Map<string, number> {
+  const { rootId, depth, nodes, edges } = input;
+  const levels = new Map<string, number>();
+  if (depth < 1 || !nodes.some((n) => n.id === rootId)) return levels;
+
+  const visibleIds = new Set(nodes.map((n) => n.id));
+  const adjacency = new Map<string, Set<string>>();
+  const link = (a: string, b: string) => {
+    let set = adjacency.get(a);
+    if (!set) {
+      set = new Set<string>();
+      adjacency.set(a, set);
+    }
+    set.add(b);
+  };
+  for (const edge of edges) {
+    if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) continue;
+    link(edge.source, edge.target);
+    link(edge.target, edge.source);
+  }
+
+  const queue: Array<{ id: string; hop: number }> = [{ id: rootId, hop: 0 }];
+  levels.set(rootId, 0);
+
+  while (queue.length > 0) {
+    const { id, hop } = queue.shift()!;
+    if (hop >= depth) continue;
+    for (const neighbor of adjacency.get(id) ?? []) {
+      if (levels.has(neighbor)) continue;
+      levels.set(neighbor, hop + 1);
+      queue.push({ id: neighbor, hop: hop + 1 });
+    }
+  }
+
+  return levels;
+}
+
+/** Map hop distance to Obsidian-style focus level for local graph. */
+export function localGraphHopToFocusLevel(
+  hop: number | undefined,
+  maxDepth: number,
+): GraphFocusLevel {
+  if (hop === undefined) return "background";
+  if (hop === 0) return "focus";
+  if (hop === 1) return "foreground";
+  if (hop <= maxDepth) return "midground";
+  return "background";
+}
+
+/** First matching color group wins (Obsidian groups semantics). */
+export function resolveColorGroup(
+  node: CampaignGraphNodeData,
+  groups: Array<{ query: string; color: string }>,
+): string | null {
+  for (const group of groups) {
+    const q = group.query.trim();
+    if (!q) continue;
+    if (q.startsWith("folder:")) {
+      const folder = q.slice("folder:".length);
+      if ((node.folder ?? "").toLowerCase() === folder.toLowerCase()) {
+        return group.color;
+      }
+      continue;
+    }
+    if (q.startsWith("type:") || q.startsWith("node_type:")) {
+      const prefix = q.startsWith("type:") ? "type:" : "node_type:";
+      const type = q.slice(prefix.length);
+      if (node.nodeType.toLowerCase().includes(type.toLowerCase())) {
+        return group.color;
+      }
+      continue;
+    }
+    const haystack = [node.title, node.summary, node.knowledgePath]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (haystack.includes(q.toLowerCase())) return group.color;
+  }
+  return null;
+}
+
 /** Filter nodes by folder-hub / entity view mode. */
 export function filterNodesByViewMode(
   nodes: CampaignFlowNode[],
@@ -402,8 +533,12 @@ export function filterNodesByViewMode(
   if (mode === "folders") {
     return nodes.filter(
       (node) =>
-        node.data.isFolderHub || node.data.nodeType === "candidate",
+        node.data.isFolderHub ||
+        node.data.isCampaignCenter ||
+        node.data.nodeType === "candidate",
     );
   }
-  return nodes.filter((node) => !node.data.isFolderHub);
+  return nodes.filter(
+    (node) => !node.data.isFolderHub && !node.data.isCampaignCenter,
+  );
 }

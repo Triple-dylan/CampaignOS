@@ -56,6 +56,7 @@ export async function planHarnessTurn(
   const scriptResults = await runHarnessScripts({
     scriptIds,
     campaignId: input.campaignId,
+    organizationId: input.organizationId,
     resolver,
   });
 

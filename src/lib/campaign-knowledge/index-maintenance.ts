@@ -1,18 +1,15 @@
-import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { CAMPAIGN_FOLDERS } from "@/lib/campaign-knowledge/folders";
+import { getKnowledgeStorage } from "@/lib/campaign-knowledge/storage";
 import type { CampaignKnowledgeRoot } from "@/lib/campaign-knowledge/types";
 import { walkCampaignKnowledgeNodes } from "@/lib/campaign-knowledge/sync-to-graph";
 
-/** Rebuild the Page counts section of index.md from on-disk document pages. */
+/** Rebuild the Page counts section of index.md from stored document pages. */
 export async function rebuildKnowledgeIndex(
   root: CampaignKnowledgeRoot,
 ): Promise<void> {
-  const indexPath = path.join(process.cwd(), root.rootPath, "index.md");
-  let existing = "";
-  try {
-    existing = await readFile(indexPath, "utf8");
-  } catch {
+  const storage = getKnowledgeStorage(root);
+  const existing = await storage.readFile("index.md");
+  if (existing === null) {
     return;
   }
 
@@ -59,7 +56,7 @@ export async function rebuildKnowledgeIndex(
     "",
   );
 
-  await writeFile(indexPath, `${header}\n\n${sectionLines.join("\n")}`, "utf8");
+  await storage.writeFile("index.md", `${header}\n\n${sectionLines.join("\n")}`);
 }
 
 /** Update index after a wiki write (full rebuild for consistency). */

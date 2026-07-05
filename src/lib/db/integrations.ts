@@ -77,7 +77,9 @@ export async function listOrganizationIntegrations(
 export async function getOrganizationIntegration(input: {
   organizationId: string;
   provider: IntegrationProvider;
-}): Promise<(OrganizationIntegration & { accessToken?: string }) | null> {
+}): Promise<
+  (OrganizationIntegration & { accessToken?: string; refreshToken?: string }) | null
+> {
   if (!isSupabaseConfigured()) {
     return null;
   }
@@ -100,10 +102,14 @@ export async function getOrganizationIntegration(input: {
 
   const integration = mapIntegration(data);
   const accessTokenEncrypted = data.access_token_encrypted as string | null;
+  const refreshTokenEncrypted = data.refresh_token_encrypted as string | null;
   return {
     ...integration,
     accessToken: accessTokenEncrypted
       ? decryptIntegrationToken(accessTokenEncrypted)
+      : undefined,
+    refreshToken: refreshTokenEncrypted
+      ? decryptIntegrationToken(refreshTokenEncrypted)
       : undefined,
   };
 }

@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Serverless bundles only trace imported JS; the harness (RESOLVER.md,
+  // skills) and the campaign-knowledge template tree are read from disk at
+  // runtime, so they must be included explicitly for Vercel deploys.
+  outputFileTracingIncludes: {
+    "/*": [
+      "src/lib/harness/**/*.md",
+      "src/lib/campaign-knowledge/templates/**/*",
+    ],
+  },
 };
 
 const sentryEnabled = Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN);

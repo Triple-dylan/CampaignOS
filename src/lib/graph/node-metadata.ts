@@ -17,6 +17,8 @@ export function parseKnowledgeMetadata(
 ): {
   folder: CampaignFolderId | null;
   isFolderHub: boolean;
+  isCampaignCenter: boolean;
+  electionCountdown: string | null;
   knowledgePath: string | null;
   knowledgeKind: KnowledgeGraphNodeKind | null;
 } {
@@ -24,6 +26,8 @@ export function parseKnowledgeMetadata(
     return {
       folder: null,
       isFolderHub: false,
+      isCampaignCenter: false,
+      electionCountdown: null,
       knowledgePath: null,
       knowledgeKind: null,
     };
@@ -47,13 +51,31 @@ export function parseKnowledgeMetadata(
     knowledgeKind = "document";
   }
 
-  return { folder, isFolderHub, knowledgePath, knowledgeKind };
+  const isCampaignCenter = metadata.campaignCenter === true;
+  const electionCountdown =
+    typeof metadata.electionCountdown === "string"
+      ? metadata.electionCountdown
+      : null;
+
+  return {
+    folder,
+    isFolderHub,
+    isCampaignCenter,
+    electionCountdown,
+    knowledgePath,
+    knowledgeKind,
+  };
 }
 
 export function enrichGraphNodeData(
   data: Omit<
     CampaignGraphNodeData,
-    "folder" | "isFolderHub" | "knowledgePath" | "knowledgeKind"
+    | "folder"
+    | "isFolderHub"
+    | "isCampaignCenter"
+    | "electionCountdown"
+    | "knowledgePath"
+    | "knowledgeKind"
   >,
 ): CampaignGraphNodeData {
   const parsed = parseKnowledgeMetadata(data.metadata);
@@ -62,6 +84,11 @@ export function enrichGraphNodeData(
 
 /** Tooltip line: `messaging/public-safety-framework.md · document` */
 export function graphNodeTooltip(data: CampaignGraphNodeData): string {
+  if (data.isCampaignCenter) {
+    const parts = [data.title];
+    if (data.electionCountdown) parts.push(data.electionCountdown);
+    return parts.join(" · ");
+  }
   const parts: string[] = [];
   if (data.folder) {
     parts.push(

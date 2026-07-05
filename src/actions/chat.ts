@@ -137,6 +137,7 @@ export async function sendChatMessage(input: {
 
   const harnessPlan = await planHarnessTurn({
     campaignId: context.campaign.id,
+    organizationId: context.campaign.organization_id,
     userMessage: userText,
     agentMode,
     campaignPath: "workspace",

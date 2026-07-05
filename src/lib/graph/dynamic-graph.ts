@@ -249,11 +249,15 @@ export class DynamicCampaignGraph {
     return id;
   }
 
-  /** Connect a node to the campaign's candidate (if one exists). */
-  private linkToCandidate(nodeId: string, relationship: GraphRelationshipType) {
+  /** Connect a node to the campaign centre (or candidate fallback). */
+  private linkToCenter(nodeId: string, relationship: GraphRelationshipType) {
+    const center = this.nodes.find(
+      (node) => node.metadata_json?.campaignCenter === true,
+    );
     const candidate = this.nodes.find((node) => node.node_type === "candidate");
-    if (candidate) {
-      this.addEdge({ source: nodeId, target: candidate.id, relationship });
+    const target = center ?? candidate;
+    if (target) {
+      this.addEdge({ source: nodeId, target: target.id, relationship });
     }
   }
 
@@ -281,7 +285,7 @@ export class DynamicCampaignGraph {
       folder: folderId,
       metadata: { cluster: true, knowledgeKind: "folder_hub" },
     });
-    this.linkToCandidate(id, "belongs_to");
+    this.linkToCenter(id, "belongs_to");
     return id;
   }
 

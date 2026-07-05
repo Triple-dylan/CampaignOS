@@ -11,9 +11,9 @@ triggers:
   - plan
   - campaign structure
 campaignKnowledgePaths:
-  - campaign-knowledge/templates/campaign/
-  - campaign-knowledge/templates/initiatives/
-  - campaign-knowledge/templates/field/
+  - campaign/
+  - initiatives/
+  - field/
 tools:
   - sync-folder-to-graph
 mutating: false

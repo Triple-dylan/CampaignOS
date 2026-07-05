@@ -13,6 +13,7 @@ export type HarnessScriptResult = {
 export type RunHarnessScriptsInput = {
   scriptIds: string[];
   campaignId: string;
+  organizationId?: string;
   resolver: ResolverOutput;
 };
 
@@ -31,7 +32,9 @@ export async function runHarnessScripts(
       case "list-campaign-context": {
         const data = await listCampaignContext({
           campaignId: input.campaignId,
+          organizationId: input.organizationId,
           contextChunks: input.resolver.contextChunks,
+          contextPaths: input.resolver.plan.contextPaths,
         });
         results.push({
           scriptId,

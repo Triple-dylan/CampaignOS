@@ -1,7 +1,6 @@
-import { readdir, readFile } from "node:fs/promises";
-import path from "node:path";
 import { documentNodeFromFrontmatter } from "@/lib/campaign-knowledge/graph-mapping";
 import { isKnowledgeMetaFile } from "@/lib/campaign-knowledge/paths";
+import { getKnowledgeStorage } from "@/lib/campaign-knowledge/storage";
 import type {
   CampaignKnowledgeRoot,
   KnowledgeFrontmatter,
@@ -11,7 +10,10 @@ import {
   createGraphEdge,
   createGraphNode,
   getGraphNodeBySourceObject,
+  linkWikiDocumentsToFolderHubs,
 } from "@/lib/db/graph";
+import { listGraphNodes } from "@/lib/db/campaigns";
+import type { DbGraphNode } from "@/lib/db/schema";
 import type { GraphRelationshipType } from "@/lib/validators/enums";
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
@@ -35,39 +37,27 @@ function parseSimpleFrontmatter(block: string): KnowledgeFrontmatter {
   };
 }
 
-async function walkMarkdownFiles(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files: string[] = [];
-
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await walkMarkdownFiles(fullPath)));
-    } else if (entry.isFile() && entry.name.endsWith(".md")) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
+function findNodeByKnowledgePath(
+  nodes: DbGraphNode[],
+  path: string,
+): DbGraphNode | undefined {
+  return nodes.find((node) => node.metadata_json?.path === path);
 }
 
 export async function walkCampaignKnowledgeNodes(
   root: CampaignKnowledgeRoot,
 ): Promise<KnowledgeNode[]> {
-  const absoluteRoot = path.join(process.cwd(), root.rootPath);
+  const storage = getKnowledgeStorage(root);
   const nodes: KnowledgeNode[] = [];
 
   try {
-    const markdownFiles = await walkMarkdownFiles(absoluteRoot);
-    for (const filePath of markdownFiles) {
-      const relativePath = path
-        .relative(absoluteRoot, filePath)
-        .split(path.sep)
-        .join("/");
-      const filename = path.basename(filePath);
+    const markdownFiles = await storage.listMarkdownFiles();
+    for (const relativePath of markdownFiles) {
+      const filename = relativePath.split("/").pop() ?? relativePath;
       if (isKnowledgeMetaFile(filename)) continue;
 
-      const raw = await readFile(filePath, "utf8");
+      const raw = await storage.readFile(relativePath);
+      if (!raw) continue;
       const match = raw.match(FRONTMATTER_RE);
       if (!match) continue;
 
@@ -87,11 +77,14 @@ export async function walkCampaignKnowledgeNodes(
 export async function syncCampaignKnowledgeToGraph(input: {
   campaignId: string;
   root: CampaignKnowledgeRoot;
-}): Promise<{ synced: number; skipped: number }> {
+}): Promise<{ synced: number; skipped: number; linked: number }> {
   const nodes = await walkCampaignKnowledgeNodes(input.root);
   let synced = 0;
   let skipped = 0;
 
+  const existingNodes = await listGraphNodes(input.campaignId).catch(
+    () => [] as DbGraphNode[],
+  );
   const pathToNodeId = new Map<string, string>();
 
   for (const node of nodes) {
@@ -113,6 +106,13 @@ export async function syncCampaignKnowledgeToGraph(input: {
       }
     }
 
+    const existingByPath = findNodeByKnowledgePath(existingNodes, node.path);
+    if (existingByPath) {
+      skipped += 1;
+      pathToNodeId.set(node.path, existingByPath.id);
+      continue;
+    }
+
     const result = await createGraphNode({
       campaignId: input.campaignId,
       nodeType: node.nodeType,
@@ -132,6 +132,7 @@ export async function syncCampaignKnowledgeToGraph(input: {
     if (result.node) {
       synced += 1;
       pathToNodeId.set(node.path, result.node.id);
+      existingNodes.push(result.node);
     }
   }
 
@@ -154,5 +155,10 @@ export async function syncCampaignKnowledgeToGraph(input: {
     }
   }
 
-  return { synced, skipped };
+  const { linked } = await linkWikiDocumentsToFolderHubs({
+    campaignId: input.campaignId,
+    nodeIds: [...pathToNodeId.values()],
+  });
+
+  return { synced, skipped, linked };
 }

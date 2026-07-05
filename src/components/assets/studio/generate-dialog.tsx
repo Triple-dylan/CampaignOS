@@ -199,7 +199,7 @@ function GenerateForm({
           </div>
         ) : null}
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="generate-collection">Collection</Label>
           <Select
             id="generate-collection"
@@ -215,7 +215,7 @@ function GenerateForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="generate-theme">Theme</Label>
             <Input
               id="generate-theme"
@@ -224,7 +224,7 @@ function GenerateForm({
               placeholder="Accountability"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="generate-issue">Issue</Label>
             <Input
               id="generate-issue"
@@ -235,21 +235,22 @@ function GenerateForm({
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="generate-tone">Tone</Label>
           <div className="flex flex-wrap gap-1.5">
             {TONE_PRESETS.map((preset) => (
               <button
                 key={preset}
                 type="button"
+                aria-pressed={tone === preset}
                 onClick={() =>
                   setTone((current) => (current === preset ? "" : preset))
                 }
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                  "h-7 rounded-full border px-2.5 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/25",
                   tone === preset
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground",
+                    ? "border-primary/50 bg-primary/10 font-medium text-foreground"
+                    : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                 )}
               >
                 {preset}
@@ -259,7 +260,7 @@ function GenerateForm({
         </div>
 
         {!openAiConfigured ? (
-          <p className="rounded-md bg-muted/50 p-2.5 text-xs text-muted-foreground">
+          <p className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
             OpenAI is not configured. Generation will create an editable starter
             draft instead of AI copy — add OPENAI_API_KEY to enable full
             generation.

@@ -26,6 +26,7 @@ import {
 } from "@/lib/db/compliance";
 import { linkAssetToCampaignGraph } from "@/lib/db/graph";
 import { getOrganizationIntegration } from "@/lib/db/integrations";
+import { getFreshIntegrationAccessToken } from "@/lib/integrations/refresh";
 import {
   generateFromCanvaTemplate,
   generateFromHiggsfieldTemplate,
@@ -525,17 +526,21 @@ export async function generateAssetFromTemplate(input: {
 
   try {
     const candidateName = campaignDisplayName(context.campaign);
+    const accessToken = await getFreshIntegrationAccessToken({
+      organizationId: context.campaign.organization_id,
+      provider: input.provider,
+    });
     const generated =
       input.provider === "canva"
         ? await generateFromCanvaTemplate({
-            accessToken: integration?.accessToken,
+            accessToken,
             template,
             theme: input.theme,
             issue: input.issue,
             candidateName,
           })
         : await generateFromHiggsfieldTemplate({
-            accessToken: integration?.accessToken,
+            accessToken,
             template,
             theme: input.theme,
             issue: input.issue,

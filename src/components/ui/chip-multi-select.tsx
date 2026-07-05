@@ -64,7 +64,7 @@ export function ChipMultiSelect({
               disabled={!selected && atMax}
               onClick={() => toggleOption(option)}
               className={cn(
-                "min-h-11 rounded-full border font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-0",
+                "min-h-11 rounded-full border font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/25 sm:min-h-0",
                 chipClass,
                 selected
                   ? "border-primary bg-primary text-primary-foreground shadow-[inset_0_1px_0_0_oklch(1_0_0_/_0.18)]"

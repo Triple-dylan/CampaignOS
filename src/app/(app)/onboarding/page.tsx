@@ -17,7 +17,7 @@ export default async function OnboardingPage() {
   if ("error" in data) {
     return (
       <WorkPageFrame title={page.title} description={page.description}>
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-4 p-3 md:p-4">
           <Card className="mx-auto w-full max-w-lg">
             <CardHeader>
               <CardTitle>Organization required</CardTitle>
@@ -35,7 +35,7 @@ export default async function OnboardingPage() {
 
   return (
     <WorkPageFrame title={page.title} description={page.description}>
-      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+      <div className="flex flex-1 flex-col gap-4 p-3 md:p-4">
         <OnboardingWizard initialData={data} />
       </div>
     </WorkPageFrame>

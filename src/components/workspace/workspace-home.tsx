@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { PanelRight } from "lucide-react";
 import { useChat } from "@/components/chat/chat-provider";
 import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { WorkspaceTopBar } from "@/components/workspace/workspace-top-bar";
@@ -22,13 +21,15 @@ import type {
 import { useDynamicCampaignGraph } from "@/lib/graph/dynamic-graph";
 import { nodeIdsForFolders } from "@/lib/graph/folder-clusters";
 import { resolveRetrievalNodeIdsFromFlow } from "@/lib/graph/retrieval-highlights";
+import { useCampaignGraphPreferences } from "@/hooks/use-campaign-graph-preferences";
+import { applyCenterDisplayToGraph } from "@/lib/graph/apply-center-display";
 import type {
   DbCampaign,
   DbCampaignProfile,
   DbGraphEdge,
   DbGraphNode,
 } from "@/lib/db/schema";
-import type { KnowledgeNode } from "@/lib/campaign-knowledge/types";
+import type { WorkspaceDigest } from "@/lib/workspace/digest";
 
 type WorkspaceHomeProps = {
   isSetupComplete: boolean;
@@ -37,6 +38,8 @@ type WorkspaceHomeProps = {
   graph: CampaignGraphFlow | null;
   edgeCount: number;
   metrics: WorkspaceMetrics;
+  /** Actionable digest for the right rail's default view. */
+  digest?: WorkspaceDigest | null;
   onboardingData: OnboardingData | null;
   /**
    * Optional live-graph seed. When provided (e.g. the preview workspace), the
@@ -44,8 +47,6 @@ type WorkspaceHomeProps = {
    * as knowledge is added — demonstrating the dynamic knowledge graph.
    */
   liveSeed?: { nodes: DbGraphNode[]; edges: DbGraphEdge[] } | null;
-  /** Knowledge steps cycled through by the "Add knowledge" affordance. */
-  growthSteps?: KnowledgeNode[];
 };
 
 /**
@@ -203,11 +204,11 @@ export function WorkspaceHome({
   graph,
   edgeCount,
   metrics,
+  digest = null,
   onboardingData,
   liveSeed = null,
-  growthSteps = [],
 }: WorkspaceHomeProps) {
-  const { isSending, graphFoldersToHighlight, graphNodeIdsToHighlight, harnessContextPaths } = useChat();
+  const { isSending, activeThread, graphFoldersToHighlight, graphNodeIdsToHighlight, harnessContextPaths } = useChat();
   const { toggleRailMobile } = useWorkspaceShell();
   const [selectedNode, setSelectedNode] =
     React.useState<CampaignGraphNodeData | null>(null);
@@ -217,7 +218,6 @@ export function WorkspaceHome({
   const [panelOpen, setPanelOpen] = React.useState(false);
   const isMobile = useIsMobile();
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
-  const growthStepRef = React.useRef(0);
 
   // Live (client-side, growable) graph. Seeded only in live mode; otherwise the
   // server-provided `graph` prop is the source of truth.
@@ -228,20 +228,51 @@ export function WorkspaceHome({
   });
   const liveMode = liveSeed !== null;
   const activeGraph = liveMode ? liveController.graph : graph;
+  const {
+    preferences: graphPreferences,
+    updatePreferences: updateGraphPreferences,
+    resetPreferences: resetGraphPreferences,
+  } = useCampaignGraphPreferences(
+    campaign?.id,
+    campaign?.graph_preferences,
+  );
   const activeEdgeCount = liveMode
     ? liveController.graph.edges.length
     : edgeCount;
 
+  const displayGraph = React.useMemo(
+    () =>
+      applyCenterDisplayToGraph(activeGraph, {
+        displayMode: graphPreferences.center.displayMode,
+        customLabel: graphPreferences.center.customLabel,
+        customSubtitle: graphPreferences.center.customSubtitle,
+        campaign,
+        profile,
+        digest,
+      }),
+    [
+      activeGraph,
+      graphPreferences.center,
+      campaign,
+      profile,
+      digest,
+    ],
+  );
+
+  // With a conversation on screen, the chat card + composer cover the bottom
+  // of the canvas — the graph re-frames itself into the uncovered upper area.
+  const chatDockOpen = (activeThread?.messages.length ?? 0) > 0;
+
   // Hold the "thinking" pass on long enough to be visible even for fast replies.
   const thinkingActive = useMinimumActive(isSending, 1800);
   const topicNodeIds = useResolverGraphSeeds(
-    activeGraph,
+    displayGraph,
     graphFoldersToHighlight,
     graphNodeIdsToHighlight,
     harnessContextPaths,
   );
   const activationIds = useGraphActivityHighlights(
-    activeGraph,
+    displayGraph,
     thinkingActive,
     topicNodeIds,
   );
@@ -252,13 +283,6 @@ export function WorkspaceHome({
     if (thinkingActive) return activationIds;
     return new Set(topicNodeIds);
   }, [thinkingActive, activationIds, topicNodeIds]);
-
-  const handleAddKnowledge = React.useCallback(() => {
-    if (growthSteps.length === 0) return;
-    const step = growthSteps[growthStepRef.current % growthSteps.length];
-    growthStepRef.current += 1;
-    liveController.syncFromKnowledgeFile(step);
-  }, [growthSteps, liveController]);
 
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
@@ -277,10 +301,13 @@ export function WorkspaceHome({
     campaign,
     profile,
     metrics,
-    graph: activeGraph,
+    digest,
+    graph: displayGraph,
     selectedNode,
     onClose: () => setPanelOpen(false),
     onClearSelection: () => handleSelectNode(null, null),
+    graphPreferences,
+    onGraphPreferencesChange: updateGraphPreferences,
   };
 
   if (!isSetupComplete) {
@@ -326,30 +353,28 @@ export function WorkspaceHome({
             floating top bar and composer — Cursor/Codex style. */}
         <div className="absolute inset-0 z-0">
           <WorkspaceGraphCanvas
-            graph={activeGraph}
+            graph={displayGraph}
             edgeCount={activeEdgeCount}
             selectedNodeId={selectedNodeId}
             highlightedNodeIds={highlightedNodeIds}
             searching={thinkingActive}
+            chatDockOpen={chatDockOpen}
             onSelectNode={handleSelectNode}
             onFocusComposer={focusComposer}
-            onAddKnowledge={
-              liveMode && growthSteps.length > 0
-                ? handleAddKnowledge
-                : undefined
-            }
+            graphPreferences={graphPreferences}
+            onGraphPreferencesChange={updateGraphPreferences}
+            onRestoreGraphDefaults={resetGraphPreferences}
           />
         </div>
 
-        {/* Floating frosted breadcrumb bar — graph shows faintly through it. */}
-        <div className="pointer-events-none relative z-20 p-2.5">
-          <WorkspaceTopBar
-            onToggleRail={toggleRailMobile}
-            onTogglePanel={() => setPanelOpen((v) => !v)}
-            panelOpen={panelOpen}
-            showPanelToggle
-          />
-        </div>
+        {/* Full-bleed frosted breadcrumb bar — graph shows through the blur,
+            edge to edge like every module page's command bar. */}
+        <WorkspaceTopBar
+          onToggleRail={toggleRailMobile}
+          onTogglePanel={() => setPanelOpen((v) => !v)}
+          panelOpen={panelOpen}
+          showPanelToggle
+        />
 
         {/* Floating glass composer docked at the bottom. The wrapper lets
             pointer events fall through to the graph everywhere except the
@@ -359,18 +384,11 @@ export function WorkspaceHome({
         </div>
       </section>
 
-      {/* Right rail: preview + accessibility (collapsible) */}
-      {panelOpen && !isMobile ? (
-        <WorkspaceContextPanel {...contextPanelProps} />
-      ) : !panelOpen && !isMobile ? (
-        <button
-          type="button"
-          onClick={() => setPanelOpen(true)}
-          aria-label="Open preview panel"
-          className="hidden w-10 shrink-0 items-start justify-center border-l border-border pt-3 text-muted-foreground transition-colors hover:text-foreground md:flex"
-        >
-          <PanelRight className="size-4" aria-hidden />
-        </button>
+      {/* Right rail: preview + accessibility (collapsible). Always mounted on
+          desktop so it can animate open/closed; the top bar owns the single
+          toggle control. */}
+      {!isMobile ? (
+        <WorkspaceContextPanel open={panelOpen} {...contextPanelProps} />
       ) : null}
 
       <MobileContextSheet
