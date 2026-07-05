@@ -1,17 +1,21 @@
 import {
+  TEST_CANDIDATE_NAME,
   TEST_CANDIDATE_ONBOARDING_DEFAULTS,
   TEST_CANDIDATE_ORG_NAME,
   TEST_CANDIDATE_RESEARCH_BRIEFS,
   buildTestCandidateProfile,
 } from "@/lib/campaign/test-candidate";
 import { ensureCampaignKnowledgeBootstrapped } from "@/lib/campaign-knowledge/ensure";
+import { isSupabaseConfigured } from "@/lib/db/client";
 import {
   createCampaign,
   getCampaignByOrganizationId,
+  getCampaignProfile,
   updateCampaign,
   upsertCampaignProfile,
 } from "@/lib/db/campaigns";
 import { seedCampaignGraphNodes } from "@/lib/db/graph";
+import { getOrganizationByClerkOrgId } from "@/lib/db/organizations";
 import {
   createResearchBrief,
   listResearchBriefs,
@@ -115,4 +119,29 @@ export async function seedTrinhHaCampaignForOrganization(organizationId: string)
     campaignId: campaign.id,
     orgName: TEST_CANDIDATE_ORG_NAME,
   };
+}
+
+/** Ensure the signed-in org uses Trinh Ha as the active test candidate. */
+export async function ensureTrinhHaTestCampaign(
+  clerkOrgId: string,
+): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    return;
+  }
+
+  const organization = await getOrganizationByClerkOrgId(clerkOrgId);
+  if (!organization) {
+    return;
+  }
+
+  const campaign = await getCampaignByOrganizationId(organization.id);
+  if (campaign?.candidate_name?.trim() === TEST_CANDIDATE_NAME) {
+    const profile = await getCampaignProfile(campaign.id);
+    const briefs = await listResearchBriefs({ campaignId: campaign.id });
+    if (profile && briefs.length >= 3) {
+      return;
+    }
+  }
+
+  await seedTrinhHaCampaignForOrganization(organization.id);
 }

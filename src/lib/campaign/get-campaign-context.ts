@@ -1,6 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { hasCampaignOnboardingInDatabase } from "@/lib/auth/onboarding";
+import { ensureTrinhHaTestCampaign } from "@/lib/campaign/seed-trinh-ha-campaign";
 import { getCampaignProfile } from "@/lib/db/campaigns";
 import { getCampaignRecord } from "@/lib/db/queries";
 import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
@@ -35,6 +36,7 @@ export const getCampaignContext = cache(async (): Promise<CampaignContextValue> 
   let isSetupComplete = false;
 
   if (orgId) {
+    await ensureTrinhHaTestCampaign(orgId);
     campaign = await getCampaignRecord(orgId);
     if (campaign) {
       profile = await getCampaignProfile(campaign.id);
