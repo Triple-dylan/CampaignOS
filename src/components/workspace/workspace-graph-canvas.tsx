@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -19,7 +18,6 @@ import { GraphFloatingEdge } from "@/components/brain/graph-floating-edge";
 import {
   computeFolderFocusLevels,
   filterNodesByViewMode,
-  type CampaignFlowNode,
   type CampaignGraphFlow,
   type CampaignGraphNodeData,
   type GraphViewMode,
@@ -39,10 +37,11 @@ const edgeTypes = {
 };
 
 const EMPTY_SET: Set<string> = new Set();
+const EMPTY_NODES: Node[] = [];
 
 /** Shared easing duration (ms) for all camera moves — calm, never jarring. */
 const CAMERA_EASE_MS = 800;
-/** Entity labels hide below this zoom so zoomed-out views stay readable. */
+/** Entity labels fade out below this zoom so zoomed-out views stay readable. */
 const COMPACT_LABEL_ZOOM = 0.62;
 
 /**
@@ -63,8 +62,6 @@ const CAMERA_PRIORITY = {
  * Asymmetric padding so the constellation stays clear of the floating overlays:
  * the frosted breadcrumb bar at the top and the glass composer docked at the
  * bottom. Without the extra bottom space, nodes would hide behind the composer.
- * The generous bottom padding biases the graph toward the upper portion of the
- * canvas, where nothing floats over it.
  */
 const DESKTOP_FIT_VIEW_OPTIONS = {
   padding: { top: "80px", right: "88px", bottom: "236px", left: "88px" },
@@ -138,10 +135,13 @@ function WorkspaceGraphCanvasInner({
     : chatDockOpen
       ? DESKTOP_DOCK_OPEN_FIT_VIEW_OPTIONS
       : DESKTOP_FIT_VIEW_OPTIONS;
-  const { fitView, setCenter, getNode, getZoom } = useReactFlow();
-  const zoom = useStore((state) => state.transform[2]);
+  const { fitView, setCenter, getZoom } = useReactFlow();
+  // Boolean selector: re-renders only when the zoom threshold is crossed —
+  // never once per zoom frame. Label fading itself is pure CSS.
+  const compactLabels = useStore(
+    (state) => state.transform[2] < COMPACT_LABEL_ZOOM,
+  );
   const paneHeight = useStore((state) => state.height);
-  const compactLabels = zoom < COMPACT_LABEL_ZOOM;
   const [internalViewMode, setInternalViewMode] = useState<GraphViewMode>("all");
   const viewMode = controlledViewMode ?? internalViewMode;
   const setViewMode = onViewModeChange ?? setInternalViewMode;
@@ -174,15 +174,16 @@ function WorkspaceGraphCanvasInner({
     );
   }, [graph, visibleNodeIds]);
 
-  // Live physics: a d3-force simulation owns node positions. The static layout
-  // in `visibleFlowNodes` only seeds where nodes are born; from there the
-  // graph settles, breathes, and elastically reacts to dragging — the
-  // Obsidian graph-view feel.
+  // Live physics: the d3-force simulation owns node positions and streams
+  // them straight into React Flow's internal store (uncontrolled nodes) —
+  // per-frame ticks never re-render this component, and node `data` stays
+  // referentially stable so the memoized node components skip too.
   const simulation = useGraphForceSimulation({
-    nodes: visibleFlowNodes,
-    edges: visibleEdges,
+    flowNodes: visibleFlowNodes,
+    flowEdges: visibleEdges,
   });
-  const { positionsVersion, settleCount, getPosition } = simulation;
+  const { settleCount, getPosition } = simulation;
+  const { setNodes } = useReactFlow();
 
   // Map every visible node to its focus level (focus / foreground / midground /
   // background). Null when no folder is focused — the global graph.
@@ -201,30 +202,39 @@ function WorkspaceGraphCanvasInner({
   // without a state-resetting effect.
   const activeFocusFolderId = focusLevels ? focusFolderId : null;
 
-  const nodes = useMemo<Node[]>(() => {
-    // `positionsVersion` re-runs this once per animation frame while the
-    // simulation is awake, streaming physics positions into React Flow.
-    void positionsVersion;
-    return visibleFlowNodes.map((node) => ({
-      ...node,
-      position: getPosition(node.id) ?? node.position,
-      selected: node.id === selectedNodeId,
-      data: {
-        ...node.data,
-        highlighted: highlighted.has(node.id),
-        focusLevel: focusLevels?.get(node.id),
-        compactLabels,
-      },
-    })) as Node[];
-  }, [
-    visibleFlowNodes,
-    positionsVersion,
-    getPosition,
-    selectedNodeId,
-    highlighted,
-    focusLevels,
-    compactLabels,
-  ]);
+  // Apply transient per-node flags (chat highlight, folder-focus level,
+  // selection) by mutating only the nodes whose flags actually changed.
+  // Untouched nodes keep their object + data identity, so this never causes
+  // a graph-wide re-render or replays entrance animations.
+  useEffect(() => {
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
+        const data = node.data as CampaignGraphNodeData;
+        const isHighlighted = highlighted.has(node.id);
+        const focusLevel = focusLevels?.get(node.id);
+        const isSelected = node.id === selectedNodeId;
+        if (
+          (data.highlighted ?? false) === isHighlighted &&
+          data.focusLevel === focusLevel &&
+          (node.selected ?? false) === isSelected
+        ) {
+          return node;
+        }
+        changed = true;
+        return {
+          ...node,
+          selected: isSelected,
+          data: {
+            ...data,
+            highlighted: isHighlighted,
+            focusLevel,
+          },
+        };
+      });
+      return changed ? next : current;
+    });
+  }, [highlighted, focusLevels, selectedNodeId, setNodes]);
 
   const edges = useMemo<Edge[]>(() => {
     return visibleEdges.map((edge) => {
@@ -373,7 +383,7 @@ function WorkspaceGraphCanvasInner({
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      const data = node.data as CampaignFlowNode["data"];
+      const data = node.data as CampaignGraphNodeData;
       // Clicking a folder hub commits folder focus; clicking elsewhere keeps
       // any active focus so children can be inspected without losing context.
       if (data.isFolderHub && data.folder) {
@@ -488,26 +498,22 @@ function WorkspaceGraphCanvasInner({
   // on top of it would double-move the camera.
   useEffect(() => {
     if (!selectedNodeId) return;
-    const node = getNode(selectedNodeId);
-    if (!node) return;
-    const data = node.data as CampaignGraphNodeData;
-    if (data.isFolderHub) return;
-    const width = node.measured?.width ?? 0;
-    const height = node.measured?.height ?? 0;
+    const flowNode = visibleFlowNodes.find((n) => n.id === selectedNodeId);
+    if (!flowNode || flowNode.data.isFolderHub) return;
     const targetZoom = Math.min(Math.max(getZoom(), 0.85), 1.25);
-    const position = getPosition(selectedNodeId) ?? node.position;
+    const position = getPosition(selectedNodeId) ?? flowNode.position;
     // With the chat dock covering the bottom of the canvas, bias the target
     // upward so the node centers within the *visible* area, not behind chat.
     const dockBias = chatDockOpen ? (paneHeight * 0.19) / targetZoom : 0;
     requestCameraMove(CAMERA_PRIORITY.select, () => {
-      setCenter(position.x + width / 2, position.y + height / 2 + dockBias, {
+      setCenter(position.x, position.y + dockBias, {
         zoom: targetZoom,
         duration: CAMERA_EASE_MS,
       });
     });
     // Intentionally excludes live position/zoom deps: recenter once per selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNodeId, getNode, setCenter, getZoom, requestCameraMove]);
+  }, [selectedNodeId, setCenter, getZoom, requestCameraMove]);
 
   const isEmpty = !graph || graph.totalNodeCount === 0;
 
@@ -545,7 +551,7 @@ function WorkspaceGraphCanvasInner({
     <div className="relative h-full w-full touch-none">
       <div className="graph-aurora" aria-hidden />
       <ReactFlow
-        nodes={nodes}
+        defaultNodes={EMPTY_NODES}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -568,7 +574,10 @@ function WorkspaceGraphCanvasInner({
         edgesReconnectable={false}
         elevateNodesOnSelect
         proOptions={{ hideAttribution: true }}
-        className="bg-transparent"
+        className={cn(
+          "bg-transparent",
+          compactLabels && "graph-labels-compact",
+        )}
       >
         <Background
           variant={BackgroundVariant.Dots}

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,13 +34,17 @@ const FOCUS_LEVEL_STYLE: Record<
 };
 
 /**
- * Wiki-llm knowledge graph node. Folder hubs are larger containers with a dashed
- * ring and folder icon; documents and entities are smaller dots with labels.
+ * Obsidian-style knowledge graph node: a small round dot sized by
+ * connectivity, with a label underneath that fades with zoom (entities) or
+ * stays put (folder hubs — the navigation anchors).
+ *
+ * Perf contract: this component is memoized on `data` identity + `selected`
+ * only. While the force simulation streams positions every frame, React Flow
+ * moves the node wrapper via transform and this component never re-renders.
  */
-export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) {
+function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
   const accent = getNodeVisualAccent(data);
   const diameter = getNodeDiameter(data.degree ?? 0, data.isFolderHub);
-  const tooltip = graphNodeTooltip(data);
   const focus = data.focusLevel ? FOCUS_LEVEL_STYLE[data.focusLevel] : null;
 
   return (
@@ -56,16 +61,15 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
           ? { opacity: focus.opacity, transform: `scale(${focus.scale})` }
           : null),
       }}
-      title={tooltip}
+      title={graphNodeTooltip(data)}
     >
       <Handle type="target" position={Position.Top} className={HIDDEN_HANDLE} />
 
       <div
         className={cn(
-          "relative flex items-center justify-center transition-[transform,box-shadow] duration-150",
-          data.isFolderHub
-            ? "graph-folder-hub size-full"
-            : "graph-dot size-full rounded-full border-[1.5px] group-hover:scale-110",
+          "relative flex items-center justify-center",
+          data.isFolderHub ? "graph-folder-hub size-full" : "graph-dot size-full",
+          data.entering && "graph-node-enter",
           !data.isFolderHub && selected && "graph-dot-selected",
           data.highlighted && "graph-node-active",
           data.isFolderHub && selected && "graph-folder-hub-selected",
@@ -76,10 +80,10 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
             height: diameter,
             backgroundColor: data.isFolderHub
               ? `color-mix(in oklch, ${accent} 14%, var(--card))`
-              : `color-mix(in oklch, ${accent} 24%, var(--card))`,
+              : `color-mix(in oklch, ${accent} 30%, var(--card))`,
             borderColor: data.isFolderHub
               ? `color-mix(in oklch, ${accent} 65%, transparent)`
-              : `color-mix(in oklch, ${accent} 80%, transparent)`,
+              : `color-mix(in oklch, ${accent} 85%, transparent)`,
             "--node-accent": accent,
           } as React.CSSProperties
         }
@@ -95,24 +99,14 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
 
       <span
         className={cn(
-          "graph-node-label pointer-events-none absolute left-1/2 top-[calc(100%+6px)] -translate-x-1/2 text-center font-medium leading-tight transition-[color,opacity]",
+          "graph-node-label pointer-events-none absolute left-1/2 top-[calc(100%+6px)] -translate-x-1/2 text-center font-medium leading-tight",
           data.isFolderHub
-            ? "max-w-[170px] text-[12px] font-semibold"
-            : "max-w-[132px] truncate text-[10.5px]",
-          selected ? "text-foreground" : "text-muted-foreground",
-          "group-hover:text-foreground",
-          // Quiet entity labels into ambient context so dense clusters read
-          // cleanly; hub labels (the navigation anchors) always stay legible.
-          !data.isFolderHub &&
-            !selected &&
-            !data.highlighted &&
-            "opacity-70 group-hover:opacity-100",
-          data.compactLabels &&
-            !data.isFolderHub &&
-            !selected &&
-            !data.highlighted &&
-            "opacity-0 group-hover:opacity-100",
-          data.focusLevel === "background" && "opacity-0",
+            ? "graph-hub-label max-w-[170px] text-[12px] font-semibold"
+            : "graph-entity-label max-w-[132px] truncate text-[10.5px]",
+          selected || data.highlighted
+            ? "is-emphasized text-foreground"
+            : "text-muted-foreground",
+          data.focusLevel === "background" && "!opacity-0",
         )}
       >
         {data.isFolderHub ? (
@@ -135,3 +129,13 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphNodeCardNode>) 
     </div>
   );
 }
+
+/**
+ * Memo comparator intentionally ignores `positionAbsoluteX/Y`, `zIndex`, and
+ * `dragging` — none affect this component's output, and skipping them means
+ * zero node re-renders while the simulation streams positions every frame.
+ */
+export const GraphNodeCard = memo(
+  GraphNodeCardInner,
+  (prev, next) => prev.data === next.data && prev.selected === next.selected,
+);

@@ -34,8 +34,8 @@ export type CampaignGraphNodeData = {
   degree: number;
   /** Transient UI flag: node is being "searched" by the assistant. */
   highlighted?: boolean;
-  /** Hide entity labels when zoomed out (hub labels stay visible). */
-  compactLabels?: boolean;
+  /** Transient UI flag: genuinely-new node — plays the entrance pop once. */
+  entering?: boolean;
   /**
    * Transient UI flag: Obsidian-style folder-focus relevance level. Undefined
    * when no folder is focused (the global graph).

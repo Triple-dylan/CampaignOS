@@ -56,7 +56,7 @@ function ThinkingInterlude() {
       <span
         key={lineIndex}
         className="max-w-prose text-xs italic leading-relaxed text-muted-foreground"
-        style={{ animation: "graph-node-fade 0.5s ease both" }}
+        style={{ animation: "graph-canvas-fade 0.5s ease both" }}
       >
         {line.text}
         {line.attribution ? (

@@ -450,10 +450,28 @@
     border-color: color-mix(in oklch, var(--brand-blue) 30%, transparent);
   }
 
-  /* Obsidian-style graph dot. A soft, type-tinted node; the only interactive
-   * surface in the graph. */
+  /* Obsidian-style graph dot: a small, flat, type-tinted circle. No default
+   * box-shadow or entrance animation — cheap to paint by the hundreds, and
+   * entrance pops are opt-in via `.graph-node-enter` for genuinely-new nodes
+   * only (never replayed on filter toggles or data refreshes). */
   .graph-dot {
-    box-shadow: var(--shadow-panel);
+    border-radius: 9999px;
+    border-width: 1.5px;
+    border-style: solid;
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .group:hover .graph-dot {
+    transform: scale(1.12);
+    box-shadow: 0 0 10px 1px
+      color-mix(in oklch, var(--node-accent) 35%, transparent);
+  }
+
+  /* Entrance pop, applied only to nodes entering the graph for the first
+   * time (chat adds knowledge, a sync lands). */
+  .graph-node-enter {
     animation: graph-dot-pop 460ms cubic-bezier(0.2, 0.85, 0.25, 1);
   }
 
@@ -472,9 +490,34 @@
    */
   .graph-node-label {
     text-shadow:
-      0 0 2px var(--background),
-      0 0 6px var(--background),
+      0 0 3px var(--background),
       0 1px 2px var(--background);
+    transition: opacity 240ms ease, color 150ms ease;
+  }
+
+  /*
+   * Obsidian-style label fading. Entity labels are quiet ambient context that
+   * brighten on hover / selection, and fade out entirely when zoomed out
+   * (`.graph-labels-compact` set on the canvas from a zoom threshold) —
+   * pure CSS, zero React re-renders while zooming.
+   */
+  .graph-entity-label {
+    opacity: 0.7;
+  }
+
+  .group:hover .graph-entity-label,
+  .graph-entity-label.is-emphasized {
+    opacity: 1;
+    color: var(--foreground);
+  }
+
+  .graph-labels-compact .graph-entity-label {
+    opacity: 0;
+  }
+
+  .graph-labels-compact .group:hover .graph-entity-label,
+  .graph-labels-compact .graph-entity-label.is-emphasized {
+    opacity: 1;
   }
 
   /* Folder hub nodes — wiki-llm cluster containers. */
@@ -482,8 +525,6 @@
     border-radius: 9999px;
     border-width: 2px;
     border-style: dashed;
-    box-shadow: var(--shadow-panel);
-    animation: graph-dot-pop 460ms cubic-bezier(0.2, 0.85, 0.25, 1);
   }
 
   .graph-folder-hub-selected {
@@ -546,7 +587,9 @@
     }
   }
 
-  @keyframes graph-node-fade {
+  /* One-time canvas fade-in so the initial settle reads as a calm reveal
+   * instead of 60+ dots popping individually. */
+  @keyframes graph-canvas-fade {
     from {
       opacity: 0;
     }
@@ -565,6 +608,7 @@
     inset: 0;
     overflow: hidden;
     pointer-events: none;
+    contain: strict;
   }
 
   .graph-aurora::before,
@@ -575,11 +619,19 @@
     will-change: transform;
   }
 
+  /*
+   * The drift animations run with `steps()` timing on purpose: several glass
+   * panes with backdrop-filter sit above this layer, and a smoothly-animating
+   * backdrop forces them to re-blur on every display frame (measured ~40fps
+   * whole-app idle). Stepped drift moves ~0.5px every ~250ms — visually
+   * identical under 28px of blur, but the blur regions recompute ~4×/s
+   * instead of 60×/s, keeping the idle workspace at a full 60fps.
+   */
   .graph-aurora::before {
     background:
       radial-gradient(38% 42% at 22% 30%, var(--aurora-blue), transparent 70%),
       radial-gradient(34% 38% at 78% 68%, var(--aurora-red), transparent 70%);
-    animation: aurora-drift-a 46s ease-in-out infinite alternate;
+    animation: aurora-drift-a 46s steps(184) infinite alternate;
   }
 
   .graph-aurora::after {
@@ -587,7 +639,7 @@
       radial-gradient(30% 34% at 68% 22%, var(--aurora-red), transparent 72%),
       radial-gradient(42% 46% at 34% 78%, var(--aurora-blue), transparent 72%),
       radial-gradient(26% 30% at 52% 48%, var(--aurora-white), transparent 75%);
-    animation: aurora-drift-b 58s ease-in-out infinite alternate;
+    animation: aurora-drift-b 58s steps(232) infinite alternate;
   }
 
   @keyframes aurora-drift-a {
@@ -643,13 +695,16 @@
 
   /* Shadowed (background) nodes drop their entrance animation so the dim reads
    * cleanly without a competing pop. */
-  .graph-node-shadowed .graph-dot,
-  .graph-node-shadowed .graph-folder-hub {
+  .graph-node-shadowed .graph-node-enter {
     animation: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .graph-node-active {
+      animation: none;
+    }
+
+    .graph-node-enter {
       animation: none;
     }
 
@@ -667,8 +722,13 @@
 /* Only nodes are interactive; edges are quiet visual connectors. */
 .react-flow__node {
   cursor: pointer;
-  /* Gentle fade-in for every node as it mounts / the graph grows. */
-  animation: graph-node-fade 460ms ease;
+}
+
+/* The whole constellation fades in once as the canvas mounts — a calm reveal
+ * while the physics settles, instead of every node popping individually. */
+.react-flow__nodes,
+.react-flow__edges {
+  animation: graph-canvas-fade 520ms ease;
 }
 
 /* Dragging a node re-heats the physics — signal "grabbed" while held. */
@@ -752,8 +812,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .react-flow__node,
-  .graph-dot {
+  .react-flow__nodes,
+  .react-flow__edges,
+  .graph-node-enter {
     animation: none;
   }
 
@@ -765,9 +826,7 @@
 /* Dark mode: stronger label halos and edge contrast on the graph canvas. */
 .dark .graph-node-label {
   text-shadow:
-    0 0 3px var(--background),
-    0 0 8px var(--background),
-    0 0 12px color-mix(in oklch, var(--background) 85%, transparent),
+    0 0 4px var(--background),
     0 1px 2px var(--background);
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useReactFlow, useStoreApi, type Node } from "@xyflow/react";
 import {
   forceCollide,
   forceLink,
@@ -16,20 +17,26 @@ import {
   getNodeDiameter,
   type CampaignFlowEdge,
   type CampaignFlowNode,
+  type CampaignGraphNodeData,
 } from "@/lib/graph/to-react-flow";
 
 /**
  * Live force-directed physics for the campaign knowledge graph — the Obsidian
- * graph-view feel. A d3-force simulation owns every node's position: on mount
- * the constellation visibly settles into place, dragging a node re-heats the
- * neighbourhood so it elastically follows and re-settles, and graph changes
- * (new knowledge, view-mode filters) glide instead of snapping.
+ * graph-view feel. A d3-force simulation is the single source of truth for
+ * node positions.
  *
- * Positions land back in React Flow via a monotonically increasing
- * `positionsVersion` + `getPosition()` pair: one state bump per animation
- * frame (the simulation is ticked manually inside rAF, never on d3's own
- * timer), so React renders exactly once per frame while the graph is alive
- * and not at all once it sleeps.
+ * The critical performance contract: while the simulation is moving, each
+ * animation frame writes node transforms and edge paths *directly to the
+ * DOM* — zero React renders per tick. React Flow's store is synced at a low
+ * cadence (every ~10 frames, so fitView / hit-testing stay approximately
+ * current) and once more when the simulation goes to sleep. Rendering 60+
+ * node components and ~100 edge components through React every frame is what
+ * made the previous implementation feel like it had "no physics" (5fps).
+ *
+ * Continuity rules:
+ * - Existing nodes keep their simulated positions across data/filter changes.
+ * - New nodes spawn at their seeded cluster position and glide into place.
+ * - The simulation re-heats gently on changes and sleeps when idle (no rAF).
  */
 
 type SimNode = SimulationNodeDatum & {
@@ -39,6 +46,9 @@ type SimNode = SimulationNodeDatum & {
   isHub: boolean;
   isCandidate: boolean;
   degree: number;
+  /** Last position written to the DOM — skips sub-pixel writes. */
+  domX?: number;
+  domY?: number;
 };
 
 type SimLink = {
@@ -81,12 +91,18 @@ const HUB_RADIAL_STRENGTH = 0.06;
 const ALPHA_DECAY = 0.045;
 const ALPHA_MIN = 0.005;
 const VELOCITY_DECAY = 0.32;
-/** Re-heat used when the visible node set changes (view mode, growth). */
-const DATA_CHANGE_ALPHA = 0.4;
+/** Gentle re-heat when the visible node set changes (view mode, growth). */
+const DATA_CHANGE_ALPHA = 0.35;
 /** Drag keeps the local neighbourhood simmering until release. */
 const DRAG_ALPHA_TARGET = 0.3;
 /** Hard cap for the synchronous (reduced-motion) settle. */
 const MAX_SYNC_TICKS = 320;
+/**
+ * While ticking, React Flow's store is refreshed only every Nth frame — the
+ * per-frame motion is pure DOM writes. 10 keeps fitView / click hit-testing
+ * within ~160ms of the truth, which is imperceptible during a settle.
+ */
+const STORE_SYNC_INTERVAL = 10;
 
 function prefersReducedMotion(): boolean {
   return (
@@ -95,9 +111,29 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-export type GraphSimulationHandle = {
-  /** Bumped once per animation frame while the simulation is awake. */
-  positionsVersion: number;
+/**
+ * Fields that affect how a node renders. When these all match, the previous
+ * node's `data` reference is reused so the memoized node component skips
+ * re-rendering — even when the source graph snapshot was rebuilt wholesale.
+ */
+function sameCoreData(
+  a: CampaignGraphNodeData,
+  b: CampaignGraphNodeData,
+): boolean {
+  return (
+    a.dbId === b.dbId &&
+    a.title === b.title &&
+    a.summary === b.summary &&
+    a.nodeType === b.nodeType &&
+    a.folder === b.folder &&
+    a.isFolderHub === b.isFolderHub &&
+    a.degree === b.degree &&
+    a.knowledgePath === b.knowledgePath &&
+    a.knowledgeKind === b.knowledgeKind
+  );
+}
+
+export type GraphPhysicsHandle = {
   /** Incremented each time the simulation goes to sleep (settles). */
   settleCount: number;
   /** Current simulated position for a node (null before first tick). */
@@ -109,19 +145,29 @@ export type GraphSimulationHandle = {
 };
 
 export function useGraphForceSimulation(input: {
-  nodes: CampaignFlowNode[];
-  edges: CampaignFlowEdge[];
-}): GraphSimulationHandle {
-  const { nodes, edges } = input;
+  flowNodes: CampaignFlowNode[];
+  flowEdges: CampaignFlowEdge[];
+}): GraphPhysicsHandle {
+  const { flowNodes, flowEdges } = input;
 
-  const [positionsVersion, setPositionsVersion] = React.useState(0);
+  // Store writes are the low-cadence path; per-frame motion is direct DOM.
+  const { setNodes } = useReactFlow();
+  const storeApi = useStoreApi();
   const [settleCount, setSettleCount] = React.useState(0);
 
   const simRef = React.useRef<Simulation<SimNode, SimLink> | null>(null);
   const nodeByIdRef = React.useRef<Map<string, SimNode>>(new Map());
+  const linksRef = React.useRef<
+    { id: string; source: SimNode; target: SimNode }[]
+  >([]);
+  const nodeElCacheRef = React.useRef<Map<string, HTMLElement>>(new Map());
+  const edgeElCacheRef = React.useRef<Map<string, SVGPathElement>>(new Map());
   const rafRef = React.useRef<number | null>(null);
+  const tickCountRef = React.useRef(0);
   const draggingRef = React.useRef(false);
   const firstBuildRef = React.useRef(true);
+  /** Node ids that have ever been shown — entrance animation gate. */
+  const seenIdsRef = React.useRef<Set<string>>(new Set());
 
   const stopLoop = React.useCallback(() => {
     if (rafRef.current !== null) {
@@ -129,6 +175,104 @@ export function useGraphForceSimulation(input: {
       rafRef.current = null;
     }
   }, []);
+
+  /**
+   * Hot path — write node transforms and edge paths straight to the DOM.
+   * No React involvement: transform + path `d` mutations are paint-only
+   * (nothing reads layout), so a full frame of motion costs well under 1ms.
+   */
+  const applyDomPositions = React.useCallback(() => {
+    const dom = storeApi.getState().domNode;
+    if (!dom) return;
+
+    const nodeCache = nodeElCacheRef.current;
+    const moved = new Set<string>();
+    for (const node of nodeByIdRef.current.values()) {
+      if (typeof node.x !== "number" || typeof node.y !== "number") continue;
+      // Sub-pixel movement is invisible; skipping the write avoids style
+      // recalc churn during the long, slow tail of a settle.
+      if (
+        node.domX !== undefined &&
+        node.domY !== undefined &&
+        Math.abs(node.x - node.domX) < 0.15 &&
+        Math.abs(node.y - node.domY) < 0.15
+      ) {
+        continue;
+      }
+      let el = nodeCache.get(node.id);
+      if (!el || !el.isConnected) {
+        el = dom.querySelector<HTMLElement>(
+          `.react-flow__node[data-id="${CSS.escape(node.id)}"]`,
+        ) ?? undefined;
+        if (!el) continue;
+        nodeCache.set(node.id, el);
+      }
+      el.style.transform = `translate(${node.x}px, ${node.y}px)`;
+      node.domX = node.x;
+      node.domY = node.y;
+      moved.add(node.id);
+    }
+
+    const edgeCache = edgeElCacheRef.current;
+    for (const link of linksRef.current) {
+      const s = link.source;
+      const t = link.target;
+      if (!moved.has(s.id) && !moved.has(t.id)) continue;
+      if (
+        typeof s.x !== "number" ||
+        typeof s.y !== "number" ||
+        typeof t.x !== "number" ||
+        typeof t.y !== "number"
+      ) {
+        continue;
+      }
+      let el = edgeCache.get(link.id);
+      if (!el || !el.isConnected) {
+        el = dom.querySelector<SVGPathElement>(
+          `.react-flow__edge[data-id="${CSS.escape(link.id)}"] .react-flow__edge-path`,
+        ) ?? undefined;
+        if (!el) continue;
+        edgeCache.set(link.id, el);
+      }
+      // Straight connector from circle boundary to circle boundary — the same
+      // geometry GraphFloatingEdge renders from the store.
+      const scx = s.x + s.radius;
+      const scy = s.y + s.radius;
+      const tcx = t.x + t.radius;
+      const tcy = t.y + t.radius;
+      const dx = tcx - scx;
+      const dy = tcy - scy;
+      const dist = Math.hypot(dx, dy) || 1;
+      const ux = dx / dist;
+      const uy = dy / dist;
+      el.setAttribute(
+        "d",
+        `M${scx + ux * s.radius},${scy + uy * s.radius}L${tcx - ux * t.radius},${
+          tcy - uy * t.radius
+        }`,
+      );
+    }
+  }, [storeApi]);
+
+  /** Publish simulated positions into React Flow's store — position only. */
+  const publishPositions = React.useCallback(() => {
+    const byId = nodeByIdRef.current;
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
+        const sim = byId.get(node.id);
+        if (!sim || typeof sim.x !== "number" || typeof sim.y !== "number") {
+          return node;
+        }
+        if (node.position.x === sim.x && node.position.y === sim.y) {
+          return node;
+        }
+        changed = true;
+        return { ...node, position: { x: sim.x, y: sim.y } };
+      });
+      return changed ? next : current;
+    });
+  }, [setNodes]);
 
   /** Tick the simulation once per animation frame until it settles. */
   const ensureLoop = React.useCallback(() => {
@@ -140,18 +284,25 @@ export function useGraphForceSimulation(input: {
         return;
       }
       sim.tick();
-      setPositionsVersion((v) => v + 1);
+      applyDomPositions();
+      tickCountRef.current += 1;
       const asleep =
-        sim.alpha() < ALPHA_MIN && sim.alphaTarget() === 0 && !draggingRef.current;
+        sim.alpha() < ALPHA_MIN &&
+        sim.alphaTarget() === 0 &&
+        !draggingRef.current;
       if (asleep) {
         rafRef.current = null;
+        publishPositions();
         setSettleCount((c) => c + 1);
         return;
+      }
+      if (tickCountRef.current % STORE_SYNC_INTERVAL === 0) {
+        publishPositions();
       }
       rafRef.current = requestAnimationFrame(step);
     };
     rafRef.current = requestAnimationFrame(step);
-  }, []);
+  }, [applyDomPositions, publishPositions]);
 
   // (Re)build the simulation whenever the visible node/edge set changes.
   // Existing nodes keep their positions and velocities so the graph morphs
@@ -160,8 +311,9 @@ export function useGraphForceSimulation(input: {
   React.useEffect(() => {
     const previous = nodeByIdRef.current;
 
-    const simNodes: SimNode[] = nodes.map((flow) => {
-      const radius = getNodeDiameter(flow.data.degree ?? 0, flow.data.isFolderHub) / 2;
+    const simNodes: SimNode[] = flowNodes.map((flow) => {
+      const radius =
+        getNodeDiameter(flow.data.degree ?? 0, flow.data.isFolderHub) / 2;
       const existing = previous.get(flow.id);
       if (existing) {
         existing.radius = radius;
@@ -183,7 +335,7 @@ export function useGraphForceSimulation(input: {
     nodeByIdRef.current = new Map(simNodes.map((node) => [node.id, node]));
 
     // d3 mutates link endpoints in place, so links are rebuilt every time.
-    const simLinks: SimLink[] = edges.map((edge) => ({
+    const simLinks: SimLink[] = flowEdges.map((edge) => ({
       source: edge.source,
       target: edge.target,
       structural: edge.data?.relationshipType === "belongs_to",
@@ -283,12 +435,66 @@ export function useGraphForceSimulation(input: {
         : null,
     );
 
-    if (simNodes.length === 0) {
-      return;
-    }
+    // Adding the link force resolved each link's endpoints to SimNode objects
+    // (d3 mutates in place) — capture them for the direct-DOM edge writes.
+    linksRef.current = simLinks.map((link, index) => ({
+      id: flowEdges[index].id,
+      source: link.source as SimNode,
+      target: link.target as SimNode,
+    }));
+    // Element caches may hold nodes React just unmounted — drop and re-query.
+    nodeElCacheRef.current.clear();
+    edgeElCacheRef.current.clear();
 
     const isFirstBuild = firstBuildRef.current;
     firstBuildRef.current = false;
+    const seen = seenIdsRef.current;
+    const simById = nodeByIdRef.current;
+
+    // Reconcile React Flow node state with the new visible set, preserving
+    // node/data identity wherever possible so unchanged nodes never re-render
+    // (and never replay entrance animations).
+    setNodes((current) => {
+      const prevById = new Map(current.map((node) => [node.id, node]));
+      return flowNodes.map((flow) => {
+        const sim = simById.get(flow.id);
+        const position =
+          sim && typeof sim.x === "number" && typeof sim.y === "number"
+            ? { x: sim.x, y: sim.y }
+            : flow.position;
+        const prev = prevById.get(flow.id);
+        if (prev && sameCoreData(prev.data as CampaignGraphNodeData, flow.data)) {
+          if (prev.position.x === position.x && prev.position.y === position.y) {
+            return prev;
+          }
+          return { ...prev, position };
+        }
+        // Entrance animation only for nodes never shown before — re-added
+        // nodes (view-mode toggles, data waves) reappear without a flash.
+        const entering = !isFirstBuild && !seen.has(flow.id);
+        seen.add(flow.id);
+        const prevData = prev?.data as CampaignGraphNodeData | undefined;
+        return {
+          id: flow.id,
+          type: flow.type,
+          position,
+          data: {
+            ...flow.data,
+            entering,
+            highlighted: prevData?.highlighted ?? false,
+            focusLevel: prevData?.focusLevel,
+          },
+          selected: prev?.selected ?? false,
+        } satisfies Node;
+      });
+    });
+    if (isFirstBuild) {
+      for (const flow of flowNodes) seen.add(flow.id);
+    }
+
+    if (simNodes.length === 0) {
+      return;
+    }
 
     if (prefersReducedMotion()) {
       // Settle instantly: run the physics to completion synchronously so the
@@ -301,7 +507,8 @@ export function useGraphForceSimulation(input: {
         ticks += 1;
       }
       const raf = requestAnimationFrame(() => {
-        setPositionsVersion((v) => v + 1);
+        applyDomPositions();
+        publishPositions();
         setSettleCount((c) => c + 1);
       });
       return () => cancelAnimationFrame(raf);
@@ -309,7 +516,14 @@ export function useGraphForceSimulation(input: {
 
     sim.alpha(isFirstBuild ? 1 : DATA_CHANGE_ALPHA).alphaTarget(0);
     ensureLoop();
-  }, [nodes, edges, ensureLoop]);
+  }, [
+    flowNodes,
+    flowEdges,
+    ensureLoop,
+    publishPositions,
+    applyDomPositions,
+    setNodes,
+  ]);
 
   React.useEffect(() => {
     return () => {
@@ -339,7 +553,9 @@ export function useGraphForceSimulation(input: {
       node.fx = position.x;
       node.fy = position.y;
       // Re-heat so the neighbourhood elastically follows the dragged node.
-      sim.alphaTarget(DRAG_ALPHA_TARGET).alpha(Math.max(sim.alpha(), DRAG_ALPHA_TARGET));
+      sim
+        .alphaTarget(DRAG_ALPHA_TARGET)
+        .alpha(Math.max(sim.alpha(), DRAG_ALPHA_TARGET));
       ensureLoop();
     },
     [ensureLoop],
@@ -368,7 +584,6 @@ export function useGraphForceSimulation(input: {
   }, []);
 
   return {
-    positionsVersion,
     settleCount,
     getPosition,
     startDrag,
