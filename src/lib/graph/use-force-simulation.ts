@@ -316,9 +316,11 @@ export function useGraphForceSimulation(input: {
   const pinnedRef = React.useRef(pinnedPositions);
   const onDragEndRef = React.useRef(onDragEnd);
 
-  pinLayoutRef.current = pinLayout;
-  pinnedRef.current = pinnedPositions;
-  onDragEndRef.current = onDragEnd;
+  React.useEffect(() => {
+    pinLayoutRef.current = pinLayout;
+    pinnedRef.current = pinnedPositions;
+    onDragEndRef.current = onDragEnd;
+  }, [pinLayout, pinnedPositions, onDragEnd]);
 
   const stopLoop = React.useCallback(() => {
     if (rafRef.current !== null) {
@@ -640,6 +642,9 @@ export function useGraphForceSimulation(input: {
 
     sim.alpha(isFirstBuild ? 1 : DATA_CHANGE_ALPHA).alphaTarget(0);
     ensureLoop();
+    // nodeSizeMultiplier intentionally excluded — radius-only updates go through
+    // the debounced force effect to avoid remounting the simulation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     flowNodes,
     flowEdges,
@@ -647,9 +652,6 @@ export function useGraphForceSimulation(input: {
     publishPositions,
     applyDomPositions,
     setNodes,
-    // nodeSizeMultiplier intentionally excluded — radius-only updates go through
-    // the debounced force effect to avoid remounting the simulation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   // Re-apply force sliders + node size without rebuilding the node set.

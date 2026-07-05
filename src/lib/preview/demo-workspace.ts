@@ -1,6 +1,5 @@
 import type { CampaignContextValue } from "@/lib/campaign/get-campaign-context";
 import {
-  TEST_CANDIDATE_NAME,
   TEST_CANDIDATE_ORG_NAME,
   buildTestCandidateCampaign,
   buildTestCandidateProfile,
