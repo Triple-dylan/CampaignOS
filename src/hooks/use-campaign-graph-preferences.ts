@@ -76,7 +76,7 @@ export function useCampaignGraphPreferences(
         readLocalPreferences(id) ?? serverSeed ?? null,
       ),
   );
-  const [isHydrated] = React.useState(() => typeof window !== "undefined");
+  const [isHydrated] = React.useState(true);
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Hydrate from server on mount (real campaigns) — localStorage seeds initial state.
