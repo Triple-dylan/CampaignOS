@@ -14,6 +14,24 @@ import {
   type SimulationNodeDatum,
 } from "d3-force";
 import {
+  ALPHA_DECAY,
+  ALPHA_MIN,
+  DATA_CHANGE_ALPHA,
+  DRAG_ALPHA_TARGET,
+  FORCE_CHANGE_ALPHA,
+  FORCE_REHEAT_DEBOUNCE_MS,
+  HUB_ORBIT_MAX,
+  HUB_ORBIT_MIN,
+  MAX_SYNC_TICKS,
+  DEFAULT_GRAPH_FORCE_SLIDERS,
+  scalePhysicsForUserForces,
+  STORE_SYNC_INTERVAL,
+  STRUCTURAL_HUB_DISTANCE,
+  VELOCITY_DECAY,
+  type GraphForceSliders,
+  type ScaledGraphPhysics,
+} from "@/lib/graph/graph-physics-config";
+import {
   getNodeDiameter,
   type CampaignFlowEdge,
   type CampaignFlowNode,
@@ -37,6 +55,7 @@ import {
  * - Existing nodes keep their simulated positions across data/filter changes.
  * - New nodes spawn at their seeded cluster position and glide into place.
  * - The simulation re-heats gently on changes and sleeps when idle (no rAF).
+ * - Force slider changes update d3 forces in-place (no graph remount).
  */
 
 type SimNode = SimulationNodeDatum & {
@@ -59,58 +78,6 @@ type SimLink = {
   target: string | SimNode;
   structural: boolean;
 };
-
-/* ---------------------------------------------------------------- *
- * Force tuning. The goal is Obsidian's "folder galaxy": structural
- * belongs_to links hold clusters tight, relationship links stay long
- * and loose so meaning-edges never collapse the layout, and charge +
- * collision keep labels readable.
- * ---------------------------------------------------------------- */
-
-/** Member → folder-hub distance (before node radii are added). */
-const STRUCTURAL_MEMBER_DISTANCE = 96;
-/** Folder-hub → campaign-centre orbit — the cluster ring. */
-const STRUCTURAL_HUB_DISTANCE = 420;
-/** Min / max hub orbit radii for varied constellation spacing. */
-const HUB_ORBIT_MIN = 340;
-const HUB_ORBIT_MAX = 520;
-/** Cross-folder relationship links stay long and springy. */
-const RELATIONSHIP_DISTANCE = 230;
-/** Structural links are stiff (clusters form); relationships are loose. */
-const STRUCTURAL_STRENGTH = 0.5;
-const RELATIONSHIP_STRENGTH = 0.06;
-/** Hubs repel hard so clusters stay airy; entities scale with connectivity. */
-const HUB_CHARGE = -1500;
-const CANDIDATE_CHARGE = -1000;
-const ENTITY_CHARGE_BASE = -160;
-const ENTITY_CHARGE_PER_DEGREE = -18;
-const CHARGE_MAX_DISTANCE = 1200;
-/** Label clearance added to each dot's radius for collision. */
-const COLLIDE_PADDING_HUB = 30;
-const COLLIDE_PADDING_ENTITY = 16;
-/** Weak pull toward the canvas origin so the graph never drifts away. */
-const CENTER_PULL = 0.04;
-const CANDIDATE_CENTER_PULL = 0.14;
-/** Gentle radial force keeping folder hubs on their orbit ring. */
-const HUB_RADIAL_STRENGTH = 0.09;
-/** Campaign centre is pinned — strongest centripetal hold. */
-const CENTER_PIN_STRENGTH = 0.55;
-/** Settle pacing: ~1.5–2s of visible organic motion, then sleep. */
-const ALPHA_DECAY = 0.045;
-const ALPHA_MIN = 0.005;
-const VELOCITY_DECAY = 0.32;
-/** Gentle re-heat when the visible node set changes (view mode, growth). */
-const DATA_CHANGE_ALPHA = 0.35;
-/** Drag keeps the local neighbourhood simmering until release. */
-const DRAG_ALPHA_TARGET = 0.3;
-/** Hard cap for the synchronous (reduced-motion) settle. */
-const MAX_SYNC_TICKS = 320;
-/**
- * While ticking, React Flow's store is refreshed only every Nth frame — the
- * per-frame motion is pure DOM writes. 10 keeps fitView / click hit-testing
- * within ~160ms of the truth, which is imperceptible during a settle.
- */
-const STORE_SYNC_INTERVAL = 10;
 
 function prefersReducedMotion(): boolean {
   return (
@@ -151,6 +118,102 @@ function hubOrbitRadius(nodeId: string, fallback: number): number {
   return HUB_ORBIT_MIN + t * (HUB_ORBIT_MAX - HUB_ORBIT_MIN) || fallback;
 }
 
+function applyScaledForces(
+  sim: Simulation<SimNode, SimLink>,
+  simLinks: SimLink[],
+  physics: ScaledGraphPhysics,
+  hubOrbit: number,
+  hubs: SimNode[],
+): void {
+  sim.force(
+    "link",
+    forceLink<SimNode, SimLink>(simLinks)
+      .id((node) => node.id)
+      .distance((link) => {
+        const source = link.source as SimNode;
+        const target = link.target as SimNode;
+        if (link.structural) {
+          if (
+            (source.isHub && target.isCampaignCenter) ||
+            (target.isHub && source.isCampaignCenter)
+          ) {
+            return source.isHub ? source.orbitRadius : target.orbitRadius;
+          }
+          if (
+            (source.isHub && target.isCandidate) ||
+            (target.isHub && source.isCandidate)
+          ) {
+            return hubOrbit * 0.35;
+          }
+          return (
+            physics.structuralMemberDistance + source.radius + target.radius
+          );
+        }
+        return physics.relationshipDistance;
+      })
+      .strength((link) =>
+        link.structural
+          ? physics.structuralStrength
+          : physics.relationshipStrength,
+      ),
+  );
+  sim.force(
+    "charge",
+    forceManyBody<SimNode>()
+      .strength((node) => {
+        if (node.isCampaignCenter) return 0;
+        if (node.isHub) return physics.hubCharge;
+        if (node.isCandidate) return physics.candidateCharge;
+        return (
+          physics.entityChargeBase +
+          node.degree * physics.entityChargePerDegree
+        );
+      })
+      .distanceMax(1200),
+  );
+  sim.force(
+    "collide",
+    forceCollide<SimNode>()
+      .radius(
+        (node) =>
+          node.radius +
+          (node.isCampaignCenter
+            ? 36
+            : node.isHub
+              ? 30
+              : 16),
+      )
+      .strength(0.9)
+      .iterations(2),
+  );
+  sim.force(
+    "x",
+    forceX<SimNode>(0).strength((node) => {
+      if (node.isCampaignCenter) return physics.centerPinStrength;
+      if (node.isCandidate) return physics.candidateCenterPull;
+      return physics.centerPull;
+    }),
+  );
+  sim.force(
+    "y",
+    forceY<SimNode>(0).strength((node) => {
+      if (node.isCampaignCenter) return physics.centerPinStrength;
+      if (node.isCandidate) return physics.candidateCenterPull;
+      return physics.centerPull;
+    }),
+  );
+  sim.force(
+    "hub-orbit",
+    hubs.length > 0
+      ? forceRadial<SimNode>(
+          (node) => node.orbitRadius || hubOrbit,
+          0,
+          0,
+        ).strength((node) => (node.isHub ? physics.hubRadialStrength : 0))
+      : null,
+  );
+}
+
 export type GraphPhysicsHandle = {
   /** Incremented each time the simulation goes to sleep (settles). */
   settleCount: number;
@@ -165,10 +228,16 @@ export type GraphPhysicsHandle = {
 export function useGraphForceSimulation(input: {
   flowNodes: CampaignFlowNode[];
   flowEdges: CampaignFlowEdge[];
+  forces?: GraphForceSliders;
+  nodeSizeMultiplier?: number;
 }): GraphPhysicsHandle {
-  const { flowNodes, flowEdges } = input;
+  const {
+    flowNodes,
+    flowEdges,
+    forces,
+    nodeSizeMultiplier = 1,
+  } = input;
 
-  // Store writes are the low-cadence path; per-frame motion is direct DOM.
   const { setNodes } = useReactFlow();
   const storeApi = useStoreApi();
   const [settleCount, setSettleCount] = React.useState(0);
@@ -184,8 +253,11 @@ export function useGraphForceSimulation(input: {
   const tickCountRef = React.useRef(0);
   const draggingRef = React.useRef(false);
   const firstBuildRef = React.useRef(true);
-  /** Node ids that have ever been shown — entrance animation gate. */
   const seenIdsRef = React.useRef<Set<string>>(new Set());
+  const hubOrbitRef = React.useRef(STRUCTURAL_HUB_DISTANCE);
+  const physicsRef = React.useRef<ScaledGraphPhysics>(
+    scalePhysicsForUserForces(forces ?? DEFAULT_GRAPH_FORCE_SLIDERS),
+  );
 
   const stopLoop = React.useCallback(() => {
     if (rafRef.current !== null) {
@@ -194,11 +266,6 @@ export function useGraphForceSimulation(input: {
     }
   }, []);
 
-  /**
-   * Hot path — write node transforms and edge paths straight to the DOM.
-   * No React involvement: transform + path `d` mutations are paint-only
-   * (nothing reads layout), so a full frame of motion costs well under 1ms.
-   */
   const applyDomPositions = React.useCallback(() => {
     const dom = storeApi.getState().domNode;
     if (!dom) return;
@@ -207,8 +274,6 @@ export function useGraphForceSimulation(input: {
     const moved = new Set<string>();
     for (const node of nodeByIdRef.current.values()) {
       if (typeof node.x !== "number" || typeof node.y !== "number") continue;
-      // Sub-pixel movement is invisible; skipping the write avoids style
-      // recalc churn during the long, slow tail of a settle.
       if (
         node.domX !== undefined &&
         node.domY !== undefined &&
@@ -252,8 +317,6 @@ export function useGraphForceSimulation(input: {
         if (!el) continue;
         edgeCache.set(link.id, el);
       }
-      // Straight connector from circle boundary to circle boundary — the same
-      // geometry GraphFloatingEdge renders from the store.
       const scx = s.x + s.radius;
       const scy = s.y + s.radius;
       const tcx = t.x + t.radius;
@@ -272,7 +335,6 @@ export function useGraphForceSimulation(input: {
     }
   }, [storeApi]);
 
-  /** Publish simulated positions into React Flow's store — position only. */
   const publishPositions = React.useCallback(() => {
     const byId = nodeByIdRef.current;
     setNodes((current) => {
@@ -292,7 +354,6 @@ export function useGraphForceSimulation(input: {
     });
   }, [setNodes]);
 
-  /** Tick the simulation once per animation frame until it settles. */
   const ensureLoop = React.useCallback(() => {
     if (rafRef.current !== null) return;
     const step = () => {
@@ -322,12 +383,9 @@ export function useGraphForceSimulation(input: {
     rafRef.current = requestAnimationFrame(step);
   }, [applyDomPositions, publishPositions]);
 
-  // (Re)build the simulation whenever the visible node/edge set changes.
-  // Existing nodes keep their positions and velocities so the graph morphs
-  // smoothly; newcomers spawn at their seeded layout position and get pushed
-  // into place by the physics.
   React.useEffect(() => {
     const previous = nodeByIdRef.current;
+    const mult = nodeSizeMultiplier;
 
     const simNodes: SimNode[] = flowNodes.map((flow) => {
       const radius =
@@ -335,6 +393,7 @@ export function useGraphForceSimulation(input: {
           flow.data.degree ?? 0,
           flow.data.isFolderHub,
           flow.data.isCampaignCenter,
+          mult,
         ) / 2;
       const existing = previous.get(flow.id);
       if (existing) {
@@ -366,7 +425,6 @@ export function useGraphForceSimulation(input: {
       };
     });
 
-    // Pin the campaign goal node at the canvas origin — the sun of the orbit.
     for (const node of simNodes) {
       if (node.isCampaignCenter) {
         node.x = 0;
@@ -378,15 +436,12 @@ export function useGraphForceSimulation(input: {
 
     nodeByIdRef.current = new Map(simNodes.map((node) => [node.id, node]));
 
-    // d3 mutates link endpoints in place, so links are rebuilt every time.
     const simLinks: SimLink[] = flowEdges.map((edge) => ({
       source: edge.source,
       target: edge.target,
       structural: edge.data?.relationshipType === "belongs_to",
     }));
 
-    // Hub orbit radius from current hub positions, so re-heats respect where
-    // the clusters actually live instead of yanking them to a constant.
     const hubs = simNodes.filter((node) => node.isHub);
     const hubOrbit =
       hubs.length > 0
@@ -401,6 +456,9 @@ export function useGraphForceSimulation(input: {
             ),
           )
         : STRUCTURAL_HUB_DISTANCE;
+    hubOrbitRef.current = hubOrbit;
+
+    const physics = physicsRef.current;
 
     const sim =
       simRef.current ??
@@ -408,101 +466,17 @@ export function useGraphForceSimulation(input: {
         .alphaDecay(ALPHA_DECAY)
         .alphaMin(ALPHA_MIN)
         .velocityDecay(VELOCITY_DECAY)
-        .stop(); // never let d3 run its own timer — rAF drives ticks
+        .stop();
     simRef.current = sim as Simulation<SimNode, SimLink>;
 
     sim.nodes(simNodes);
-    sim.force(
-      "link",
-      forceLink<SimNode, SimLink>(simLinks)
-        .id((node) => node.id)
-        .distance((link) => {
-          const source = link.source as SimNode;
-          const target = link.target as SimNode;
-          if (link.structural) {
-            // Hub ↔ campaign centre — each hub sits on its own orbit ring.
-            if (
-              (source.isHub && target.isCampaignCenter) ||
-              (target.isHub && source.isCampaignCenter)
-            ) {
-              return source.isHub ? source.orbitRadius : target.orbitRadius;
-            }
-            // Hub ↔ candidate (inner orbit near the centre).
-            if (
-              (source.isHub && target.isCandidate) ||
-              (target.isHub && source.isCandidate)
-            ) {
-              return hubOrbit * 0.35;
-            }
-            return STRUCTURAL_MEMBER_DISTANCE + source.radius + target.radius;
-          }
-          return RELATIONSHIP_DISTANCE;
-        })
-        .strength((link) =>
-          link.structural ? STRUCTURAL_STRENGTH : RELATIONSHIP_STRENGTH,
-        ),
-    );
-    sim.force(
-      "charge",
-      forceManyBody<SimNode>()
-        .strength((node) => {
-          if (node.isCampaignCenter) return 0;
-          if (node.isHub) return HUB_CHARGE;
-          if (node.isCandidate) return CANDIDATE_CHARGE;
-          return ENTITY_CHARGE_BASE + node.degree * ENTITY_CHARGE_PER_DEGREE;
-        })
-        .distanceMax(CHARGE_MAX_DISTANCE),
-    );
-    sim.force(
-      "collide",
-      forceCollide<SimNode>()
-        .radius(
-          (node) =>
-            node.radius +
-            (node.isCampaignCenter
-              ? 36
-              : node.isHub
-                ? COLLIDE_PADDING_HUB
-                : COLLIDE_PADDING_ENTITY),
-        )
-        .strength(0.9)
-        .iterations(2),
-    );
-    sim.force(
-      "x",
-      forceX<SimNode>(0).strength((node) => {
-        if (node.isCampaignCenter) return CENTER_PIN_STRENGTH;
-        if (node.isCandidate) return CANDIDATE_CENTER_PULL;
-        return CENTER_PULL;
-      }),
-    );
-    sim.force(
-      "y",
-      forceY<SimNode>(0).strength((node) => {
-        if (node.isCampaignCenter) return CENTER_PIN_STRENGTH;
-        if (node.isCandidate) return CANDIDATE_CENTER_PULL;
-        return CENTER_PULL;
-      }),
-    );
-    sim.force(
-      "hub-orbit",
-      hubs.length > 0
-        ? forceRadial<SimNode>(
-            (node) => node.orbitRadius || hubOrbit,
-            0,
-            0,
-          ).strength((node) => (node.isHub ? HUB_RADIAL_STRENGTH : 0))
-        : null,
-    );
+    applyScaledForces(sim, simLinks, physics, hubOrbit, hubs);
 
-    // Adding the link force resolved each link's endpoints to SimNode objects
-    // (d3 mutates in place) — capture them for the direct-DOM edge writes.
     linksRef.current = simLinks.map((link, index) => ({
       id: flowEdges[index].id,
       source: link.source as SimNode,
       target: link.target as SimNode,
     }));
-    // Element caches may hold nodes React just unmounted — drop and re-query.
     nodeElCacheRef.current.clear();
     edgeElCacheRef.current.clear();
 
@@ -511,9 +485,6 @@ export function useGraphForceSimulation(input: {
     const seen = seenIdsRef.current;
     const simById = nodeByIdRef.current;
 
-    // Reconcile React Flow node state with the new visible set, preserving
-    // node/data identity wherever possible so unchanged nodes never re-render
-    // (and never replay entrance animations).
     setNodes((current) => {
       const prevById = new Map(current.map((node) => [node.id, node]));
       return flowNodes.map((flow) => {
@@ -529,8 +500,6 @@ export function useGraphForceSimulation(input: {
           }
           return { ...prev, position };
         }
-        // Entrance animation only for nodes never shown before — re-added
-        // nodes (view-mode toggles, data waves) reappear without a flash.
         const entering = !isFirstBuild && !seen.has(flow.id);
         seen.add(flow.id);
         const prevData = prev?.data as CampaignGraphNodeData | undefined;
@@ -558,9 +527,6 @@ export function useGraphForceSimulation(input: {
     }
 
     if (prefersReducedMotion()) {
-      // Settle instantly: run the physics to completion synchronously so the
-      // layout is identical, without the animated entrance. The single state
-      // publish happens on the next frame (never inside the effect body).
       sim.alpha(isFirstBuild ? 1 : DATA_CHANGE_ALPHA).alphaTarget(0);
       let ticks = 0;
       while (sim.alpha() > ALPHA_MIN && ticks < MAX_SYNC_TICKS) {
@@ -584,7 +550,63 @@ export function useGraphForceSimulation(input: {
     publishPositions,
     applyDomPositions,
     setNodes,
+    // nodeSizeMultiplier intentionally excluded — radius-only updates go through
+    // the debounced force effect to avoid remounting the simulation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
+
+  // Re-apply force sliders + node size without rebuilding the node set.
+  const forceMountRef = React.useRef(true);
+  React.useEffect(() => {
+    if (!forces) return;
+    if (forceMountRef.current) {
+      forceMountRef.current = false;
+      physicsRef.current = scalePhysicsForUserForces(forces);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const sim = simRef.current;
+      if (!sim) return;
+
+      physicsRef.current = scalePhysicsForUserForces(forces);
+      const mult = nodeSizeMultiplier;
+
+      for (const node of nodeByIdRef.current.values()) {
+        node.radius =
+          getNodeDiameter(
+            node.degree,
+            node.isHub,
+            node.isCampaignCenter,
+            mult,
+          ) / 2;
+      }
+
+      const hubs = [...nodeByIdRef.current.values()].filter((n) => n.isHub);
+      const simLinksFromRef: SimLink[] = linksRef.current.map((link) => {
+        const edge = flowEdges.find((e) => e.id === link.id);
+        return {
+          source: link.source.id,
+          target: link.target.id,
+          structural: edge?.data?.relationshipType === "belongs_to",
+        };
+      });
+
+      applyScaledForces(
+        sim,
+        simLinksFromRef,
+        physicsRef.current,
+        hubOrbitRef.current,
+        hubs,
+      );
+
+      sim
+        .alphaTarget(0)
+        .alpha(Math.max(sim.alpha(), FORCE_CHANGE_ALPHA));
+      ensureLoop();
+    }, FORCE_REHEAT_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [forces, nodeSizeMultiplier, flowEdges, ensureLoop]);
 
   React.useEffect(() => {
     return () => {
@@ -613,7 +635,6 @@ export function useGraphForceSimulation(input: {
       draggingRef.current = true;
       node.fx = position.x;
       node.fy = position.y;
-      // Re-heat so the neighbourhood elastically follows the dragged node.
       sim
         .alphaTarget(DRAG_ALPHA_TARGET)
         .alpha(Math.max(sim.alpha(), DRAG_ALPHA_TARGET));
@@ -637,11 +658,9 @@ export function useGraphForceSimulation(input: {
     const node = nodeByIdRef.current.get(id);
     draggingRef.current = false;
     if (node) {
-      // Release the pin so the node (and its neighbourhood) re-settles.
       node.fx = null;
       node.fy = null;
     }
-    // Re-pin the campaign centre after any drag settles.
     for (const n of nodeByIdRef.current.values()) {
       if (n.isCampaignCenter) {
         n.fx = 0;

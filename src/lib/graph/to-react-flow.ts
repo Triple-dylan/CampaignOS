@@ -45,6 +45,8 @@ export type CampaignGraphNodeData = {
    * when no folder is focused (the global graph).
    */
   focusLevel?: GraphFocusLevel;
+  /** Transient display scale from graph gear panel. */
+  nodeSizeMultiplier?: number;
 };
 
 export type GraphViewMode = "all" | "folders" | "entities";
@@ -340,11 +342,12 @@ export function getNodeDiameter(
   degree: number,
   isFolderHub = false,
   isCampaignCenter = false,
+  sizeMultiplier = 1,
 ): number {
-  if (isCampaignCenter) return 58;
-  if (isFolderHub) return 46;
+  if (isCampaignCenter) return Math.round(58 * sizeMultiplier);
+  if (isFolderHub) return Math.round(46 * sizeMultiplier);
   const scaled = 15 + Math.sqrt(Math.max(0, degree)) * 7;
-  return Math.round(Math.min(36, Math.max(15, scaled)));
+  return Math.round(Math.min(36, Math.max(15, scaled)) * sizeMultiplier);
 }
 
 /** Accent for a node — folder hubs use their cluster colour. */

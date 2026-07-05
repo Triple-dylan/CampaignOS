@@ -21,6 +21,7 @@ import type {
 import { useDynamicCampaignGraph } from "@/lib/graph/dynamic-graph";
 import { nodeIdsForFolders } from "@/lib/graph/folder-clusters";
 import { resolveRetrievalNodeIdsFromFlow } from "@/lib/graph/retrieval-highlights";
+import { useCampaignGraphPreferences } from "@/hooks/use-campaign-graph-preferences";
 import type {
   DbCampaign,
   DbCampaignProfile,
@@ -226,6 +227,14 @@ export function WorkspaceHome({
   });
   const liveMode = liveSeed !== null;
   const activeGraph = liveMode ? liveController.graph : graph;
+  const {
+    preferences: graphPreferences,
+    updatePreferences: updateGraphPreferences,
+    resetPreferences: resetGraphPreferences,
+  } = useCampaignGraphPreferences(
+    campaign?.id,
+    campaign?.graph_preferences,
+  );
   const activeEdgeCount = liveMode
     ? liveController.graph.edges.length
     : edgeCount;
@@ -330,6 +339,9 @@ export function WorkspaceHome({
             chatDockOpen={chatDockOpen}
             onSelectNode={handleSelectNode}
             onFocusComposer={focusComposer}
+            graphPreferences={graphPreferences}
+            onGraphPreferencesChange={updateGraphPreferences}
+            onRestoreGraphDefaults={resetGraphPreferences}
           />
         </div>
 

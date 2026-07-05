@@ -780,7 +780,7 @@
 
 .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
-  stroke-width: 1;
+  stroke-width: calc(1px * var(--graph-edge-width, 1));
   opacity: 0.85;
   transition:
     stroke 0.3s ease,
@@ -796,7 +796,7 @@
  */
 .react-flow__edge.is-structural .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--muted-foreground) 20%, transparent);
-  stroke-width: 0.9;
+  stroke-width: calc(0.9px * var(--graph-edge-width, 1));
   opacity: 0.6;
 }
 
@@ -806,7 +806,7 @@
  */
 .react-flow__edge.is-hover .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--muted-foreground) 72%, transparent);
-  stroke-width: 1.6;
+  stroke-width: calc(1.6px * var(--graph-edge-width, 1));
   opacity: 1;
 }
 
@@ -816,7 +816,7 @@
  */
 .react-flow__edge.is-active .react-flow__edge-path {
   stroke: var(--brand-blue);
-  stroke-width: 2;
+  stroke-width: calc(2px * var(--graph-edge-width, 1));
   opacity: 1;
   filter: drop-shadow(
     0 0 4px color-mix(in oklch, var(--brand-blue) 55%, transparent)
@@ -841,7 +841,7 @@
  */
 .react-flow__edge.is-focus-path .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--muted-foreground) 68%, transparent);
-  stroke-width: 1.75;
+  stroke-width: calc(1.75px * var(--graph-edge-width, 1));
   opacity: 1;
 }
 

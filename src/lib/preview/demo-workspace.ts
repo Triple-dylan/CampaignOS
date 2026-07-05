@@ -36,6 +36,7 @@ export const DEMO_CAMPAIGN: DbCampaign = {
   election_date: "2026-11-03",
   campaign_website: "https://example.org",
   campaign_status: "active",
+  graph_preferences: null,
   created_at: NOW,
   updated_at: NOW,
 };

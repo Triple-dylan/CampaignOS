@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -12,9 +12,10 @@ import {
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Loader2, Sparkles, X } from "lucide-react";
+import { Loader2, Settings2, Sparkles, X } from "lucide-react";
 import { GraphNodeCard } from "@/components/brain/graph-node-card";
 import { GraphFloatingEdge } from "@/components/brain/graph-floating-edge";
+import { GraphSettingsPanel } from "@/components/workspace/graph-settings-panel";
 import {
   computeFolderFocusLevels,
   filterNodesByViewMode,
@@ -23,6 +24,10 @@ import {
   type GraphViewMode,
 } from "@/lib/graph/to-react-flow";
 import { useGraphForceSimulation } from "@/lib/graph/use-force-simulation";
+import {
+  compactLabelZoomFromTextFade,
+  type CampaignGraphPreferences,
+} from "@/lib/graph/graph-preferences";
 import { getCampaignFolder } from "@/lib/campaign-knowledge/folders";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import { cn } from "@/lib/utils";
@@ -42,7 +47,7 @@ const EMPTY_NODES: Node[] = [];
 /** Shared easing duration (ms) for all camera moves — calm, never jarring. */
 const CAMERA_EASE_MS = 800;
 /** Entity labels fade out below this zoom so zoomed-out views stay readable. */
-const COMPACT_LABEL_ZOOM = 0.62;
+const DEFAULT_COMPACT_LABEL_ZOOM = 0.62;
 
 /**
  * Camera moves are queued per animation frame with a priority so overlapping
@@ -103,6 +108,12 @@ type WorkspaceGraphCanvasProps = {
   /** Optional controlled view mode. */
   viewMode?: GraphViewMode;
   onViewModeChange?: (mode: GraphViewMode) => void;
+  /** Per-campaign graph customization from gear panel. */
+  graphPreferences?: CampaignGraphPreferences;
+  onGraphPreferencesChange?: (
+    patch: Partial<CampaignGraphPreferences>,
+  ) => void;
+  onRestoreGraphDefaults?: () => void;
 };
 
 export function WorkspaceGraphCanvas(props: WorkspaceGraphCanvasProps) {
@@ -125,9 +136,21 @@ function WorkspaceGraphCanvasInner({
   showViewToggle = true,
   viewMode: controlledViewMode,
   onViewModeChange,
+  graphPreferences,
+  onGraphPreferencesChange,
+  onRestoreGraphDefaults,
 }: WorkspaceGraphCanvasProps) {
   const highlighted = highlightedNodeIds ?? EMPTY_SET;
   const isMobile = useIsMobile();
+  const displayPrefs = graphPreferences?.display;
+  const compactLabelZoom = displayPrefs
+    ? compactLabelZoomFromTextFade(displayPrefs.textFadeMultiplier)
+    : DEFAULT_COMPACT_LABEL_ZOOM;
+  const lineSizeMultiplier = displayPrefs?.lineSizeMultiplier ?? 1;
+  const nodeSizeMultiplier = displayPrefs?.nodeSizeMultiplier ?? 1;
+  const forcePrefs = graphPreferences?.forces;
+  const showOrphans = graphPreferences?.filters.showOrphans ?? true;
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const fitViewOptions = isMobile
     ? chatDockOpen
       ? MOBILE_DOCK_OPEN_FIT_VIEW_OPTIONS
@@ -139,7 +162,7 @@ function WorkspaceGraphCanvasInner({
   // Boolean selector: re-renders only when the zoom threshold is crossed —
   // never once per zoom frame. Label fading itself is pure CSS.
   const compactLabels = useStore(
-    (state) => state.transform[2] < COMPACT_LABEL_ZOOM,
+    (state) => state.transform[2] < compactLabelZoom,
   );
   const paneHeight = useStore((state) => state.height);
   const [internalViewMode, setInternalViewMode] = useState<GraphViewMode>("all");
@@ -158,8 +181,17 @@ function WorkspaceGraphCanvasInner({
 
   const visibleFlowNodes = useMemo(() => {
     if (!graph) return [];
-    return filterNodesByViewMode(graph.nodes, viewMode);
-  }, [graph, viewMode]);
+    let nodes = filterNodesByViewMode(graph.nodes, viewMode);
+    if (!showOrphans) {
+      nodes = nodes.filter(
+        (node) =>
+          node.data.isFolderHub ||
+          node.data.isCampaignCenter ||
+          (node.data.degree ?? 0) > 0,
+      );
+    }
+    return nodes;
+  }, [graph, viewMode, showOrphans]);
 
   const visibleNodeIds = useMemo(
     () => new Set(visibleFlowNodes.map((node) => node.id)),
@@ -181,6 +213,8 @@ function WorkspaceGraphCanvasInner({
   const simulation = useGraphForceSimulation({
     flowNodes: visibleFlowNodes,
     flowEdges: visibleEdges,
+    forces: forcePrefs,
+    nodeSizeMultiplier,
   });
   const { settleCount, getPosition } = simulation;
   const { setNodes } = useReactFlow();
@@ -235,6 +269,23 @@ function WorkspaceGraphCanvasInner({
       return changed ? next : current;
     });
   }, [highlighted, focusLevels, selectedNodeId, setNodes]);
+
+  // Push display multipliers into node data so memoized cards re-render once.
+  useEffect(() => {
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
+        const data = node.data as CampaignGraphNodeData;
+        if (data.nodeSizeMultiplier === nodeSizeMultiplier) return node;
+        changed = true;
+        return {
+          ...node,
+          data: { ...data, nodeSizeMultiplier },
+        };
+      });
+      return changed ? next : current;
+    });
+  }, [nodeSizeMultiplier, setNodes]);
 
   const edges = useMemo<Edge[]>(() => {
     return visibleEdges.map((edge) => {
@@ -548,7 +599,14 @@ function WorkspaceGraphCanvasInner({
   }
 
   return (
-    <div className="relative h-full w-full touch-none">
+    <div
+      className="relative h-full w-full touch-none"
+      style={
+        {
+          "--graph-edge-width": lineSizeMultiplier,
+        } as CSSProperties
+      }
+    >
       <div className="graph-aurora" aria-hidden />
       <ReactFlow
         defaultNodes={EMPTY_NODES}
@@ -648,13 +706,40 @@ function WorkspaceGraphCanvasInner({
         ) : null}
       </div>
 
-      {/* Top-right: graph stats. Lives up here so nothing collides with the
-          composer. */}
+      {/* Top-right: graph stats + gear settings. */}
       <div className="pointer-events-none absolute right-3 top-16 z-10 flex flex-col items-end gap-2">
-        <div className="glass-chrome-pill rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
-          {visibleFlowNodes.length} visible · {graph.totalNodeCount} nodes ·{" "}
-          {edgeCount} edges
+        <div className="flex items-center gap-1.5">
+          {onGraphPreferencesChange ? (
+            <button
+              type="button"
+              data-graph-settings-trigger
+              onClick={() => setSettingsOpen((open) => !open)}
+              aria-label="Graph settings"
+              aria-expanded={settingsOpen}
+              className={cn(
+                "glass-chrome-pill pointer-events-auto inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground",
+                settingsOpen && "is-active-pill text-foreground",
+              )}
+            >
+              <Settings2 className="size-3.5" aria-hidden />
+            </button>
+          ) : null}
+          <div className="glass-chrome-pill rounded-full px-2.5 py-1 text-[0.7rem] text-muted-foreground">
+            {visibleFlowNodes.length} visible · {graph.totalNodeCount} nodes ·{" "}
+            {edgeCount} edges
+          </div>
         </div>
+        {settingsOpen && graphPreferences && onGraphPreferencesChange ? (
+          <GraphSettingsPanel
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            preferences={graphPreferences}
+            onChange={onGraphPreferencesChange}
+            onRestoreDefaults={() => {
+              onRestoreGraphDefaults?.();
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

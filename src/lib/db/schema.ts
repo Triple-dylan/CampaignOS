@@ -4,6 +4,7 @@ import type {
   GraphRelationshipType,
   OrganizationRole,
 } from "@/lib/validators/enums";
+import type { CampaignGraphPreferences } from "@/lib/graph/graph-preferences";
 
 export type DbUser = {
   id: string;
@@ -48,6 +49,8 @@ export type DbCampaign = {
   election_date: string | null;
   campaign_website: string | null;
   campaign_status: CampaignStatus;
+  /** Nullable JSONB — merged with defaults in graph-preferences.ts */
+  graph_preferences: Partial<CampaignGraphPreferences> | null;
   created_at: string;
   updated_at: string;
 };

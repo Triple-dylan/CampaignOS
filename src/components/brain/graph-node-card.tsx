@@ -48,6 +48,7 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
     data.degree ?? 0,
     data.isFolderHub,
     data.isCampaignCenter,
+    data.nodeSizeMultiplier ?? 1,
   );
   const focus = data.focusLevel ? FOCUS_LEVEL_STYLE[data.focusLevel] : null;
 
@@ -175,5 +176,8 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
  */
 export const GraphNodeCard = memo(
   GraphNodeCardInner,
-  (prev, next) => prev.data === next.data && prev.selected === next.selected,
+  (prev, next) =>
+    prev.data === next.data &&
+    prev.selected === next.selected &&
+    (prev.data.nodeSizeMultiplier ?? 1) === (next.data.nodeSizeMultiplier ?? 1),
 );

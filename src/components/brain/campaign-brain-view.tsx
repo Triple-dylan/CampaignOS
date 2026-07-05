@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCampaignGraphPreferences } from "@/hooks/use-campaign-graph-preferences";
 import type { CampaignGraphFlow, CampaignGraphNodeData } from "@/lib/graph/to-react-flow";
 
 type CampaignBrainViewProps = {
@@ -35,6 +36,14 @@ export function CampaignBrainView({
     null,
   );
   const [panelOpen, setPanelOpen] = React.useState(false);
+  const {
+    preferences: graphPreferences,
+    updatePreferences: updateGraphPreferences,
+    resetPreferences: resetGraphPreferences,
+  } = useCampaignGraphPreferences(
+    campaign?.id,
+    campaign?.graph_preferences,
+  );
 
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
@@ -118,6 +127,9 @@ export function CampaignBrainView({
             selectedNodeId={selectedNodeId}
             onSelectNode={handleSelectNode}
             showViewToggle
+            graphPreferences={graphPreferences}
+            onGraphPreferencesChange={updateGraphPreferences}
+            onRestoreGraphDefaults={resetGraphPreferences}
           />
         </div>
       </section>
