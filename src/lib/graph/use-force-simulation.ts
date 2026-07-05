@@ -316,7 +316,7 @@ export function useGraphForceSimulation(input: {
   const pinnedRef = React.useRef(pinnedPositions);
   const onDragEndRef = React.useRef(onDragEnd);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     pinLayoutRef.current = pinLayout;
     pinnedRef.current = pinnedPositions;
     onDragEndRef.current = onDragEnd;
