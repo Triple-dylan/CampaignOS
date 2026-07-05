@@ -123,10 +123,13 @@ export function GraphSettingsPanel({
 }: GraphSettingsPanelProps) {
   const panelRef = React.useRef<HTMLDivElement>(null);
   const [searchDraft, setSearchDraft] = React.useState(preferences.filters.search);
-
-  React.useEffect(() => {
+  const [prevExternalSearch, setPrevExternalSearch] = React.useState(
+    preferences.filters.search,
+  );
+  if (preferences.filters.search !== prevExternalSearch) {
+    setPrevExternalSearch(preferences.filters.search);
     setSearchDraft(preferences.filters.search);
-  }, [preferences.filters.search]);
+  }
 
   React.useEffect(() => {
     if (!open) return;
