@@ -8,6 +8,7 @@ import { generateContentCalendarContent } from "@/lib/ai/generate-content-calend
 import { generateCampaignTimelineContent } from "@/lib/ai/generate-campaign-timeline";
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { requireCampaignContext } from "@/lib/auth/require-campaign-context";
+import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
 import { campaignDisplayName } from "@/lib/db/schema";
 import type { CampaignWorkflowId } from "@/lib/workflows/registry";
 import { persistContentCalendar } from "@/lib/workflows/persist-content-calendar";
@@ -34,6 +35,12 @@ export type ExecuteWorkflowResult =
       code?: "missing_openai" | "missing_campaign" | "generation_failed";
     };
 
+export type WorkflowCampaignContext = {
+  campaign: DbCampaign;
+  profile: DbCampaignProfile | null;
+  dbUserId: string | null;
+};
+
 export type PreviewWorkflowResult =
   | { ok: true; drafts: AssetGenerationOutput[] }
   | {
@@ -59,6 +66,8 @@ export async function previewChatWorkflow(input: {
     theme,
     issue,
     channel,
+    audience: input.fields.intent,
+    contentNeed: input.fields.intent,
   });
 
   if (!result.ok) {
@@ -78,15 +87,39 @@ export async function executeChatWorkflow(input: {
   draftIndex?: number;
   drafts?: AssetGenerationOutput[];
 }): Promise<ExecuteWorkflowResult> {
+  const context = await requireCampaignContext();
+  if (!context.ok) {
+    return { ok: false, error: context.error, code: "missing_campaign" };
+  }
+
+  return executeChatWorkflowWithContext(
+    {
+      campaign: context.campaign,
+      profile: context.profile,
+      dbUserId: context.dbUserId,
+    },
+    input,
+  );
+}
+
+export async function executeChatWorkflowWithContext(
+  context: WorkflowCampaignContext,
+  input: {
+    workflowId: CampaignWorkflowId;
+    fields: WorkflowFields;
+    draftIndex?: number;
+    drafts?: AssetGenerationOutput[];
+  },
+): Promise<ExecuteWorkflowResult> {
   switch (input.workflowId) {
     case "event-research":
       return executeEventResearch(input.fields);
     case "content-creation":
       return executeContentCreation(input.fields, input.draftIndex, input.drafts);
     case "content-calendar":
-      return executeContentCalendar(input.fields);
+      return executeContentCalendar(context, input.fields);
     case "campaign-structure":
-      return executeCampaignStructure(input.fields);
+      return executeCampaignStructure(context, input.fields);
     case "incumbent-research":
       return executeIncumbentResearch(input.fields);
     default:
@@ -149,7 +182,14 @@ async function executeContentCreation(
 
   let selectedDraft = drafts?.[draftIndex];
   if (!selectedDraft) {
-    const preview = await previewAssetDrafts({ assetType, theme, issue, channel });
+    const preview = await previewAssetDrafts({
+      assetType,
+      theme,
+      issue,
+      channel,
+      audience: fields.intent,
+      contentNeed: fields.intent,
+    });
     if (!preview.ok) {
       return mapActionError(preview);
     }
@@ -184,13 +224,9 @@ async function executeContentCreation(
 }
 
 async function executeContentCalendar(
+  context: WorkflowCampaignContext,
   fields: WorkflowFields,
 ): Promise<ExecuteWorkflowResult> {
-  const context = await requireCampaignContext();
-  if (!context.ok) {
-    return { ok: false, error: context.error, code: "missing_campaign" };
-  }
-
   if (!isOpenAiConfigured()) {
     return {
       ok: false,
@@ -257,13 +293,9 @@ async function executeContentCalendar(
 }
 
 async function executeCampaignStructure(
+  context: WorkflowCampaignContext,
   fields: WorkflowFields,
 ): Promise<ExecuteWorkflowResult> {
-  const context = await requireCampaignContext();
-  if (!context.ok) {
-    return { ok: false, error: context.error, code: "missing_campaign" };
-  }
-
   if (!isOpenAiConfigured()) {
     return {
       ok: false,

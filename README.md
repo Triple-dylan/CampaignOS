@@ -260,6 +260,7 @@ Error monitoring is wired via `@sentry/nextjs` but stays inactive until you set 
 | `pnpm start`       | Serve production build         |
 | `pnpm lint`        | Run ESLint                     |
 | `pnpm typecheck`   | Run TypeScript (`tsc --noEmit`) |
+| `pnpm test`        | Run Vitest unit tests           |
 | `pnpm format`      | Format with Prettier           |
 | `pnpm format:check`| Check Prettier formatting      |
 
@@ -351,7 +352,7 @@ M8 replaces the `/planner` and `/tasks` placeholders with functional campaign op
 - **Filters:** events by type and view (upcoming / all / milestones); tasks by status, priority, and due date (overdue / this week).
 - **Graph:** each event creates an `event` node; each task creates a `task` node — linked to candidate (`belongs_to`), assets (`scheduled_for` / `references`), and events (`connected_to`) when applicable.
 - **Dashboard:** Tasks card shows open task count; Calendar card shows upcoming events in the next 7 days.
-- **AI weekly plan:** stub button (disabled, “Coming soon”) on Planner for a future milestone.
+- **AI weekly plan:** opens the **Generate timeline** wizard (Phase B) or routes open-ended requests through chat.
 
 ### Testing Planner + Tasks locally
 

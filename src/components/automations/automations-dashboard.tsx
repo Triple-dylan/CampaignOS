@@ -11,8 +11,10 @@ import {
   Sparkles,
   ClipboardList,
 } from "lucide-react";
-import type { DbWorkflowSchedule } from "@/lib/db/schema";
+import type { DbComplianceRecordWithAsset, DbWorkflowRun, DbWorkflowSchedule } from "@/lib/db/schema";
+import type { DbCalendarEvent } from "@/lib/db/schema";
 import { useAutomations } from "@/components/automations/automations-provider";
+import { RunNowButton } from "@/components/automations/run-now-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,7 +32,10 @@ import { cn } from "@/lib/utils";
 
 type AutomationsDashboardProps = {
   schedules: DbWorkflowSchedule[];
+  runs: DbWorkflowRun[];
   synced: boolean;
+  upcomingEvents?: DbCalendarEvent[];
+  pendingCompliance?: DbComplianceRecordWithAsset[];
 };
 
 type CommandTab = "scheduled" | "planner" | "compliance" | "history";
@@ -48,21 +53,25 @@ const TABS: Array<{
 
 function StatusBadge({ schedule }: { schedule: DbWorkflowSchedule }) {
   const label =
-    schedule.status === "pending_implementation"
-      ? "Awaiting runner"
-      : schedule.enabled
-        ? "Enabled"
-        : "Disabled";
+    schedule.status === "error"
+      ? "Last run failed"
+      : schedule.status === "pending_implementation"
+        ? "Ready to run"
+        : schedule.enabled
+          ? "Enabled"
+          : "Disabled";
 
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full border px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide",
-        schedule.status === "pending_implementation"
-          ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-          : schedule.enabled
-            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-            : "border-border bg-muted/50 text-muted-foreground",
+        schedule.status === "error"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : schedule.status === "pending_implementation"
+            ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            : schedule.enabled
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              : "border-border bg-muted/50 text-muted-foreground",
       )}
     >
       {label}
@@ -72,7 +81,10 @@ function StatusBadge({ schedule }: { schedule: DbWorkflowSchedule }) {
 
 export function AutomationsDashboard({
   schedules,
+  runs,
   synced,
+  upcomingEvents = [],
+  pendingCompliance = [],
 }: AutomationsDashboardProps) {
   const { openCreateDialog } = useAutomations();
   const [activeTab, setActiveTab] = useState<CommandTab>("scheduled");
@@ -122,22 +134,31 @@ export function AutomationsDashboard({
       {activeTab === "scheduled" ? (
         <ScheduledRunsTab
           schedules={schedules}
+          synced={synced}
           onCreate={() => openCreateDialog()}
         />
       ) : null}
 
-      {activeTab === "planner" ? <PlannerSummaryTab /> : null}
-      {activeTab === "compliance" ? <ComplianceQueueTab /> : null}
-      {activeTab === "history" ? <RunHistoryTab /> : null}
+      {activeTab === "planner" ? (
+        <PlannerSummaryTab events={upcomingEvents} />
+      ) : null}
+      {activeTab === "compliance" ? (
+        <ComplianceQueueTab records={pendingCompliance} />
+      ) : null}
+      {activeTab === "history" ? (
+        <RunHistoryTab runs={runs} schedules={schedules} synced={synced} />
+      ) : null}
     </div>
   );
 }
 
 function ScheduledRunsTab({
   schedules,
+  synced,
   onCreate,
 }: {
   schedules: DbWorkflowSchedule[];
+  synced: boolean;
   onCreate: () => void;
 }) {
   if (schedules.length === 0) {
@@ -198,12 +219,20 @@ function ScheduledRunsTab({
                 </span>
               </CardDescription>
             </div>
-            <StatusBadge schedule={schedule} />
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <StatusBadge schedule={schedule} />
+              {synced ? <RunNowButton scheduleId={schedule.id} /> : null}
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             <p className="line-clamp-2 text-sm text-muted-foreground">
               {schedule.prompt}
             </p>
+            {schedule.last_run_at ? (
+              <p className="text-xs text-muted-foreground">
+                Last run {formatRunTimestamp(schedule.last_run_at)}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ))}
@@ -211,131 +240,191 @@ function ScheduledRunsTab({
   );
 }
 
-function PlannerSummaryTab() {
-  const stubItems = [
-    { day: "Mon", focus: "Field canvass — Ward 3", status: "draft" },
-    { day: "Wed", focus: "Fundraiser prep call block", status: "scheduled" },
-    { day: "Fri", focus: "Weekend GOTV asset review", status: "pending" },
-  ];
+function PlannerSummaryTab({ events }: { events: DbCalendarEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          No upcoming planner events in the next 7 days. Generate a timeline in{" "}
+          <span className="font-medium text-foreground">Planner</span> or create
+          events manually.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Read-only snapshot of the weekly plan. Full editing lives in{" "}
+        Upcoming events from Planner (next 7 days). Full editing lives in{" "}
         <span className="font-medium text-foreground">Planner</span>.
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {stubItems.map((item) => (
-          <Card key={item.day} className="border-dashed">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {events.map((event) => (
+          <Card key={event.id}>
             <CardHeader className="pb-2">
               <CardDescription className="text-xs uppercase tracking-wide">
-                {item.day}
+                {new Date(event.start_time).toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}
               </CardDescription>
-              <CardTitle className="text-sm leading-snug">{item.focus}</CardTitle>
+              <CardTitle className="text-sm leading-snug">{event.title}</CardTitle>
             </CardHeader>
             <CardContent>
               <span className="inline-flex rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
-                {item.status}
+                {event.event_type.replace(/_/g, " ")}
               </span>
             </CardContent>
           </Card>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Runner integration coming soon — scheduled planner automations will
-        populate this view from workflow outputs.
-      </p>
     </div>
   );
 }
 
-function ComplianceQueueTab() {
-  const stubQueue = [
-    { title: "Healthcare mailer", type: "Disclosure review", priority: "high" },
-    { title: "Weekend social post", type: "AI-generated", priority: "medium" },
-    { title: "Fundraising email", type: "Pending review", priority: "medium" },
-  ];
+function ComplianceQueueTab({
+  records,
+}: {
+  records: DbComplianceRecordWithAsset[];
+}) {
+  if (records.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          No pending compliance reviews. New assets from Asset Studio and workflow
+          runs will appear here when review is required.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Upcoming compliance scans and review items surfaced by automations.
+        Pending compliance reviews for this campaign.
       </p>
       <div className="grid gap-3">
-        {stubQueue.map((item) => (
-          <Card key={item.title} className="border-dashed">
+        {records.map((record) => (
+          <Card key={record.id}>
             <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-2">
               <div>
-                <CardTitle className="text-sm">{item.title}</CardTitle>
-                <CardDescription>{item.type}</CardDescription>
+                <CardTitle className="text-sm">
+                  {record.asset?.title ?? "Campaign asset"}
+                </CardTitle>
+                <CardDescription>
+                  {(record.content_type ?? "campaign_asset").replace(/_/g, " ")}
+                  {record.ai_generated ? " · AI-generated" : ""}
+                </CardDescription>
               </div>
-              <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide",
-                  item.priority === "high"
-                    ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                    : "border-border bg-muted/40 text-muted-foreground",
-                )}
-              >
-                {item.priority}
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                {record.review_status}
               </span>
             </CardHeader>
           </Card>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Live queue data will sync from Compliance when the workflow runner is
-        enabled.
-      </p>
     </div>
   );
 }
 
-function RunHistoryTab() {
-  const stubRuns = [
-    {
-      name: "Weekly field plan",
-      ranAt: "Mon 6:00 AM",
-      status: "success" as const,
-    },
-    {
-      name: "Compliance scan",
-      ranAt: "Sun 11:00 PM",
-      status: "success" as const,
-    },
-    {
-      name: "Donor outreach drafts",
-      ranAt: "Fri 8:00 AM",
-      status: "pending" as const,
-    },
-  ];
+function RunHistoryTab({
+  runs,
+  schedules,
+  synced,
+}: {
+  runs: DbWorkflowRun[];
+  schedules: DbWorkflowSchedule[];
+  synced: boolean;
+}) {
+  const scheduleNames = new Map(
+    schedules.map((schedule) => [schedule.id, schedule.name]),
+  );
+
+  if (!synced) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Run history requires Supabase. Configure the database to see workflow
+        executions.
+      </p>
+    );
+  }
+
+  if (runs.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          No workflow runs yet. Use <strong>Run now</strong> on a scheduled
+          automation to execute it manually.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Recent workflow executions — read-only until the runner is live.
+        Recent workflow executions for this campaign.
       </p>
       <div className="grid gap-2">
-        {stubRuns.map((run) => (
-          <div
-            key={run.name}
-            className="glass-card flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{run.name}</p>
-              <p className="text-xs text-muted-foreground">{run.ranAt}</p>
+        {runs.map((run) => {
+          const scheduleName =
+            scheduleNames.get(run.schedule_id) ?? "Scheduled workflow";
+          const isSuccess = run.status === "completed";
+          const isFailed = run.status === "failed";
+          const isRunning = run.status === "running";
+
+          return (
+            <div
+              key={run.id}
+              className="glass-card flex items-start justify-between gap-3 rounded-xl border border-border px-4 py-3"
+            >
+              <div className="min-w-0 space-y-1">
+                <p className="truncate text-sm font-medium">{scheduleName}</p>
+                <p className="line-clamp-2 text-xs text-muted-foreground">
+                  {run.output_text?.trim() ||
+                    run.error_message?.trim() ||
+                    run.prompt_snapshot?.trim() ||
+                    "No output recorded"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatRunTimestamp(
+                    run.completed_at ?? run.started_at ?? run.created_at,
+                  )}
+                </p>
+              </div>
+              {isSuccess ? (
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="size-3.5" aria-hidden />
+                  Success
+                </span>
+              ) : isFailed ? (
+                <span className="shrink-0 text-xs text-destructive">Failed</span>
+              ) : isRunning ? (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  Running
+                </span>
+              ) : (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {run.status.replace(/_/g, " ")}
+                </span>
+              )}
             </div>
-            {run.status === "success" ? (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="size-3.5" aria-hidden />
-                Success
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">Queued</span>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
+}
+
+function formatRunTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }

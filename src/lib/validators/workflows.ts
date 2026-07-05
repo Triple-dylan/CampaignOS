@@ -75,6 +75,42 @@ export type CreateWorkflowScheduleInput = z.infer<
   typeof createWorkflowScheduleSchema
 >;
 
+export const WORKFLOW_SCHEDULE_TEMPLATES = [
+  {
+    id: "weekly-event-research",
+    name: "Weekly event prep report",
+    agentMode: "researcher" as const,
+    scheduleType: "weekly" as const,
+    prompt:
+      "Generate an event research brief for upcoming town halls and forums this week. Include talking points, risks, and sources.",
+  },
+  {
+    id: "weekly-content-batch",
+    name: "Weekly content draft batch",
+    agentMode: "content-strategist" as const,
+    scheduleType: "weekly" as const,
+    prompt:
+      "Draft social posts and email copy aligned with our top issues and message framework for the week ahead.",
+  },
+  {
+    id: "weekly-timeline-refresh",
+    name: "Weekly campaign timeline refresh",
+    agentMode: "campaign-manager" as const,
+    scheduleType: "weekly" as const,
+    prompt:
+      "Refresh the campaign timeline for our district and voter segments. Create planner milestones and follow-up tasks.",
+  },
+  {
+    id: "monthly-incumbent-comparison",
+    name: "Monthly incumbent comparison",
+    agentMode: "researcher" as const,
+    scheduleType: "custom_cron" as const,
+    cronExpression: "0 9 1 * *",
+    prompt:
+      "Produce an incumbent and opponent comparison report with sources and confidence notes for the current race.",
+  },
+] as const;
+
 export const updateWorkflowScheduleSchema = createWorkflowScheduleSchema
   .partial()
   .extend({

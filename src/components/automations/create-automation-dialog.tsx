@@ -26,6 +26,7 @@ import {
   WORKFLOW_AGENT_MODES,
   WORKFLOW_SCHEDULE_TYPE_LABELS,
   WORKFLOW_SCHEDULE_TYPES,
+  WORKFLOW_SCHEDULE_TEMPLATES,
   type CreateWorkflowScheduleInput,
 } from "@/lib/validators/workflows";
 
@@ -95,12 +96,39 @@ function CreateAutomationForm({
       <DialogHeader>
         <DialogTitle>Create scheduled run</DialogTitle>
         <DialogDescription>
-          Run an agent on a recurring schedule — like Cursor Automations.
-          Execution is saved now; the job runner connects later.
+          Run an agent on a recurring schedule — like Cursor Automations. Saved
+          schedules can be executed manually with Run now.
         </DialogDescription>
       </DialogHeader>
 
       <div className="grid gap-4 py-4">
+        <div className="space-y-2">
+          <Label>Workflow template</Label>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {WORKFLOW_SCHEDULE_TEMPLATES.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => {
+                  setName(template.name);
+                  setPrompt(template.prompt);
+                  setSelectedAgent(template.agentMode);
+                  setScheduleType(template.scheduleType);
+                  if ("cronExpression" in template && template.cronExpression) {
+                    setCronExpression(template.cronExpression);
+                  }
+                }}
+                className="rounded-lg border border-border bg-card/60 px-3 py-2 text-left text-sm transition-colors hover:border-ring hover:bg-card"
+              >
+                <span className="font-medium">{template.name}</span>
+                <span className="mt-1 block text-xs text-muted-foreground line-clamp-2">
+                  {template.prompt}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="automation-name">Name</Label>
           <Input

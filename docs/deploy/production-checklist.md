@@ -75,6 +75,7 @@ Confirm in [Vercel → campaignos → Settings → Environment Variables](https:
 | `CLERK_SECRET_KEY` | **`sk_live_…`** for long-term production (currently **`sk_test_…`** if using dev instance) |
 | `CLERK_WEBHOOK_SECRET` | From Clerk webhook endpoint (not set yet) |
 | Supabase vars | Production project keys |
+| `CRON_SECRET` | Random secret for `GET /api/cron/workflows` (Vercel Cron sends `Authorization: Bearer …`) |
 
 After changing env vars, redeploy Production (Git push or `npx vercel@latest deploy --prod`).
 

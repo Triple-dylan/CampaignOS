@@ -2,5 +2,11 @@
   "framework": "nextjs",
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/cron/workflows",
+      "schedule": "0 * * * *"
+    }
+  ]
 }

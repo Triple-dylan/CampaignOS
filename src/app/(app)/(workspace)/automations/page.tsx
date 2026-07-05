@@ -1,6 +1,11 @@
 import { WorkPageFrame } from "@/components/layout/work-page-frame";
 import { AutomationsDashboard } from "@/components/automations/automations-dashboard";
-import { getScheduledRunsForCampaign } from "@/actions/workflows";
+import {
+  getScheduledRunsForCampaign,
+  getWorkflowRunHistoryForCampaign,
+} from "@/actions/workflows";
+import { getPlannerData } from "@/actions/planner";
+import { getComplianceDataForCampaign } from "@/actions/compliance";
 import { modulePages } from "@/lib/navigation";
 import {
   Card,
@@ -14,7 +19,18 @@ import { Button } from "@/components/ui/button";
 
 export default async function AutomationsPage() {
   const page = modulePages.automations;
-  const result = await getScheduledRunsForCampaign();
+  const now = new Date();
+  const weekAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const [result, history, planner, compliance] = await Promise.all([
+    getScheduledRunsForCampaign(),
+    getWorkflowRunHistoryForCampaign(),
+    getPlannerData({
+      startAfter: now.toISOString(),
+      startBefore: weekAhead.toISOString(),
+    }),
+    getComplianceDataForCampaign({ reviewStatus: "pending" }),
+  ]);
 
   if (!result.ok) {
     return (
@@ -40,7 +56,12 @@ export default async function AutomationsPage() {
     <WorkPageFrame title={page.title} description={page.description}>
       <AutomationsDashboard
         schedules={result.schedules}
+        runs={history.ok ? history.runs : []}
         synced={result.synced}
+        upcomingEvents={planner.ok ? planner.events.slice(0, 8) : []}
+        pendingCompliance={
+          compliance.ok ? compliance.records.slice(0, 8) : []
+        }
       />
     </WorkPageFrame>
   );

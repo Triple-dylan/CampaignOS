@@ -55,6 +55,9 @@ export async function generateAssetContent(input: {
     theme: input.request.theme,
     issue: input.request.issue,
     channel: input.request.channel,
+    audience: input.request.audience,
+    contentNeed: input.request.contentNeed,
+    variationHint: input.request.variationHint,
     variantLabel: input.variantLabel,
   });
 
@@ -71,6 +74,9 @@ export async function generateAssetContent(input: {
       theme: input.request.theme,
       issue: input.request.issue,
       channel: input.request.channel,
+      audience: input.request.audience,
+      contentNeed: input.request.contentNeed,
+      variationHint: input.request.variationHint,
       variantLabel: input.variantLabel,
     },
     createdObjectType: "asset",
