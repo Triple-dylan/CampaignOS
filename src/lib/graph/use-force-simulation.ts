@@ -174,6 +174,7 @@ function applyScaledForces(
   hubOrbit: number,
   hubs: SimNode[],
   driftAngleRef: React.RefObject<number>,
+  pinnedRef: React.RefObject<Record<string, { x: number; y: number }>>,
 ): void {
   sim.force(
     "link",
@@ -238,16 +239,28 @@ function applyScaledForces(
   );
   sim.force(
     "x",
-    forceX<SimNode>(0).strength((node) => {
-      if (node.isCampaignCenter) return physics.centerPinStrength;
+    forceX<SimNode>((node) =>
+      node.isCampaignCenter && pinnedRef.current[node.id]
+        ? pinnedRef.current[node.id].x
+        : 0,
+    ).strength((node) => {
+      if (node.isCampaignCenter) {
+        return pinnedRef.current[node.id] ? 0 : physics.centerPinStrength;
+      }
       if (node.isCandidate) return physics.candidateCenterPull;
       return physics.centerPull;
     }),
   );
   sim.force(
     "y",
-    forceY<SimNode>(0).strength((node) => {
-      if (node.isCampaignCenter) return physics.centerPinStrength;
+    forceY<SimNode>((node) =>
+      node.isCampaignCenter && pinnedRef.current[node.id]
+        ? pinnedRef.current[node.id].y
+        : 0,
+    ).strength((node) => {
+      if (node.isCampaignCenter) {
+        return pinnedRef.current[node.id] ? 0 : physics.centerPinStrength;
+      }
       if (node.isCandidate) return physics.candidateCenterPull;
       return physics.centerPull;
     }),
@@ -520,10 +533,15 @@ export function useGraphForceSimulation(input: {
 
     for (const node of simNodes) {
       if (node.isCampaignCenter) {
-        node.x = 0;
-        node.y = 0;
-        node.fx = 0;
-        node.fy = 0;
+        const centerPin = pinnedRef.current[node.id];
+        if (centerPin) {
+          node.x = centerPin.x;
+          node.y = centerPin.y;
+          if (pinLayoutRef.current) {
+            node.fx = centerPin.x;
+            node.fy = centerPin.y;
+          }
+        }
       } else if (pinLayoutRef.current && pinnedRef.current[node.id]) {
         const pin = pinnedRef.current[node.id];
         node.x = pin.x;
@@ -569,7 +587,7 @@ export function useGraphForceSimulation(input: {
     simRef.current = sim as Simulation<SimNode, SimLink>;
 
     sim.nodes(simNodes);
-    applyScaledForces(sim, simLinks, physics, hubOrbit, hubs, driftAngleRef);
+    applyScaledForces(sim, simLinks, physics, hubOrbit, hubs, driftAngleRef, pinnedRef);
 
     linksRef.current = simLinks.map((link, index) => ({
       id: flowEdges[index].id,
@@ -697,6 +715,7 @@ export function useGraphForceSimulation(input: {
         hubOrbitRef.current,
         hubs,
         driftAngleRef,
+        pinnedRef,
       );
 
       sim
@@ -731,7 +750,7 @@ export function useGraphForceSimulation(input: {
     (id: string, position: { x: number; y: number }) => {
       const sim = simRef.current;
       const node = nodeByIdRef.current.get(id);
-      if (!sim || !node || node.isCampaignCenter) return;
+      if (!sim || !node) return;
       draggingRef.current = true;
       node.fx = position.x;
       node.fy = position.y;
@@ -769,12 +788,6 @@ export function useGraphForceSimulation(input: {
       } else {
         node.fx = null;
         node.fy = null;
-      }
-    }
-    for (const n of nodeByIdRef.current.values()) {
-      if (n.isCampaignCenter) {
-        n.fx = 0;
-        n.fy = 0;
       }
     }
     sim?.alphaTarget(0);

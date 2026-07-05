@@ -18,6 +18,7 @@ import {
   upsertCampaignProfile,
 } from "@/lib/db/campaigns";
 import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
+import { seedTrinhHaResearchBriefs } from "@/lib/campaign/seed-trinh-ha-campaign";
 import { resolveOnboardingFormDefaults } from "@/lib/campaign/test-candidate";
 import {
   onboardingFormSchema,
@@ -186,7 +187,6 @@ export async function getOnboardingData(): Promise<
     profile,
     formDefaults: resolveOnboardingFormDefaults(
       mapCampaignToFormDefaults(campaign, profile),
-      campaign,
     ),
   };
 }
@@ -264,7 +264,10 @@ export async function completeOnboarding(
       voterSegments: parsed.data.voterSegments,
     });
 
+    await seedTrinhHaResearchBriefs(campaign.id);
+
     revalidatePath("/brain");
+    revalidatePath("/research");
 
     const user = await currentUser();
     if (user && !isOnboardingCompleteInMetadata(user)) {

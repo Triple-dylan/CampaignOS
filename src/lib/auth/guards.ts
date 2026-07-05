@@ -2,6 +2,19 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { isOnboardingComplete } from "@/lib/auth/onboarding";
 
+/** Signed-in users with an active org — enough for Settings and integrations. */
+export async function requireAuthenticatedOrg() {
+  const user = await currentUser();
+  if (!user) {
+    redirect("/sign-in");
+  }
+
+  const { orgId } = await auth();
+  if (!orgId) {
+    redirect("/dashboard");
+  }
+}
+
 export async function requireOnboardingComplete() {
   const user = await currentUser();
   if (!user) {

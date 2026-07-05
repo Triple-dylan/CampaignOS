@@ -304,7 +304,7 @@ export function toReactFlowGraph(input: {
       id: node.id,
       type: "graphNode",
       position: positions.get(node.id) ?? { x: 0, y: 0 },
-      draggable: !enriched.isCampaignCenter,
+      draggable: true,
       data: enriched,
     };
   });

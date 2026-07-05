@@ -1,5 +1,6 @@
 import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
 import type { OnboardingFormInput } from "@/lib/validators/onboarding";
+import type { CreateResearchBriefInput } from "@/lib/validators/research-briefs";
 
 /**
  * Default test candidate for development, onboarding prefills, and the
@@ -70,6 +71,105 @@ export const TEST_CANDIDATE_THEMES = [
 
 export const TEST_CANDIDATE_OPPONENT = "Kim Schrier";
 
+export type TestCandidateResearchSeed = Omit<
+  CreateResearchBriefInput,
+  "campaignId" | "createdBy"
+>;
+
+/** Prefilled research for the Trinh Ha WA-08 test campaign. */
+export const TEST_CANDIDATE_RESEARCH_BRIEFS: TestCandidateResearchSeed[] = [
+  {
+    researchType: "district",
+    title: "WA-08 district profile",
+    topic: "Washington's 8th Congressional District",
+    summary:
+      "Competitive eastside/exurban seat spanning King and Pierce counties — Issaquah, Sammamish, Auburn, and surrounding communities.",
+    status: "complete",
+    keyFindings: [
+      "Mix of suburban moderates, tech workers, and exurban voters",
+      "Education funding and public safety are top local priorities",
+      "Fast-growing immigrant communities, including Vietnamese-American voters",
+    ],
+    sources: [
+      {
+        title: "Washington Secretary of State — Congressional districts",
+        url: "https://www.sos.wa.gov/elections",
+      },
+      {
+        title: "Ballotpedia — Washington's 8th Congressional District",
+        url: "https://ballotpedia.org/Washington%27s_8th_Congressional_District",
+      },
+    ],
+  },
+  {
+    researchType: "opponent",
+    title: `${TEST_CANDIDATE_OPPONENT} (incumbent)`,
+    topic: "WA-08 incumbent research",
+    summary:
+      "Three-term Democratic incumbent focused on healthcare, reproductive rights, and district services.",
+    status: "complete",
+    keyFindings: [
+      "First elected in 2018; won re-election in 2020 and 2022",
+      "Physician background; national profile on healthcare policy",
+      "Strong performance in eastside suburbs — key persuasion battleground",
+    ],
+    sources: [
+      {
+        title: "FEC candidate profile",
+        url: "https://www.fec.gov",
+      },
+    ],
+  },
+  {
+    researchType: "issue",
+    title: "Public safety in eastside suburbs",
+    topic: "Public safety",
+    summary:
+      "Voters rank public safety among top concerns across Issaquah, Sammamish, and Auburn corridors.",
+    status: "complete",
+    keyFindings: [
+      "Support for community policing and victim services",
+      "Concern about property crime and fentanyl trafficking",
+      "Balance message: support law enforcement + prevention programs",
+    ],
+  },
+  {
+    researchType: "voter_segment",
+    title: "Suburban moderates (WA-08)",
+    topic: "Persuasion universe",
+    summary:
+      "Ticket-splitting voters in eastside suburbs — open to freedom-and-family framing on economy and safety.",
+    status: "complete",
+    keyFindings: [
+      "High turnout in presidential years",
+      "Responsive to immigrant success stories and education quality",
+      "Skeptical of partisan extremes — prefer pragmatic tone",
+    ],
+  },
+  {
+    researchType: "policy",
+    title: "Trinh Ha campaign biography & themes",
+    topic: "Candidate narrative",
+    summary: TEST_CANDIDATE_BIO,
+    status: "complete",
+    keyFindings: [
+      ...TEST_CANDIDATE_THEMES.map((theme) => `Campaign theme: ${theme}`),
+      "Personal story: family fled communist Vietnam; Ph.D. from UC Berkeley",
+      "Former VA consultant (2019–2025) — veterans and service credibility",
+    ],
+    sources: [
+      {
+        title: "Trinh Ha for Congress",
+        url: "https://trinhhaforcongress.com",
+      },
+      {
+        title: "FEC — H6WA08159",
+        url: "https://www.fec.gov",
+      },
+    ],
+  },
+];
+
 const DEMO_NOW = "2026-01-01T00:00:00.000Z";
 
 /** Campaign row fields for preview/demo fixtures. */
@@ -130,15 +230,10 @@ export function buildTestCandidateProfile(
   };
 }
 
-/** Use test-candidate defaults when no saved candidate name exists yet. */
+/** Prefill Trinh Ha defaults for any empty onboarding fields. */
 export function resolveOnboardingFormDefaults(
   mapped: Partial<OnboardingFormInput>,
-  campaign: { candidate_name?: string | null } | null,
 ): Partial<OnboardingFormInput> {
-  if (campaign?.candidate_name?.trim()) {
-    return mapped;
-  }
-
   return {
     ...TEST_CANDIDATE_ONBOARDING_DEFAULTS,
     ...mapped,

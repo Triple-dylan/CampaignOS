@@ -336,8 +336,7 @@ export function GraphSettingsPanel({
             <p className="text-[0.62rem] text-muted-foreground">
               {Object.keys(positions.pinned).length > 0
                 ? `${Object.keys(positions.pinned).length} pinned node(s) saved.`
-                : "Drag nodes while pinned to save positions across sessions."}{" "}
-              The campaign center node always stays fixed.
+                : "Drag any node — including the campaign center — to reposition. Positions save when pin layout is on."}
             </p>
           </div>
         </section>

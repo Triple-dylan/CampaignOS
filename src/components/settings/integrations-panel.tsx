@@ -82,8 +82,8 @@ export function IntegrationsPanel({
     <div className="space-y-6">
       {demoMode ? (
         <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          Demo mode is on (<code>INTEGRATIONS_DEMO_MODE=true</code>). Connect
-          buttons simulate OAuth and return placeholder exports.
+          Demo mode is on — connect buttons simulate OAuth and return
+          placeholder exports when real provider credentials are not configured.
         </p>
       ) : null}
 
