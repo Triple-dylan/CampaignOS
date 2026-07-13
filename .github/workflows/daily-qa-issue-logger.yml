@@ -51,7 +51,7 @@ jobs:
           DATE=$(date -u +%F)
           # Prefer today's smoke PR branch, else yesterday, else committed main files
           for d in "$DATE" "$(date -u -d 'yesterday' +%F)"; do
-            BRANCH="qa/daily-smoke-${d}"
+            BRANCH="cursor/qa-daily-smoke-${d}-f25a"
             if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
               git fetch origin "$BRANCH"
               git checkout "origin/${BRANCH}" -- "qa/daily/${d}" || true
