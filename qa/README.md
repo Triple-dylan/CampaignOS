@@ -1,45 +1,36 @@
 # Daily QA loop (CampaignOS)
 
-Handoff area for three Cursor Automations that form a daily review-and-fix loop.
+Handoff area for the **daily review-and-fix loop**. The live runners are GitHub Actions (this agent owns schedules, commits, and merges). Cursor Automations prompts remain available for dashboard use when a Cursor session is present.
 
-| Stage | Automation | Schedule (UTC) | Writes | Reads |
-| ----- | ---------- | -------------- | ------ | ----- |
-| 1 | Daily Smoke Loop | `0 13 * * *` (13:00) | `qa/daily/YYYY-MM-DD/smoke-report.md` + `findings.json` | Production + local app |
-| 2 | Daily Issue Logger | `0 15 * * *` (15:00) | GitHub Issues (`automation:qa`, …) | Latest `qa/daily/*/findings.json` |
-| 3 | Daily Review & Fix | `0 17 * * *` (17:00) + label `autofix-candidate` | Draft PRs closing/linking issues | Open GitHub Issues |
+| Stage | Workflow | Schedule (UTC) | Writes | Reads |
+| ----- | -------- | -------------- | ------ | ----- |
+| 1 | `Daily QA — Smoke Loop` | `0 13 * * *` + dispatch | `qa/daily/YYYY-MM-DD/` + draft report PR | Production |
+| 2 | `Daily QA — Issue Logger` | after smoke (`workflow_run`) + `0 15 * * *` | GitHub Issues (`automation:qa`, …) | Latest findings |
+| 3 | `Daily QA — Review & Fix` | after logger + `0 17 * * *` + label `autofix-candidate` | Issue comments / close / Cursor agent (if `CURSOR_API_KEY`) | Open Issues |
 
-Cross-automation state lives here and in GitHub Issues — not in Memories (Memories are per-automation only).
+## Labels
 
-## Labels (create once in GitHub)
+Created automatically by `scripts/qa-log-issues.mjs` / `scripts/qa-ensure-labels.sh`.
 
-| Label | Color | Purpose |
-| ----- | ----- | ------- |
-| `automation:qa` | `#0E8A16` | Created/managed by the QA loop |
-| `severity:critical` | `#B60205` | Blocks core flows / data loss / auth break |
-| `severity:high` | `#D93F0B` | Major broken feature |
-| `severity:medium` | `#FBCA04` | Degraded UX / recoverable error |
-| `severity:low` | `#C5DEF5` | Cosmetic / minor |
-| `autofix-candidate` | `#5319E7` | Logger thinks a small, high-confidence fix is possible |
-| `needs-human` | `#E99695` | Ambiguous, product, or risky — do not autofix |
+| Label | Purpose |
+| ----- | ------- |
+| `automation:qa` | QA loop |
+| `severity:*` | critical / high / medium / low |
+| `autofix-candidate` | Safe for autofix stage |
+| `needs-human` | Do not autofix |
 
-Create with:
+## Manual run
 
 ```bash
-gh label create "automation:qa" --color "0E8A16" --description "QA automation loop"
-gh label create "severity:critical" --color "B60205" --description "Critical QA finding"
-gh label create "severity:high" --color "D93F0B" --description "High severity QA finding"
-gh label create "severity:medium" --color "FBCA04" --description "Medium severity QA finding"
-gh label create "severity:low" --color "C5DEF5" --description "Low severity QA finding"
-gh label create "autofix-candidate" --color "5319E7" --description "Safe for daily autofix automation"
-gh label create "needs-human" --color "E99695" --description "Requires human judgment"
+node scripts/qa-smoke-report.mjs https://campaignos-sigma.vercel.app --loops=3
+node scripts/qa-log-issues.mjs
+node scripts/qa-review-and-fix.mjs
 ```
 
-## Quick start
+Or: Actions → each workflow → **Run workflow**.
 
-1. Merge this PR (or copy prompts from `docs/automations/`).
-2. Create the labels above.
-3. Open [cursor.com/automations/new](https://cursor.com/automations/new) three times and paste each prompt from `docs/automations/prompts/`.
-4. For each: set **repository** to `triple-dylan/campaignos` / `main`, enable **Computer use**, **PR creation** (stage 3), and **Memories**.
-5. Activate.
+## Cursor Cloud Agent autofix (optional)
 
-Full setup: [`docs/automations/daily-qa-loop.md`](../docs/automations/daily-qa-loop.md).
+Set repository secret `CURSOR_API_KEY` (Cursor Dashboard → API Keys). The review stage then launches a Cloud Agent per candidate issue. Without it, the stage still re-probes, closes resolved issues, and comments.
+
+Setup detail: [`docs/automations/daily-qa-loop.md`](../docs/automations/daily-qa-loop.md).
