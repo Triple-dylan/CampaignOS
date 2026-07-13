@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Daily issue logger: turn qa/daily/*/findings.json into deduped GitHub Issues.
+ * Daily issue logger: turn qa/daily/<date>/findings.json into deduped GitHub Issues.
  *
  * Usage:
  *   node scripts/qa-log-issues.mjs [path-to-findings.json]
