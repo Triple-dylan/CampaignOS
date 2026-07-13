@@ -1,0 +1,9 @@
+{
+  "date": "YYYY-MM-DD",
+  "baseUrl": "https://campaignos-sigma.vercel.app",
+  "agentRunUrl": "",
+  "loopsCompleted": 0,
+  "summary": "",
+  "checks": [],
+  "findings": []
+}
