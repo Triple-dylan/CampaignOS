@@ -1,0 +1,73 @@
+name: Daily QA — Issue Logger
+
+on:
+  workflow_run:
+    workflows: ["Daily QA — Smoke Loop"]
+    types: [completed]
+  schedule:
+    # Backup if workflow_run misses (15:00 UTC)
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: daily-qa-logger
+  cancel-in-progress: false
+
+jobs:
+  log-issues:
+    runs-on: ubuntu-latest
+    # On workflow_run, only continue when smoke finished (pass or fail — findings still exist on failure)
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download smoke artifact (workflow_run)
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: qa-smoke-report
+          path: qa/daily
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Fetch latest smoke report from repo (schedule/dispatch)
+        if: github.event_name != 'workflow_run'
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +%F)
+          # Prefer today's smoke PR branch, else yesterday, else committed main files
+          for d in "$DATE" "$(date -u -d 'yesterday' +%F)"; do
+            BRANCH="qa/daily-smoke-${d}"
+            if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+              git fetch origin "$BRANCH"
+              git checkout "origin/${BRANCH}" -- "qa/daily/${d}" || true
+            fi
+          done
+          ls -la qa/daily || true
+
+      - name: Ensure report present
+        run: |
+          if ! ls qa/daily/*/findings.json >/dev/null 2>&1; then
+            echo "no smoke report found"
+            exit 0
+          fi
+
+      - name: Create / dedupe GitHub Issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: node scripts/qa-log-issues.mjs

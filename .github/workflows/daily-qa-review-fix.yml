@@ -1,0 +1,45 @@
+name: Daily QA — Review & Fix
+
+on:
+  workflow_run:
+    workflows: ["Daily QA — Issue Logger"]
+    types: [completed]
+  schedule:
+    # 17:00 UTC daily
+    - cron: "0 17 * * *"
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: daily-qa-fix
+  cancel-in-progress: false
+
+jobs:
+  review-and-fix:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name != 'issues' ||
+      github.event.label.name == 'autofix-candidate'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Review open autofix candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          QA_BASE_URL: https://campaignos-sigma.vercel.app
+          QA_REPO_URL: https://github.com/${{ github.repository }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: node scripts/qa-review-and-fix.mjs
