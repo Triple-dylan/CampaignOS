@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           DATE=$(date -u +%F)
-          BRANCH="qa/daily-smoke-${DATE}"
+          BRANCH="cursor/qa-daily-smoke-${DATE}-f25a"
           git config user.name "campaignos-qa[bot]"
           git config user.email "campaignos-qa[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
