@@ -62,6 +62,8 @@ export type WorkspaceContextPanelProps = {
   onGraphPreferencesChange?: (
     patch: Partial<CampaignGraphPreferences>,
   ) => void;
+  /** Teammates currently focused on the selected graph node. */
+  presencePeerCount?: number;
 };
 
 export function WorkspaceContextPanelContent({
@@ -75,12 +77,18 @@ export function WorkspaceContextPanelContent({
   onClearSelection,
   graphPreferences,
   onGraphPreferencesChange,
+  presencePeerCount = 0,
 }: WorkspaceContextPanelProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4">
         <h2 className="text-sm font-semibold">
           {selectedNode ? "Preview" : digest ? "Today" : "Campaign"}
+          {selectedNode && presencePeerCount > 0 ? (
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              · {presencePeerCount} here
+            </span>
+          ) : null}
         </h2>
         <div className="flex items-center gap-0.5">
           {selectedNode ? (

@@ -1,4 +1,5 @@
 import { CampaignProviderServer } from "@/components/campaign/campaign-provider";
+import { CollaborationProviders } from "@/components/focus/collaboration-providers";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { ChatProvider } from "@/components/chat/chat-provider";
 import { AutomationsProvider } from "@/components/automations/automations-provider";
@@ -21,12 +22,14 @@ export default async function AppLayout({
 
   return (
     <CampaignProviderServer>
-      <ChatProvider initialAiConfigured={isOpenAiConfigured()}>
-        <AutomationsProvider>
-          <WorkspaceShell>{children}</WorkspaceShell>
-          <CreateAutomationDialog />
-        </AutomationsProvider>
-      </ChatProvider>
+      <CollaborationProviders>
+        <ChatProvider initialAiConfigured={isOpenAiConfigured()}>
+          <AutomationsProvider>
+            <WorkspaceShell>{children}</WorkspaceShell>
+            <CreateAutomationDialog />
+          </AutomationsProvider>
+        </ChatProvider>
+      </CollaborationProviders>
     </CampaignProviderServer>
   );
 }
