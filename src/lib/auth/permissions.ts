@@ -193,3 +193,38 @@ export function roleAtLeast(
   ];
   return order.indexOf(role) >= order.indexOf(minimum);
 }
+
+/**
+ * Ensures the caller has at least read (or write) access to a module.
+ * Keep this out of `"use server"` modules — Next requires exported server
+ * actions to be async.
+ */
+export function assertModuleAccess(
+  role: OrganizationRole | null | undefined,
+  module: AppModule,
+  mode: "read" | "write" = "read",
+): { ok: true } | { ok: false; error: string; code: "forbidden" } {
+  if (!role) {
+    return {
+      ok: false,
+      error: "You are not a member of this organization.",
+      code: "forbidden",
+    };
+  }
+
+  const allowed =
+    mode === "write" ? canWriteModule(role, module) : canAccessModule(role, module);
+
+  if (!allowed) {
+    return {
+      ok: false,
+      error:
+        mode === "write"
+          ? "You do not have permission to make changes in this module."
+          : "You do not have permission to access this module.",
+      code: "forbidden",
+    };
+  }
+
+  return { ok: true };
+}

@@ -9,11 +9,6 @@ import {
 import type { DbCampaignProfile } from "@/lib/db/schema";
 import { getMemberRoleForUser } from "@/lib/db/members";
 import { getUserByClerkId } from "@/lib/db/users";
-import {
-  canAccessModule,
-  canWriteModule,
-  type AppModule,
-} from "@/lib/auth/permissions";
 import type { OrganizationRole } from "@/lib/validators/enums";
 
 export type CampaignActionCode =
@@ -100,38 +95,3 @@ export type ModuleActionResult =
 
 export type CampaignContextOk = Extract<CampaignContext, { ok: true }>;
 
-/**
- * Ensures the caller has at least read (or write) access to a module.
- * Use after requireCampaignContext() succeeds.
- */
-export function assertModuleAccess(
-  context: CampaignContextOk,
-  module: AppModule,
-  mode: "read" | "write" = "read",
-): { ok: true } | { ok: false; error: string; code: "forbidden" } {
-  if (!context.role) {
-    return {
-      ok: false,
-      error: "You are not a member of this organization.",
-      code: "forbidden",
-    };
-  }
-
-  const allowed =
-    mode === "write"
-      ? canWriteModule(context.role, module)
-      : canAccessModule(context.role, module);
-
-  if (!allowed) {
-    return {
-      ok: false,
-      error:
-        mode === "write"
-          ? "You do not have permission to make changes in this module."
-          : "You do not have permission to access this module.",
-      code: "forbidden",
-    };
-  }
-
-  return { ok: true };
-}
