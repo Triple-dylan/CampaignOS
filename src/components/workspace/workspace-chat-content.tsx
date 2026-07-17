@@ -19,6 +19,7 @@ import {
   parseAgentDirective,
   useAgentMention,
 } from "@/components/chat/agent-mention";
+import { ChatModelControls } from "@/components/chat/chat-model-controls";
 import { useVisualViewportOffset } from "@/hooks/use-visual-viewport-offset";
 import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
@@ -244,12 +245,12 @@ export function WorkspaceChatContent({
             )}
           />
           <div className="flex items-center justify-between gap-2 px-2 pt-1 pb-2">
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 items-center gap-0.5">
               <button
                 type="button"
                 title="Attach files (coming soon)"
                 aria-label="Attach files"
-                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <Paperclip className="size-4" aria-hidden />
               </button>
@@ -258,12 +259,13 @@ export function WorkspaceChatContent({
                 title="Mention an agent or context"
                 aria-label="Mention an agent or context"
                 onClick={mention.insertMentionTrigger}
-                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <AtSign className="size-4" aria-hidden />
               </button>
+              <ChatModelControls density="rail" />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {draft.trim() ? (
                 <button
                   type="button"

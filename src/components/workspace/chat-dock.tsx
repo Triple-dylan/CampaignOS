@@ -12,6 +12,7 @@ import {
   parseAgentDirective,
   useAgentMention,
 } from "@/components/chat/agent-mention";
+import { ChatModelControls } from "@/components/chat/chat-model-controls";
 import { useVisualViewportOffset } from "@/hooks/use-visual-viewport-offset";
 import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
@@ -254,12 +255,12 @@ export function ChatDock({ composerRef }: ChatDockProps) {
             )}
           />
           <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
               <button
                 type="button"
                 title="Attach files (coming soon)"
                 aria-label="Attach files"
-                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <Paperclip className="size-4" aria-hidden />
               </button>
@@ -268,12 +269,13 @@ export function ChatDock({ composerRef }: ChatDockProps) {
                 title="Mention an agent or context"
                 aria-label="Mention an agent or context"
                 onClick={mention.insertMentionTrigger}
-                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <AtSign className="size-4" aria-hidden />
               </button>
+              <ChatModelControls density="dock" />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {aiConfigured === false ? (
                 <span className="hidden rounded-full bg-muted/70 px-2 py-0.5 text-[0.65rem] text-muted-foreground/80 md:inline">
                   AI key off · guided help

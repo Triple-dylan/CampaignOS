@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { FolderOpen, Plus, Search, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -39,6 +39,34 @@ type AssetStudioProps = {
   initialAssetId?: string | null;
 };
 
+function assetMatchesFilters(
+  asset: DbAsset,
+  collectionId: CollectionId,
+  query: string,
+): boolean {
+  if (!getCollection(collectionId).matches(asset)) return false;
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return (
+    asset.title.toLowerCase().includes(normalized) ||
+    (asset.content_text ?? "").toLowerCase().includes(normalized)
+  );
+}
+
+/** Keep selection only when the asset is still on the active collection page. */
+function selectionForFilters(
+  selectedId: string | null,
+  assets: DbAsset[],
+  collectionId: CollectionId,
+  query: string,
+): string | null {
+  if (!selectedId) return null;
+  const asset = assets.find((item) => item.id === selectedId);
+  // Not loaded yet (e.g. just generated) — keep the optimistic selection.
+  if (!asset) return selectedId;
+  return assetMatchesFilters(asset, collectionId, query) ? selectedId : null;
+}
+
 export function AssetStudio({
   assets,
   canApprove,
@@ -52,26 +80,31 @@ export function AssetStudio({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialAssetId ?? null,
   );
+  const [seenInitialAssetId, setSeenInitialAssetId] = useState(initialAssetId);
   const [createOpen, setCreateOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateTemplate, setGenerateTemplate] =
     useState<SocialAssetTemplate | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const mainScrollRef = useRef<HTMLElement>(null);
+
+  // Accept deep-link changes during render (no effect / remount needed).
+  if (initialAssetId !== seenInitialAssetId) {
+    setSeenInitialAssetId(initialAssetId);
+    if (initialAssetId) {
+      setSelectedId(initialAssetId);
+      setActionError(null);
+    }
+  }
 
   const activeCollection = getCollection(collection);
 
   const filteredAssets = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return assets.filter((asset) => {
-      if (!activeCollection.matches(asset)) return false;
-      if (!normalized) return true;
-      return (
-        asset.title.toLowerCase().includes(normalized) ||
-        (asset.content_text ?? "").toLowerCase().includes(normalized)
-      );
-    });
-  }, [assets, activeCollection, query]);
+    return assets.filter((asset) =>
+      assetMatchesFilters(asset, collection, query),
+    );
+  }, [assets, collection, query]);
 
   const selectedAsset = useMemo(
     () => assets.find((asset) => asset.id === selectedId) ?? null,
@@ -96,6 +129,26 @@ export function AssetStudio({
     });
   }
 
+  function handleSelectCollection(next: CollectionId) {
+    if (next === collection) return;
+    setCollection(next);
+    setActionError(null);
+    setSelectedId((current) =>
+      selectionForFilters(current, assets, next, query),
+    );
+    // Scroll the content pane to the top so the new label reads like a page.
+    requestAnimationFrame(() => {
+      mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  function handleQueryChange(next: string) {
+    setQuery(next);
+    setSelectedId((current) =>
+      selectionForFilters(current, assets, collection, next),
+    );
+  }
+
   function handleUseTemplate(template: SocialAssetTemplate) {
     setGenerateTemplate(template);
     setGenerateOpen(true);
@@ -115,55 +168,101 @@ export function AssetStudio({
       <StudioCollections
         assets={assets}
         activeCollection={collection}
-        onSelect={setCollection}
+        onSelect={handleSelectCollection}
         onCreate={() => setCreateOpen(true)}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        <div className="flex flex-col gap-4 p-3 md:p-4">
+      <main
+        ref={mainScrollRef}
+        className="flex min-w-0 flex-1 flex-col overflow-y-auto"
+      >
+        <div className="flex flex-col gap-5 p-3 md:p-5">
           <TemplateGallery onUseTemplate={handleUseTemplate} />
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 flex-col gap-2">
-              <MobileCollectionPicker
-                assets={assets}
-                activeCollection={collection}
-                onSelect={setCollection}
-                onCreate={() => setCreateOpen(true)}
-              />
-              <div>
-                <h2 className="hidden text-sm font-semibold lg:block">
-                  {activeCollection.label}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {filteredAssets.length} asset
-                  {filteredAssets.length === 1 ? "" : "s"}
-                </p>
+          <div className="sticky top-0 z-10 -mx-3 border-b border-border/60 bg-background/85 px-3 py-3 backdrop-blur-md md:-mx-5 md:px-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex min-w-0 flex-col gap-2">
+                <MobileCollectionPicker
+                  assets={assets}
+                  activeCollection={collection}
+                  onSelect={handleSelectCollection}
+                  onCreate={() => setCreateOpen(true)}
+                />
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-semibold tracking-tight">
+                    {activeCollection.label}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {activeCollection.description}
+                    <span className="mx-1.5 text-border">·</span>
+                    {filteredAssets.length} asset
+                    {filteredAssets.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="relative w-full sm:w-auto">
+                  <Search
+                    className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => handleQueryChange(event.target.value)}
+                    placeholder="Search assets"
+                    className="h-9 w-full rounded-lg border border-input bg-background pr-3 pl-8 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 sm:w-48"
+                  />
+                </div>
+                <ViewSwitcher view={view} onChange={setView} />
+                <ResponsiveActionGroup
+                  primary={
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setCreateOpen(true)}
+                    >
+                      <Plus data-icon="inline-start" className="size-3.5" />
+                      New Content
+                    </Button>
+                  }
+                  overflow={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setGenerateTemplate(null);
+                        setGenerateOpen(true);
+                      }}
+                    >
+                      <Sparkles data-icon="inline-start" className="size-3.5" />
+                      Generate
+                    </Button>
+                  }
+                  overflowLabel="Asset actions"
+                />
               </div>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-              <div className="relative w-full sm:w-auto">
-                <Search
-                  className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search assets"
-                  className="h-8 w-full rounded-lg border border-input bg-background/60 pr-2.5 pl-7 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 sm:w-40"
-                />
-              </div>
-              <ViewSwitcher view={view} onChange={setView} />
-              <ResponsiveActionGroup
-                primary={
-                  <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
-                    <Plus data-icon="inline-start" className="size-3.5" />
-                    New Content
-                  </Button>
-                }
-                overflow={
+          </div>
+
+          <div key={`${collection}:${view}`} className="motion-fade">
+            {filteredAssets.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 border-y border-dashed border-border py-16 text-center">
+                <span className="flex size-11 items-center justify-center rounded-full bg-muted">
+                  <FolderOpen
+                    className="size-5 text-muted-foreground"
+                    aria-hidden
+                  />
+                </span>
+                <div className="max-w-sm">
+                  <p className="text-sm font-medium">No assets here yet</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Start from a template above, generate with AI, or create one
+                    manually.
+                  </p>
+                </div>
+                <div className="flex gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -176,54 +275,28 @@ export function AssetStudio({
                     <Sparkles data-icon="inline-start" className="size-3.5" />
                     Generate
                   </Button>
-                }
-                overflowLabel="Asset actions"
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    <Plus data-icon="inline-start" className="size-3.5" />
+                    New Content
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <AssetViews
+                view={view}
+                assets={filteredAssets}
+                selectedId={selectedId}
+                onSelect={(asset) => {
+                  setActionError(null);
+                  setSelectedId(asset.id);
+                }}
               />
-            </div>
+            )}
           </div>
-
-          {filteredAssets.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-16 text-center">
-              <span className="flex size-12 items-center justify-center rounded-full bg-muted">
-                <FolderOpen className="size-6 text-muted-foreground" aria-hidden />
-              </span>
-              <div>
-                <p className="text-sm font-medium">No assets here yet</p>
-                <p className="text-xs text-muted-foreground">
-                  Start from a template above, generate with AI, or create one
-                  manually.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setGenerateTemplate(null);
-                    setGenerateOpen(true);
-                  }}
-                >
-                  <Sparkles data-icon="inline-start" className="size-3.5" />
-                  Generate
-                </Button>
-                <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
-                  <Plus data-icon="inline-start" className="size-3.5" />
-                  New Content
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <AssetViews
-              view={view}
-              assets={filteredAssets}
-              selectedId={selectedId}
-              onSelect={(asset) => {
-                setActionError(null);
-                setSelectedId(asset.id);
-              }}
-            />
-          )}
         </div>
       </main>
 

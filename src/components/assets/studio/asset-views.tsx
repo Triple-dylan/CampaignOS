@@ -66,8 +66,8 @@ export function AssetViews({
 
 function AssetThumb({ asset }: { asset: DbAsset }) {
   return (
-    <div className="flex aspect-[4/3] items-center justify-center bg-gradient-to-br from-muted to-muted/40">
-      <span className="flex size-9 items-center justify-center rounded-lg bg-background/70 text-muted-foreground shadow-sm">
+    <div className="flex aspect-[16/10] items-center justify-center bg-gradient-to-br from-muted/80 to-muted/30">
+      <span className="flex size-8 items-center justify-center text-muted-foreground">
         <AssetTypeIcon type={asset.asset_type} className="size-4" />
       </span>
     </div>
@@ -87,12 +87,12 @@ function GalleryView({
           type="button"
           onClick={() => onSelect(asset)}
           className={cn(
-            "group/asset flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-shadow hover:shadow-md",
-            selectedId === asset.id && "ring-2 ring-ring",
+            "group/asset flex flex-col overflow-hidden rounded-xl border border-border/80 bg-background text-left transition-[border-color,background-color,box-shadow] hover:border-border hover:bg-accent/30",
+            selectedId === asset.id && "border-ring bg-accent/40 ring-1 ring-ring/40",
           )}
         >
           <AssetThumb asset={asset} />
-          <div className="flex flex-1 flex-col gap-2 p-3">
+          <div className="flex flex-1 flex-col gap-1.5 p-3">
             <div className="flex items-start justify-between gap-2">
               <h3 className="line-clamp-2 text-sm font-medium leading-snug">
                 {asset.title}
@@ -102,7 +102,7 @@ function GalleryView({
             <p className="line-clamp-2 text-xs text-muted-foreground">
               {asset.content_text?.trim() || "No content yet"}
             </p>
-            <div className="mt-auto flex items-center justify-between gap-2 text-[0.7rem] text-muted-foreground">
+            <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-[0.7rem] text-muted-foreground">
               <span className="capitalize">{formatAssetType(asset.asset_type)}</span>
               <span>{formatDate(asset.updated_at)}</span>
             </div>
@@ -119,8 +119,8 @@ function ListView({
   onSelect,
 }: Omit<AssetViewsProps, "view">) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="hidden grid-cols-[1fr_8rem_8rem_7rem] gap-3 border-b border-border px-3 py-2 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase sm:grid">
+    <div className="overflow-hidden rounded-xl border border-border/80">
+      <div className="hidden grid-cols-[1fr_8rem_8rem_7rem] gap-3 border-b border-border/70 px-3 py-2 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase sm:grid">
         <span>Title</span>
         <span>Type</span>
         <span>Status</span>
@@ -134,8 +134,8 @@ function ListView({
                 type="button"
                 onClick={() => onSelect(asset)}
                 className={cn(
-                  "grid w-full grid-cols-1 gap-1 border-b border-border px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-accent/60 sm:grid-cols-[1fr_8rem_8rem_7rem] sm:items-center sm:gap-3",
-                  selectedId === asset.id && "bg-accent",
+                  "grid w-full grid-cols-1 gap-1 border-b border-border/60 px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-accent/50 sm:grid-cols-[1fr_8rem_8rem_7rem] sm:items-center sm:gap-3",
+                  selectedId === asset.id && "bg-accent/60",
                 )}
               >
                 <span className="flex min-w-0 items-center gap-2">
@@ -178,21 +178,18 @@ function BoardView({
       {BOARD_COLUMNS.map((status) => {
         const columnAssets = assets.filter((asset) => asset.status === status);
         return (
-          <div
-            key={status}
-            className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-2"
-          >
-            <div className="flex items-center justify-between px-1 py-0.5">
-              <span className="text-xs font-semibold">
+          <div key={status} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between px-0.5 py-0.5">
+              <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
                 {ASSET_STATUS_LABELS[status]}
               </span>
-              <span className="rounded-full bg-background px-1.5 text-[0.7rem] tabular-nums text-muted-foreground">
+              <span className="text-[0.7rem] tabular-nums text-muted-foreground">
                 {columnAssets.length}
               </span>
             </div>
             <div className="flex flex-col gap-2">
               {columnAssets.length === 0 ? (
-                <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+                <p className="px-1 py-6 text-center text-xs text-muted-foreground">
                   Nothing here
                 </p>
               ) : (
@@ -202,8 +199,9 @@ function BoardView({
                     type="button"
                     onClick={() => onSelect(asset)}
                     className={cn(
-                      "rounded-lg border border-border bg-card p-2.5 text-left transition-shadow hover:shadow-sm",
-                      selectedId === asset.id && "ring-2 ring-ring",
+                      "rounded-lg border border-border/80 bg-background p-2.5 text-left transition-colors hover:bg-accent/40",
+                      selectedId === asset.id &&
+                        "border-ring bg-accent/50 ring-1 ring-ring/40",
                     )}
                   >
                     <p className="line-clamp-2 text-sm font-medium leading-snug">

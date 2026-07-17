@@ -7,6 +7,12 @@ import {
   type ChatTurn,
 } from "@/actions/chat";
 import {
+  DEFAULT_CHAT_EFFORT,
+  DEFAULT_CHAT_MODEL,
+  type ChatEffortId,
+  type ChatModelId,
+} from "@/lib/ai/chat-models";
+import {
   ensurePrivateChatThread,
   loadPrivateChatThreads,
   persistPrivateChatTurn,
@@ -55,6 +61,12 @@ type ChatContextValue = {
   agentOverride: AgentMode | null;
   /** Effective mode — pinned override or the Campaign Manager default. */
   agentMode: AgentMode;
+  /** Selected completion model for the next chat turn. */
+  chatModel: ChatModelId;
+  setChatModel: (model: ChatModelId) => void;
+  /** Reasoning / depth preference forwarded to the chat API. */
+  chatEffort: ChatEffortId;
+  setChatEffort: (effort: ChatEffortId) => void;
   isSending: boolean;
   /** null until the first server response is observed. */
   aiConfigured: boolean | null;
@@ -129,6 +141,10 @@ export function ChatProvider({
   const [agentOverride, setAgentOverride] = React.useState<AgentMode | null>(
     null,
   );
+  const [chatModel, setChatModel] =
+    React.useState<ChatModelId>(DEFAULT_CHAT_MODEL);
+  const [chatEffort, setChatEffort] =
+    React.useState<ChatEffortId>(DEFAULT_CHAT_EFFORT);
   const [isSending, setIsSending] = React.useState(false);
   const [aiConfigured, setAiConfigured] = React.useState<boolean | null>(
     initialAiConfigured,
@@ -358,6 +374,8 @@ export function ChatProvider({
         const result = await sendChatMessage({
           messages: historyForRequest,
           agentMode: routedAgent,
+          model: chatModel,
+          effort: chatEffort,
           focusContext: focusApi?.focus
             ? {
                 module: focusApi.focus.module,
@@ -436,6 +454,8 @@ export function ChatProvider({
     [
       activeThreadId,
       agentOverride,
+      chatEffort,
+      chatModel,
       createThread,
       focusApi,
       handleWorkflowMessage,
@@ -479,6 +499,10 @@ export function ChatProvider({
       activeThread,
       agentOverride,
       agentMode: agentOverride ?? "campaign-manager",
+      chatModel,
+      setChatModel,
+      chatEffort,
+      setChatEffort,
       isSending,
       aiConfigured,
       graphFoldersToHighlight,
@@ -499,6 +523,8 @@ export function ChatProvider({
       activeThreadId,
       activeThread,
       agentOverride,
+      chatModel,
+      chatEffort,
       isSending,
       aiConfigured,
       graphFoldersToHighlight,
