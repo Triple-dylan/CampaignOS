@@ -61,15 +61,22 @@ export const OAUTH_PROVIDER_CONFIGS: Record<
   },
 };
 
-export function integrationOAuthConfigured(provider: IntegrationProvider): boolean {
-  if (isIntegrationsDemoMode()) {
-    return true;
-  }
+/** True when this provider's client id/secret env vars are set (ignores demo mode). */
+export function providerCredentialsPresent(
+  provider: IntegrationProvider,
+): boolean {
   const config = OAUTH_PROVIDER_CONFIGS[provider];
   return Boolean(
     process.env[config.clientIdEnv]?.trim() &&
       process.env[config.clientSecretEnv]?.trim(),
   );
+}
+
+export function integrationOAuthConfigured(provider: IntegrationProvider): boolean {
+  if (isIntegrationsDemoMode()) {
+    return true;
+  }
+  return providerCredentialsPresent(provider);
 }
 
 export function appBaseUrl(): string {

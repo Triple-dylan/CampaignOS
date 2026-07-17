@@ -21,17 +21,17 @@ const PROVIDER_LABELS: Record<string, string> = {
 type IntegrationsPanelProps = {
   integrations: IntegrationSummary[];
   demoMode: boolean;
-  flashMessage?: string | null;
+  calendarActionsEnabled?: boolean;
 };
 
 export function IntegrationsPanel({
   integrations,
   demoMode,
-  flashMessage = null,
+  calendarActionsEnabled = true,
 }: IntegrationsPanelProps) {
   const router = useRouter();
   const [pending, setPending] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<string | null>(flashMessage);
+  const [message, setMessage] = React.useState<string | null>(null);
 
   const assetProviders = integrations.filter(
     (row) => row.provider === "canva" || row.provider === "higgsfield",
@@ -42,41 +42,79 @@ export function IntegrationsPanel({
   const handleDisconnect = async (provider: IntegrationSummary["provider"]) => {
     setPending(provider);
     setMessage(null);
-    const result = await disconnectIntegration(provider);
-    setPending(null);
-    if (result.ok) {
-      setMessage(`${PROVIDER_LABELS[provider]} disconnected.`);
-      router.refresh();
-    } else {
-      setMessage(result.error ?? "Disconnect failed.");
+    try {
+      const result = await disconnectIntegration(provider);
+      if (result.ok) {
+        setMessage(`${PROVIDER_LABELS[provider]} disconnected.`);
+        router.refresh();
+      } else {
+        setMessage(result.error ?? "Disconnect failed.");
+      }
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Disconnect failed.",
+      );
+    } finally {
+      setPending(null);
     }
   };
 
   const handleCalendarExport = async () => {
     setPending("gcal-export");
     setMessage(null);
-    const result = await exportPlannerEventsToGoogleCalendar();
-    setPending(null);
-    if (result.ok) {
-      setMessage(`Exported ${result.exported} planner events to Google Calendar.`);
-      router.refresh();
-    } else {
-      setMessage(result.error);
+    try {
+      const result = await exportPlannerEventsToGoogleCalendar();
+      if (result.ok) {
+        const skipped =
+          result.skipped > 0 ? ` (${result.skipped} already synced)` : "";
+        setMessage(
+          `Exported ${result.exported} planner events to Google Calendar.${skipped}`,
+        );
+        router.refresh();
+      } else {
+        setMessage(result.error);
+      }
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Google Calendar export failed.",
+      );
+    } finally {
+      setPending(null);
     }
   };
 
   const handleCalendarImport = async () => {
     setPending("gcal-import");
     setMessage(null);
-    const result = await importGoogleCalendarEvents();
-    setPending(null);
-    if (result.ok) {
-      setMessage(`Imported ${result.imported} events from Google Calendar.`);
-      router.refresh();
-    } else {
-      setMessage(result.error);
+    try {
+      const result = await importGoogleCalendarEvents();
+      if (result.ok) {
+        const skipped =
+          result.skipped > 0 ? ` (${result.skipped} already imported)` : "";
+        setMessage(
+          `Imported ${result.imported} events from Google Calendar.${skipped}`,
+        );
+        router.refresh();
+      } else {
+        setMessage(result.error);
+      }
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Google Calendar import failed.",
+      );
+    } finally {
+      setPending(null);
     }
   };
+
+  if (integrations.length === 0) {
+    return (
+      <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+        Integrations will appear once your organization is synced. Refresh or
+        reopen Settings if this stays empty.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -103,6 +141,7 @@ export function IntegrationsPanel({
             }
             connected={row.status === "connected"}
             configured={row.configured}
+            demoConnection={row.demoConnection}
             pending={pending === row.provider}
             connectHref={`/api/integrations/${row.provider}/connect`}
             onDisconnect={() => handleDisconnect(row.provider)}
@@ -121,6 +160,10 @@ export function IntegrationsPanel({
               <p className="mt-2 text-xs text-muted-foreground">
                 Status:{" "}
                 <span className="font-medium capitalize">{calendar.status}</span>
+                {calendar.demoConnection ? " · demo connection" : null}
+                {!calendar.configured && calendar.status !== "connected"
+                  ? " · OAuth credentials not set"
+                  : null}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -130,8 +173,15 @@ export function IntegrationsPanel({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={pending !== null}
+                    disabled={
+                      pending !== null || !calendarActionsEnabled
+                    }
                     onClick={handleCalendarExport}
+                    title={
+                      calendarActionsEnabled
+                        ? undefined
+                        : "Load a campaign before syncing the planner"
+                    }
                   >
                     Export planner
                   </Button>
@@ -139,8 +189,15 @@ export function IntegrationsPanel({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={pending !== null}
+                    disabled={
+                      pending !== null || !calendarActionsEnabled
+                    }
                     onClick={handleCalendarImport}
+                    title={
+                      calendarActionsEnabled
+                        ? undefined
+                        : "Load a campaign before syncing the planner"
+                    }
                   >
                     Import events
                   </Button>
@@ -154,13 +211,17 @@ export function IntegrationsPanel({
                     Disconnect
                   </Button>
                 </>
-              ) : (
+              ) : calendar.configured || demoMode ? (
                 <a
                   href={`/api/integrations/${calendar.provider}/connect`}
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                 >
                   Connect Google Calendar
                 </a>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Set Google Calendar OAuth credentials to connect.
+                </span>
               )}
             </div>
           </div>
@@ -173,9 +234,11 @@ export function IntegrationsPanel({
           description="Send approved outreach drafts from your campaign mailbox — used by fundraising and outreach workflows."
           connected={gmail.status === "connected"}
           configured={gmail.configured}
+          demoConnection={gmail.demoConnection}
           pending={pending === gmail.provider}
           connectHref={`/api/integrations/${gmail.provider}/connect`}
           onDisconnect={() => handleDisconnect(gmail.provider)}
+          connectDisabled={!gmail.configured && !demoMode}
         />
       ) : null}
     </div>
@@ -187,18 +250,24 @@ function IntegrationCard({
   description,
   connected,
   configured,
+  demoConnection,
   pending,
   connectHref,
   onDisconnect,
+  connectDisabled = false,
 }: {
   title: string;
   description: string;
   connected: boolean;
   configured: boolean;
+  demoConnection: boolean;
   pending: boolean;
   connectHref: string;
   onDisconnect: () => void;
+  connectDisabled?: boolean;
 }) {
+  const disabledConnect = connectDisabled || (!configured && !connected);
+
   return (
     <div className="rounded-lg border bg-muted/20 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -210,6 +279,7 @@ function IntegrationCard({
             <span className="font-medium capitalize">
               {connected ? "connected" : "disconnected"}
             </span>
+            {demoConnection ? " · demo connection" : null}
             {!configured && !connected ? " · OAuth credentials not set" : null}
           </p>
         </div>
@@ -223,6 +293,10 @@ function IntegrationCard({
           >
             Disconnect
           </Button>
+        ) : disabledConnect ? (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            Credentials required
+          </span>
         ) : (
           <a
             href={connectHref}

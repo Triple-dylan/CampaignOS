@@ -4,8 +4,8 @@ import { ensureOrganizationSynced } from "@/actions/organizations";
 import {
   appBaseUrl,
   buildOAuthAuthorizeUrl,
-  integrationOAuthConfigured,
   oauthRedirectUri,
+  providerCredentialsPresent,
 } from "@/lib/integrations/oauth-config";
 import { encodeOAuthState } from "@/lib/integrations/oauth-state";
 import type { IntegrationProvider } from "@/lib/integrations/types";
@@ -25,6 +25,17 @@ function parseProvider(value: string): IntegrationProvider | null {
     : null;
 }
 
+function settingsIntegrationsRedirect(
+  params: Record<string, string>,
+): NextResponse {
+  const url = new URL("/settings", appBaseUrl());
+  url.searchParams.set("tab", "integrations");
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return NextResponse.redirect(url);
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ provider: string }> },
@@ -42,9 +53,21 @@ export async function GET(
 
   const sync = await ensureOrganizationSynced();
   if (!sync.ok || !sync.organizationId) {
-    return NextResponse.redirect(
-      new URL("/settings?integration=org_error", appBaseUrl()),
-    );
+    return settingsIntegrationsRedirect({
+      integration: "org_error",
+      result: "error",
+    });
+  }
+
+  const demoMode = isIntegrationsDemoMode();
+  const hasCredentials = providerCredentialsPresent(provider);
+
+  if (!demoMode && !hasCredentials) {
+    return settingsIntegrationsRedirect({
+      integration: provider,
+      result: "error",
+      reason: "not_configured",
+    });
   }
 
   const dbUser = await getUserByClerkId(userId);
@@ -52,10 +75,10 @@ export async function GET(
     organizationId: sync.organizationId,
     provider,
     userId: dbUser?.id ?? null,
-    demo: isIntegrationsDemoMode() || !integrationOAuthConfigured(provider),
+    demo: demoMode || !hasCredentials,
   });
 
-  if (isIntegrationsDemoMode() || !integrationOAuthConfigured(provider)) {
+  if (demoMode || !hasCredentials) {
     const callback = new URL(oauthRedirectUri(provider));
     callback.searchParams.set("state", state);
     callback.searchParams.set("demo", "1");

@@ -11,10 +11,32 @@ import { getOrganizationByClerkOrgId } from "@/lib/db/organizations";
 import { modulePages } from "@/lib/navigation";
 import { knowledgeStorageBackend } from "@/lib/campaign-knowledge/storage";
 
+const SETTINGS_TABS = [
+  "campaign",
+  "team",
+  "integrations",
+  "knowledge",
+  "testing",
+] as const;
+
+type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+function parseTab(value: string | undefined): SettingsTab {
+  if (value && (SETTINGS_TABS as readonly string[]).includes(value)) {
+    return value as SettingsTab;
+  }
+  return "campaign";
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ integration?: string; result?: string }>;
+  searchParams: Promise<{
+    integration?: string;
+    result?: string;
+    tab?: string;
+    reason?: string;
+  }>;
 }) {
   const page = modulePages.settings;
   const params = await searchParams;
@@ -50,17 +72,27 @@ export default async function SettingsPage({
 
   const teamData = await listTeamMembers();
 
+  const initialTab =
+    params.integration || params.result
+      ? "integrations"
+      : parseTab(params.tab);
+
   const flashMessage = (() => {
     const provider = params.integration;
     const result = params.result;
     if (!provider || provider === "org_error") {
-      return result === "error" ? "Could not connect integration." : null;
+      return result === "error"
+        ? "Could not connect integration. Sync your organization and try again."
+        : null;
     }
     if (result === "success") {
-      return `${provider.replace("_", " ")} connected.`;
+      return `${provider.replaceAll("_", " ")} connected.`;
     }
     if (result === "error") {
-      return `Could not connect ${provider.replace("_", " ")}.`;
+      if (params.reason === "not_configured") {
+        return `${provider.replaceAll("_", " ")} OAuth credentials are not configured for this deployment.`;
+      }
+      return `Could not connect ${provider.replaceAll("_", " ")}.`;
     }
     return null;
   })();
@@ -74,6 +106,7 @@ export default async function SettingsPage({
         integrations={integrationData.integrations}
         demoMode={integrationData.demoMode}
         flashMessage={flashMessage}
+        initialTab={initialTab}
         pageTitle={page.title}
         pageDescription={page.description}
         knowledgeStorageLabel={

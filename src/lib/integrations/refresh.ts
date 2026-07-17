@@ -4,9 +4,26 @@ import {
 } from "@/lib/db/integrations";
 import { OAUTH_PROVIDER_CONFIGS } from "@/lib/integrations/oauth-config";
 import { isIntegrationsDemoMode } from "@/lib/integrations/token-crypto";
-import type { IntegrationProvider } from "@/lib/integrations/types";
+import type {
+  IntegrationProvider,
+  OrganizationIntegration,
+} from "@/lib/integrations/types";
 
 const EXPIRY_SLACK_MS = 60_000;
+
+export function isDemoIntegrationConnection(
+  integration: Pick<OrganizationIntegration, "metadata"> & {
+    accessToken?: string;
+  },
+): boolean {
+  if (isIntegrationsDemoMode()) {
+    return true;
+  }
+  if (integration.metadata?.mode === "demo") {
+    return true;
+  }
+  return Boolean(integration.accessToken?.startsWith("demo-token-"));
+}
 
 /**
  * Returns a usable access token for a connected integration, transparently
@@ -23,6 +40,11 @@ export async function getFreshIntegrationAccessToken(input: {
 
   const integration = await getOrganizationIntegration(input);
   if (!integration || integration.status !== "connected") {
+    return undefined;
+  }
+
+  // Simulated connections must not be sent to real provider APIs.
+  if (isDemoIntegrationConnection(integration)) {
     return undefined;
   }
 

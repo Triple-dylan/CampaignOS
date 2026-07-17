@@ -17,6 +17,7 @@ const VALID_PROVIDERS = new Set<IntegrationProvider>([
 
 function settingsRedirect(provider: IntegrationProvider, result: "success" | "error") {
   const url = new URL("/settings", oauthRedirectUri(provider));
+  url.searchParams.set("tab", "integrations");
   url.searchParams.set("integration", provider);
   url.searchParams.set("result", result);
   return NextResponse.redirect(url);
