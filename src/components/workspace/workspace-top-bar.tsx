@@ -2,6 +2,8 @@
 
 import { ChevronRight, PanelLeft, PanelRight } from "lucide-react";
 import { useCampaign } from "@/components/campaign/campaign-context";
+import { useOptionalCampaignFocus } from "@/components/focus/focus-provider";
+import { PresenceAvatarStack } from "@/components/presence/presence-avatar-stack";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +21,9 @@ export function WorkspaceTopBar({
   showPanelToggle,
 }: WorkspaceTopBarProps) {
   const { orgName, campaign } = useCampaign();
+  const focusApi = useOptionalCampaignFocus();
   const campaignName = campaign ? campaignDisplayName(campaign) : null;
+  const focusedTitle = focusApi?.focus.objectTitle;
 
   return (
     <header className="glass-bar glass-chrome-top pointer-events-auto sticky top-0 z-30 flex h-11 shrink-0 items-center gap-2 rounded-none border-x-0 border-t-0 border-b-0 px-3 md:px-4">
@@ -48,7 +52,18 @@ export function WorkspaceTopBar({
             </span>
           </>
         ) : null}
+        {focusedTitle ? (
+          <>
+            <ChevronRight
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            <span className="truncate text-muted-foreground">{focusedTitle}</span>
+          </>
+        ) : null}
       </nav>
+
+      <PresenceAvatarStack scope="object" className="hidden sm:flex" />
 
       {showPanelToggle ? (
         <button

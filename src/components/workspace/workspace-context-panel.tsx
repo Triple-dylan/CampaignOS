@@ -62,6 +62,8 @@ export type WorkspaceContextPanelProps = {
   onGraphPreferencesChange?: (
     patch: Partial<CampaignGraphPreferences>,
   ) => void;
+  /** Teammates currently focused on the selected graph node. */
+  presencePeerCount?: number;
 };
 
 export function WorkspaceContextPanelContent({
@@ -75,12 +77,18 @@ export function WorkspaceContextPanelContent({
   onClearSelection,
   graphPreferences,
   onGraphPreferencesChange,
+  presencePeerCount = 0,
 }: WorkspaceContextPanelProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4">
         <h2 className="text-sm font-semibold">
           {selectedNode ? "Preview" : digest ? "Today" : "Campaign"}
+          {selectedNode && presencePeerCount > 0 ? (
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              · {presencePeerCount} here
+            </span>
+          ) : null}
         </h2>
         <div className="flex items-center gap-0.5">
           {selectedNode ? (
@@ -687,9 +695,9 @@ function CampaignDigest({
 
       <DigestSection
         icon={<Sparkles className="size-3" aria-hidden />}
-        label="Agent activity"
-        href="/automations"
-        hrefLabel="Automations"
+        label="Team activity"
+        href="/settings"
+        hrefLabel="Team"
       >
         {digest.recentActivity.length > 0 ? (
           <ul className="space-y-1.5">
@@ -699,10 +707,12 @@ function CampaignDigest({
                 className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-2.5 py-2"
               >
                 <span className="truncate text-sm capitalize">
-                  {entry.module.replace(/[-_]/g, " ")}
-                  {entry.createdObjectType
-                    ? ` · ${entry.createdObjectType.replace(/_/g, " ")}`
-                    : ""}
+                  {entry.summary ??
+                    `${entry.module.replace(/[-_]/g, " ")}${
+                      entry.createdObjectType
+                        ? ` · ${entry.createdObjectType.replace(/_/g, " ")}`
+                        : ""
+                    }`}
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {formatRelativeTime(entry.createdAt)}
@@ -712,8 +722,7 @@ function CampaignDigest({
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No agent runs yet. Generated content and research will show up
-            here.
+            Team and agent actions will show up here as the campaign moves.
           </p>
         )}
       </DigestSection>

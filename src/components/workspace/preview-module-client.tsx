@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CampaignProvider } from "@/components/campaign/campaign-context";
+import { FocusProvider } from "@/components/focus/focus-provider";
 import { ChatProvider, type ChatThread } from "@/components/chat/chat-provider";
 import { AutomationsProvider } from "@/components/automations/automations-provider";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
@@ -47,6 +48,7 @@ const DEMO_THREADS: ChatThread[] = [
 export function PreviewModuleClient() {
   return (
     <CampaignProvider value={DEMO_CONTEXT}>
+      <FocusProvider campaignId={DEMO_CONTEXT.campaign?.id ?? null}>
       <AutomationsProvider>
         <ChatProvider initialAiConfigured={false} initialThreads={DEMO_THREADS}>
           <WorkspaceShell>
@@ -89,6 +91,7 @@ export function PreviewModuleClient() {
           </WorkspaceShell>
         </ChatProvider>
       </AutomationsProvider>
+      </FocusProvider>
     </CampaignProvider>
   );
 }

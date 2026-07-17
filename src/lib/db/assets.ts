@@ -10,7 +10,13 @@ import {
 } from "@/lib/validators/assets";
 
 function mapAsset(row: Record<string, unknown>): DbAsset {
-  return row as DbAsset;
+  const asset = row as DbAsset;
+  return {
+    ...asset,
+    content_version:
+      typeof asset.content_version === "number" ? asset.content_version : 1,
+    updated_by: asset.updated_by ?? null,
+  };
 }
 
 export async function createAsset(input: CreateAssetInput) {
@@ -80,23 +86,40 @@ export async function updateAsset(input: UpdateAssetInput) {
   if (parsed.approvedAt !== undefined) updates.approved_at = parsed.approvedAt;
   if (parsed.fileUrl !== undefined) updates.file_url = parsed.fileUrl;
   if (parsed.templateUsed !== undefined) updates.template_used = parsed.templateUsed;
+  if (parsed.contentVersion !== undefined) {
+    updates.content_version = parsed.contentVersion;
+  }
+  if (parsed.updatedBy !== undefined) updates.updated_by = parsed.updatedBy;
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let query = supabase
     .from("assets")
     .update(updates)
     .eq("id", parsed.id)
-    .eq("campaign_id", parsed.campaignId)
-    .select("*")
-    .single();
+    .eq("campaign_id", parsed.campaignId);
+
+  if (parsed.expectedVersion !== undefined) {
+    query = query.eq("content_version", parsed.expectedVersion);
+  }
+
+  const { data, error } = await query.select("*").maybeSingle();
 
   if (error) {
     throw error;
   }
 
+  if (!data && parsed.expectedVersion !== undefined) {
+    return {
+      synced: false as const,
+      asset: null,
+      conflict: true as const,
+    };
+  }
+
   return {
     synced: true as const,
-    asset: mapAsset(data),
+    asset: data ? mapAsset(data) : null,
+    conflict: false as const,
   };
 }
 

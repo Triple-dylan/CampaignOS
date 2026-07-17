@@ -7,6 +7,8 @@ import { ShieldCheck } from "lucide-react";
 import { loadTrinhHaTestCampaign } from "@/actions/test-candidate";
 import type { IntegrationSummary } from "@/actions/integrations";
 import { IntegrationsPanel } from "@/components/settings/integrations-panel";
+import { TeamPanel } from "@/components/settings/team-panel";
+import type { TeamMemberSummary } from "@/actions/team";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,10 +22,16 @@ import { cn } from "@/lib/utils";
 import type { DbCampaign, DbCampaignProfile } from "@/lib/db/schema";
 import { campaignDisplayName } from "@/lib/db/schema";
 
-type SettingsTab = "campaign" | "integrations" | "knowledge" | "testing";
+type SettingsTab =
+  | "campaign"
+  | "team"
+  | "integrations"
+  | "knowledge"
+  | "testing";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "campaign", label: "Campaign" },
+  { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
   { id: "knowledge", label: "Knowledge" },
   { id: "testing", label: "Testing" },
@@ -39,6 +47,8 @@ type SettingsPageClientProps = {
   pageTitle: string;
   pageDescription: string;
   knowledgeStorageLabel: string;
+  teamMembers: TeamMemberSummary[];
+  canManageTeam: boolean;
 };
 
 export function SettingsPageClient({
@@ -51,6 +61,8 @@ export function SettingsPageClient({
   pageTitle,
   pageDescription,
   knowledgeStorageLabel,
+  teamMembers,
+  canManageTeam,
 }: SettingsPageClientProps) {
   const router = useRouter();
   const [tab, setTab] = React.useState<SettingsTab>("campaign");
@@ -265,6 +277,13 @@ export function SettingsPageClient({
               </CardContent>
             </Card>
           </>
+        ) : null}
+
+        {tab === "team" ? (
+          <TeamPanel
+            initialMembers={teamMembers}
+            canManage={canManageTeam}
+          />
         ) : null}
 
         {tab === "integrations" ? (

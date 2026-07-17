@@ -7,7 +7,9 @@ import { generateAssetContent, generateAssetDraftContents } from "@/lib/ai/gener
 import { isOpenAiConfigured } from "@/lib/ai/config";
 import { getSocialAssetTemplate } from "@/lib/assets/social-templates";
 import { writeAssetToCampaignKnowledge } from "@/lib/campaign-knowledge/asset-sync";
-import { canApproveAssets } from "@/lib/auth/permissions";
+import { canApproveAssets, canWriteModule } from "@/lib/auth/permissions";
+import { recordActivityEvent } from "@/lib/db/activity";
+import { saveContentVersion } from "@/lib/db/content-versions";
 import {
   createAsset,
   getAssetById,
@@ -621,27 +623,18 @@ export async function updateAssetContent(input: {
   description?: string | null;
   theme?: string | null;
   issue?: string | null;
+  expectedVersion?: number;
 }): Promise<AssetActionResult> {
   const context = await requireAssetContext();
   if (!context.ok) {
     return { ok: false, error: context.error, code: context.code };
   }
 
-  const parsed = updateAssetSchema.safeParse({
-    id: input.assetId,
-    campaignId: context.campaign.id,
-    title: input.title,
-    contentText: input.contentText,
-    description: input.description,
-    theme: input.theme,
-    issue: input.issue,
-  });
-
-  if (!parsed.success) {
+  if (context.role && !canWriteModule(context.role, "assets")) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid asset data",
-      code: "validation",
+      error: "You do not have permission to edit assets.",
+      code: "forbidden",
     };
   }
 
@@ -658,14 +651,75 @@ export async function updateAssetContent(input: {
     };
   }
 
+  const currentVersion = existing.content_version ?? 1;
+  const expectedVersion = input.expectedVersion ?? currentVersion;
+  if (expectedVersion !== currentVersion) {
+    return {
+      ok: false,
+      error: `This asset was updated by someone else (version ${currentVersion}). Reload and try again.`,
+      code: "validation",
+    };
+  }
+
+  const nextVersion = currentVersion + 1;
+  const parsed = updateAssetSchema.safeParse({
+    id: input.assetId,
+    campaignId: context.campaign.id,
+    title: input.title,
+    contentText: input.contentText,
+    description: input.description,
+    theme: input.theme,
+    issue: input.issue,
+    contentVersion: nextVersion,
+    updatedBy: context.dbUserId,
+    expectedVersion: currentVersion,
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid asset data",
+      code: "validation",
+    };
+  }
+
   try {
     const result = await updateAsset(parsed.data);
+    if (result.conflict) {
+      return {
+        ok: false,
+        error:
+          "This asset was updated by someone else. Reload and try again.",
+        code: "validation",
+      };
+    }
     if (!result.asset) {
       return {
         ok: false,
         error: "Database is not configured. Asset was not saved.",
       };
     }
+
+    await saveContentVersion({
+      campaignId: context.campaign.id,
+      objectType: "asset",
+      objectId: result.asset.id,
+      version: nextVersion,
+      content: result.asset.content_text,
+      contentJson: { title: result.asset.title },
+      createdBy: context.dbUserId,
+    });
+
+    await recordActivityEvent({
+      organizationId: context.campaign.organization_id,
+      campaignId: context.campaign.id,
+      actorUserId: context.dbUserId,
+      action: "asset.updated",
+      objectType: "asset",
+      objectId: result.asset.id,
+      summary: `Updated asset “${result.asset.title}”`,
+      metadata: { version: nextVersion },
+    });
 
     revalidatePath("/assets");
     return { ok: true, assetId: result.asset.id };
