@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { WorkspaceMetrics } from "@/components/workspace/workspace-context-panel";
 import type { CampaignGraphFlow } from "@/lib/graph/to-react-flow";
 
 const CampaignBrainView = dynamic(
@@ -23,8 +24,15 @@ const CampaignBrainView = dynamic(
 type BrainPageClientProps = {
   graph: CampaignGraphFlow;
   edgeCount: number;
+  metrics: WorkspaceMetrics;
 };
 
-export function BrainPageClient({ graph, edgeCount }: BrainPageClientProps) {
-  return <CampaignBrainView graph={graph} edgeCount={edgeCount} />;
+export function BrainPageClient({
+  graph,
+  edgeCount,
+  metrics,
+}: BrainPageClientProps) {
+  return (
+    <CampaignBrainView graph={graph} edgeCount={edgeCount} metrics={metrics} />
+  );
 }

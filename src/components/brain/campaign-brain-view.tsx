@@ -6,7 +6,10 @@ import { Brain, PanelRight } from "lucide-react";
 import { useCampaign } from "@/components/campaign/campaign-context";
 import { MobileContextSheet } from "@/components/layout/mobile-context-sheet";
 import { WorkspaceGraphCanvasLazy as WorkspaceGraphCanvas } from "@/components/workspace/workspace-graph-canvas.lazy";
-import { WorkspaceContextPanel } from "@/components/workspace/workspace-context-panel";
+import {
+  WorkspaceContextPanel,
+  type WorkspaceMetrics,
+} from "@/components/workspace/workspace-context-panel";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,17 +20,20 @@ import {
 } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCampaignGraphPreferences } from "@/hooks/use-campaign-graph-preferences";
+import { useChatGraphHighlights } from "@/hooks/use-chat-graph-highlights";
 import { applyCenterDisplayToGraph } from "@/lib/graph/apply-center-display";
 import type { CampaignGraphFlow, CampaignGraphNodeData } from "@/lib/graph/to-react-flow";
 
 type CampaignBrainViewProps = {
   graph: CampaignGraphFlow;
   edgeCount: number;
+  metrics: WorkspaceMetrics;
 };
 
 export function CampaignBrainView({
   graph,
   edgeCount,
+  metrics,
 }: CampaignBrainViewProps) {
   const { campaign, profile } = useCampaign();
   const isMobile = useIsMobile();
@@ -58,6 +64,9 @@ export function CampaignBrainView({
     [graph, graphPreferences.center, campaign, profile],
   );
 
+  const { highlightedNodeIds, searching } =
+    useChatGraphHighlights(displayGraph);
+
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
       setSelectedNode(node);
@@ -67,21 +76,23 @@ export function CampaignBrainView({
     [],
   );
 
+  const handleSelectNodeId = React.useCallback(
+    (id: string) => {
+      const node = displayGraph?.nodes.find((n) => n.id === id);
+      if (node) handleSelectNode(node.data, id);
+    },
+    [displayGraph, handleSelectNode],
+  );
+
   const contextPanelProps = {
     campaign,
     profile,
-    metrics: {
-      graphNodeCount: graph.totalNodeCount,
-      assetCount: 0,
-      taskCount: 0,
-      upcomingEventCount: 0,
-      researchBriefCount: 0,
-      prospectCount: 0,
-    },
+    metrics,
     graph: displayGraph,
     selectedNode,
     onClose: () => setPanelOpen(false),
     onClearSelection: () => handleSelectNode(null, null),
+    onSelectNodeId: handleSelectNodeId,
     graphPreferences,
     onGraphPreferencesChange: updateGraphPreferences,
   };
@@ -140,6 +151,8 @@ export function CampaignBrainView({
             graph={displayGraph}
             edgeCount={edgeCount}
             selectedNodeId={selectedNodeId}
+            highlightedNodeIds={highlightedNodeIds}
+            searching={searching}
             onSelectNode={handleSelectNode}
             showViewToggle
             graphPreferences={graphPreferences}
@@ -149,19 +162,8 @@ export function CampaignBrainView({
         </div>
       </section>
 
-      {panelOpen && !isMobile ? (
-        <div className="hidden w-80 shrink-0 md:flex md:flex-col">
-          <WorkspaceContextPanel {...contextPanelProps} />
-        </div>
-      ) : !panelOpen && !isMobile ? (
-        <button
-          type="button"
-          onClick={() => setPanelOpen(true)}
-          aria-label="Open preview panel"
-          className="hidden w-10 shrink-0 items-start justify-center border-l border-border pt-3 text-muted-foreground transition-colors hover:text-foreground md:flex"
-        >
-          <Brain className="size-4" aria-hidden />
-        </button>
+      {!isMobile ? (
+        <WorkspaceContextPanel open={panelOpen} {...contextPanelProps} />
       ) : null}
 
       <MobileContextSheet

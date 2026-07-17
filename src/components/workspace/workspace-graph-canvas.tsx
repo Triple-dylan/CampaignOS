@@ -330,6 +330,7 @@ function WorkspaceGraphCanvasInner({
           resolveColorGroup(data, colorGroups) ?? data.colorOverride;
         if (
           (data.highlighted ?? false) === isHighlighted &&
+          (data.thinking ?? false) === searching &&
           data.focusLevel === focusLevel &&
           (node.selected ?? false) === isSelected &&
           data.depthLayer === depthLayer &&
@@ -345,6 +346,7 @@ function WorkspaceGraphCanvasInner({
           data: {
             ...data,
             highlighted: isHighlighted,
+            thinking: searching,
             focusLevel,
             depthLayer,
             colorOverride: colorOverride ?? undefined,
@@ -353,7 +355,14 @@ function WorkspaceGraphCanvasInner({
       });
       return changed ? next : current;
     });
-  }, [highlighted, combinedFocusLevels, selectedNodeId, colorGroups, setNodes]);
+  }, [
+    highlighted,
+    searching,
+    combinedFocusLevels,
+    selectedNodeId,
+    colorGroups,
+    setNodes,
+  ]);
 
   // Push display multipliers into node data so memoized cards re-render once.
   useEffect(() => {
@@ -381,7 +390,8 @@ function WorkspaceGraphCanvasInner({
         classes.push("is-structural");
       }
       if (highlighted.has(edge.source) && highlighted.has(edge.target)) {
-        classes.push("is-active");
+        // Pulse while thinking; settle to a steady lit stroke after the reply.
+        classes.push(searching ? "is-active" : "is-lit");
       }
       if (
         hoveredNodeId &&
@@ -412,7 +422,15 @@ function WorkspaceGraphCanvasInner({
         className: classes.length > 0 ? classes.join(" ") : undefined,
       };
     }) as Edge[];
-  }, [visibleEdges, highlighted, hoveredNodeId, combinedFocusLevels, showArrows, arrowMarker]);
+  }, [
+    visibleEdges,
+    highlighted,
+    searching,
+    hoveredNodeId,
+    combinedFocusLevels,
+    showArrows,
+    arrowMarker,
+  ]);
 
   /* ------------------------------------------------------------------ *
    * Camera controller. Every programmatic move funnels through a single

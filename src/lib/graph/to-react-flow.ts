@@ -1,6 +1,9 @@
 import type { DbGraphEdge, DbGraphNode } from "@/lib/db/schema";
 import type { GraphNodeType } from "@/lib/validators/enums";
-import { GRAPH_NODE_MINIMAP_COLORS } from "@/lib/graph/node-styles";
+import {
+  GRAPH_NODE_FALLBACK_ACCENT,
+  GRAPH_NODE_TYPE_ACCENTS,
+} from "@/lib/graph/node-styles";
 import {
   CENTER_FOLDER,
   folderAccentColor,
@@ -38,6 +41,11 @@ export type CampaignGraphNodeData = {
   degree: number;
   /** Transient UI flag: node is being "searched" by the assistant. */
   highlighted?: boolean;
+  /**
+   * Transient UI flag: the assistant is actively thinking. Highlighted nodes
+   * pulse while true and settle into a steady lit ring once the reply lands.
+   */
+  thinking?: boolean;
   /** Transient UI flag: genuinely-new node — plays the entrance pop once. */
   entering?: boolean;
   /**
@@ -328,12 +336,12 @@ export function toReactFlowGraph(input: {
 }
 
 export function getMinimapNodeColor(nodeType: GraphNodeType): string {
-  return GRAPH_NODE_MINIMAP_COLORS[nodeType] ?? "#94a3b8";
+  return GRAPH_NODE_TYPE_ACCENTS[nodeType] ?? GRAPH_NODE_FALLBACK_ACCENT;
 }
 
 /** Accent color (hex) for a node's dot, used by the Obsidian-style node. */
 export function getNodeAccentColor(nodeType: GraphNodeType): string {
-  return GRAPH_NODE_MINIMAP_COLORS[nodeType] ?? "#94a3b8";
+  return GRAPH_NODE_TYPE_ACCENTS[nodeType] ?? GRAPH_NODE_FALLBACK_ACCENT;
 }
 
 /**
@@ -354,12 +362,17 @@ export function getNodeDiameter(
   return Math.round(Math.min(36, Math.max(15, scaled)) * sizeMultiplier);
 }
 
-/** Accent for a node — folder hubs use their cluster colour. */
+/**
+ * Accent for a node on the canvas. Folder members share their cluster accent
+ * so each constellation reads as one body of knowledge; color overrides and
+ * the campaign centre keep their explicit identities.
+ */
 export function getNodeVisualAccent(data: CampaignGraphNodeData): string {
   if (data.colorOverride) return data.colorOverride;
-  if (data.isCampaignCenter) return "#3b82f6";
-  if (data.isFolderHub && data.folder) {
-    return folderAccentColor(data.folder);
+  if (data.isCampaignCenter) return "#3b6fd9";
+  const folder = data.folder ?? folderForNode(data);
+  if (folder) {
+    return folderAccentColor(folder);
   }
   return getNodeAccentColor(data.nodeType);
 }
