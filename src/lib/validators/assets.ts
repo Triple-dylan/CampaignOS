@@ -79,6 +79,9 @@ export const updateAssetSchema = z.object({
   approvedAt: z.string().nullable().optional(),
   fileUrl: z.string().url().nullable().optional(),
   templateUsed: z.string().trim().max(100).nullable().optional(),
+  contentVersion: z.number().int().positive().optional(),
+  updatedBy: z.uuid().nullable().optional(),
+  expectedVersion: z.number().int().nonnegative().optional(),
 });
 
 export type UpdateAssetInput = z.infer<typeof updateAssetSchema>;

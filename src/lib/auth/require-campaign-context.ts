@@ -92,3 +92,6 @@ export type ModuleActionResult =
       error: string;
       code?: CampaignActionCode;
     };
+
+export type CampaignContextOk = Extract<CampaignContext, { ok: true }>;
+

@@ -31,6 +31,7 @@ export async function createTask(input: CreateTaskInput) {
       status: parsed.status ?? "todo",
       priority: parsed.priority ?? "medium",
       due_date: parsed.dueDate ?? null,
+      owner_user_id: parsed.ownerUserId ?? null,
       related_asset_id: parsed.relatedAssetId ?? null,
       related_event_id: parsed.relatedEventId ?? null,
       related_research_id: parsed.relatedResearchId ?? null,
@@ -66,6 +67,9 @@ export async function updateTask(input: UpdateTaskInput) {
   if (parsed.status !== undefined) updates.status = parsed.status;
   if (parsed.priority !== undefined) updates.priority = parsed.priority;
   if (parsed.dueDate !== undefined) updates.due_date = parsed.dueDate;
+  if (parsed.ownerUserId !== undefined) {
+    updates.owner_user_id = parsed.ownerUserId;
+  }
   if (parsed.relatedAssetId !== undefined) {
     updates.related_asset_id = parsed.relatedAssetId;
   }

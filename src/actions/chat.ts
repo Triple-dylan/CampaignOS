@@ -126,6 +126,14 @@ export async function sendChatMessage(input: {
   model?: ChatModelId | string;
   /** Composer-selected effort; used as reasoning_effort or temperature. */
   effort?: ChatEffortId | string;
+  /** Current Focus — private chat stays private but grounds on shared object. */
+  focusContext?: {
+    module?: string | null;
+    objectType?: string | null;
+    objectId?: string | null;
+    objectTitle?: string | null;
+    roomSummary?: string | null;
+  } | null;
 }): Promise<SendChatMessageResult> {
   const context = await requireCampaignContext();
   const agentMode: AgentMode = input.agentMode ?? "campaign-manager";
@@ -220,8 +228,33 @@ export async function sendChatMessage(input: {
     nodeCount,
   });
 
+  const focusLines: string[] = [];
+  if (input.focusContext?.objectType && input.focusContext.objectId) {
+    focusLines.push(
+      "",
+      "Current Focus (shared campaign object the user is attending to):",
+      `- Type: ${input.focusContext.objectType}`,
+      `- Id: ${input.focusContext.objectId}`,
+    );
+    if (input.focusContext.objectTitle) {
+      focusLines.push(`- Title: ${input.focusContext.objectTitle}`);
+    }
+    if (input.focusContext.module) {
+      focusLines.push(`- Module: ${input.focusContext.module}`);
+    }
+    if (input.focusContext.roomSummary) {
+      focusLines.push(
+        `- Room awareness (non-private): ${input.focusContext.roomSummary}`,
+      );
+    }
+    focusLines.push(
+      "Prefer answers grounded in this Focus object. This chat is private to the user unless they explicitly promote a reply to a shared thread.",
+    );
+  }
+
   const systemPrompt = [
     baseSystemPrompt,
+    ...focusLines,
     "",
     harnessPlan.systemPreamble,
     "",

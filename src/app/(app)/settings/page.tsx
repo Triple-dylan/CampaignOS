@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getIntegrationSummaries } from "@/actions/integrations";
+import { listTeamMembers } from "@/actions/team";
 import { SettingsPageClient } from "@/components/settings/settings-page-client";
 import {
   getCampaignByOrganizationId,
@@ -47,6 +48,8 @@ export default async function SettingsPage({
     ? await getIntegrationSummaries()
     : { ok: false, integrations: [], demoMode: false };
 
+  const teamData = await listTeamMembers();
+
   const flashMessage = (() => {
     const provider = params.integration;
     const result = params.result;
@@ -78,6 +81,8 @@ export default async function SettingsPage({
             ? "cloud storage (Supabase)"
             : "local files on this server"
         }
+        teamMembers={teamData.members}
+        canManageTeam={teamData.canManage}
       />
     </Suspense>
   );

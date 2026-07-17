@@ -160,3 +160,94 @@ export async function getMemberRoleForUser(
 
   return (data?.role as OrganizationRole | undefined) ?? null;
 }
+
+export type OrganizationMemberWithUser = DbOrganizationMember & {
+  user: Pick<
+    import("@/lib/db/schema").DbUser,
+    "id" | "clerk_id" | "email" | "first_name" | "last_name" | "image_url"
+  > | null;
+};
+
+export async function getOrganizationMembersWithUsers(
+  organizationId: string,
+): Promise<OrganizationMemberWithUser[]> {
+  if (!isSupabaseConfigured()) {
+    return [];
+  }
+
+  const members = await getOrganizationMembers(organizationId);
+  if (members.length === 0) {
+    return [];
+  }
+
+  const supabase = getSupabaseAdmin();
+  const userIds = members.map((member) => member.user_id);
+  const { data: users, error } = await supabase
+    .from("users")
+    .select("id, clerk_id, email, first_name, last_name, image_url")
+    .in("id", userIds);
+
+  if (error) {
+    throw error;
+  }
+
+  const byId = new Map((users ?? []).map((user) => [user.id, user] as const));
+  return members.map((member) => ({
+    ...member,
+    user: byId.get(member.user_id) ?? null,
+  }));
+}
+
+export async function getOrganizationMemberById(
+  memberId: string,
+): Promise<DbOrganizationMember | null> {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("organization_members")
+    .select("*")
+    .eq("id", memberId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as DbOrganizationMember | null;
+}
+
+export async function updateOrganizationMemberRole(
+  memberId: string,
+  role: OrganizationRole,
+): Promise<DbOrganizationMember> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("organization_members")
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq("id", memberId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as DbOrganizationMember;
+}
+
+export async function deleteOrganizationMemberById(
+  memberId: string,
+): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("organization_members")
+    .delete()
+    .eq("id", memberId);
+
+  if (error) {
+    throw error;
+  }
+}

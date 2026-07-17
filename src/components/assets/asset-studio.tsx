@@ -312,13 +312,14 @@ export function AssetStudio({
         canApprove={canApprove}
         isPending={isPending}
         actionError={actionError}
-        onSave={({ title, contentText }) => {
+        onSave={({ title, contentText, expectedVersion }) => {
           if (!selectedAsset) return;
           runAction(async () =>
             updateAssetContent({
               assetId: selectedAsset.id,
               title,
               contentText,
+              expectedVersion,
             }),
           );
         }}

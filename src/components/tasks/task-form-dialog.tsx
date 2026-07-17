@@ -20,6 +20,7 @@ import {
   TEXTAREA_CLASS,
   toDateInputValue,
 } from "@/lib/form/datetime";
+import type { TeamMemberSummary } from "@/actions/team";
 import type { DbAsset, DbCalendarEvent, DbTask } from "@/lib/db/schema";
 import {
   TASK_PRIORITY_LABELS,
@@ -38,6 +39,7 @@ type TaskFormDialogProps = {
   onOpenChange: (open: boolean) => void;
   approvedAssets: DbAsset[];
   events: DbCalendarEvent[];
+  members?: TeamMemberSummary[];
   task?: DbTask | null;
   onSuccess?: () => void;
 };
@@ -45,6 +47,7 @@ type TaskFormDialogProps = {
 type TaskFormContentProps = {
   approvedAssets: DbAsset[];
   events: DbCalendarEvent[];
+  members: TeamMemberSummary[];
   task?: DbTask | null;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
@@ -53,6 +56,7 @@ type TaskFormContentProps = {
 function TaskFormContent({
   approvedAssets,
   events,
+  members,
   task,
   onOpenChange,
   onSuccess,
@@ -67,6 +71,7 @@ function TaskFormContent({
     (task?.priority as TaskPriority) ?? "medium",
   );
   const [dueDate, setDueDate] = useState(toDateInputValue(task?.due_date));
+  const [ownerUserId, setOwnerUserId] = useState(task?.owner_user_id ?? "");
   const [relatedAssetId, setRelatedAssetId] = useState(
     task?.related_asset_id ?? "",
   );
@@ -89,6 +94,7 @@ function TaskFormContent({
         status,
         priority,
         dueDate: dueIso,
+        ownerUserId: ownerUserId || null,
         relatedAssetId: relatedAssetId || null,
         relatedEventId: relatedEventId || null,
       };
@@ -174,6 +180,23 @@ function TaskFormContent({
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="task-owner">Assignee (optional)</Label>
+          <select
+            id="task-owner"
+            className={SELECT_CLASS}
+            value={ownerUserId}
+            onChange={(e) => setOwnerUserId(e.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {members.map((member) => (
+              <option key={member.userId} value={member.userId}>
+                {member.displayName}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-2">
@@ -263,6 +286,7 @@ export function TaskFormDialog({
   onOpenChange,
   approvedAssets,
   events,
+  members = [],
   task,
   onSuccess,
 }: TaskFormDialogProps) {
@@ -274,6 +298,7 @@ export function TaskFormDialog({
             key={task?.id ?? "create"}
             approvedAssets={approvedAssets}
             events={events}
+            members={members}
             task={task}
             onOpenChange={onOpenChange}
             onSuccess={onSuccess}
