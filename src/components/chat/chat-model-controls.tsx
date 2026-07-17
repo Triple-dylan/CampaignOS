@@ -23,6 +23,9 @@ type ChatModelControlsProps = {
  * Cursor-style model + effort pickers for the chat composer. Selections live in
  * {@link useChat} and are forwarded on every `sendChatMessage` call so the API
  * path is ready once OpenAI is configured.
+ *
+ * Effort always shows: reasoning models receive `reasoning_effort`, others map
+ * it to temperature until the provider API is fully connected.
  */
 export function ChatModelControls({
   className,
@@ -30,7 +33,7 @@ export function ChatModelControls({
 }: ChatModelControlsProps) {
   const { chatModel, setChatModel, chatEffort, setChatEffort } = useChat();
   const modelMeta = getChatModel(chatModel);
-  const showEffort = modelMeta.supportsReasoningEffort;
+  const effortMeta = CHAT_EFFORTS.find((effort) => effort.id === chatEffort);
 
   return (
     <div
@@ -67,41 +70,40 @@ export function ChatModelControls({
         />
       </label>
 
-      {showEffort ? (
-        <label className="relative inline-flex items-center">
-          <span className="sr-only">Effort</span>
-          <Brain
-            className="pointer-events-none absolute top-1/2 left-1.5 size-3 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <select
-            value={chatEffort}
-            onChange={(event) => {
-              if (isChatEffortId(event.target.value)) {
-                setChatEffort(event.target.value as ChatEffortId);
-              }
-            }}
-            title={
-              CHAT_EFFORTS.find((effort) => effort.id === chatEffort)
-                ?.description
+      <label className="relative inline-flex items-center">
+        <span className="sr-only">Effort</span>
+        <Brain
+          className="pointer-events-none absolute top-1/2 left-1.5 size-3 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <select
+          value={chatEffort}
+          onChange={(event) => {
+            if (isChatEffortId(event.target.value)) {
+              setChatEffort(event.target.value as ChatEffortId);
             }
-            className={cn(
-              "appearance-none rounded-md border border-transparent bg-transparent py-1 pr-5 pl-6 text-[0.7rem] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25",
-              density === "dock" && "text-xs",
-            )}
-          >
-            {CHAT_EFFORTS.map((effort) => (
-              <option key={effort.id} value={effort.id}>
-                {effort.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute top-1/2 right-0.5 size-3 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-        </label>
-      ) : null}
+          }}
+          title={
+            modelMeta.supportsReasoningEffort
+              ? effortMeta?.description
+              : `${effortMeta?.description ?? "Effort"} (maps to response temperature for this model)`
+          }
+          className={cn(
+            "appearance-none rounded-md border border-transparent bg-transparent py-1 pr-5 pl-6 text-[0.7rem] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25",
+            density === "dock" && "text-xs",
+          )}
+        >
+          {CHAT_EFFORTS.map((effort) => (
+            <option key={effort.id} value={effort.id}>
+              {effort.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute top-1/2 right-0.5 size-3 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+      </label>
     </div>
   );
 }
