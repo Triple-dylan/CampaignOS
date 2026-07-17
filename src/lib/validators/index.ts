@@ -7,6 +7,7 @@ export * from "@/lib/validators/onboarding";
 export * from "@/lib/validators/assets";
 export * from "@/lib/validators/calendar-events";
 export * from "@/lib/validators/tasks";
+export * from "@/lib/validators/team";
 
 export const emailSchema = z.object({
   email: z.email("Enter a valid email address"),

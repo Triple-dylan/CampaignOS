@@ -1,4 +1,5 @@
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/db/client";
+import { listActivityEvents } from "@/lib/db/activity";
 import { listAssets } from "@/lib/db/assets";
 import { listCalendarEvents } from "@/lib/db/calendar-events";
 import { countPendingComplianceReviews } from "@/lib/db/compliance";
@@ -15,6 +16,7 @@ export type DigestTask = {
   title: string;
   priority: string;
   dueDate: string | null;
+  ownerUserId?: string | null;
 };
 
 export type DigestEvent = {
@@ -35,8 +37,10 @@ export type DigestReviewAsset = {
 export type DigestActivity = {
   id: string;
   module: string;
+  summary?: string;
   createdAt: string;
   createdObjectType: string | null;
+  actorKind?: "user" | "agent" | "system" | "ai";
 };
 
 export type WorkspaceDigest = {
@@ -79,13 +83,32 @@ async function listRecentAiActivity(
     module: row.module as string,
     createdAt: row.created_at as string,
     createdObjectType: (row.created_object_type as string | null) ?? null,
+    actorKind: "ai" as const,
   }));
+}
+
+async function listRecentTeamActivity(
+  campaignId: string,
+  limit: number,
+): Promise<DigestActivity[]> {
+  try {
+    const events = await listActivityEvents(campaignId, { limit });
+    return events.map((event) => ({
+      id: event.id,
+      module: event.object_type,
+      summary: event.summary,
+      createdAt: event.created_at,
+      createdObjectType: event.object_type,
+      actorKind: event.actor_kind,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /**
  * Gathers the actionable digest shown in the workspace right rail: what's due,
- * what's coming up, what needs the user's review, and what agents have been
- * doing — instead of static campaign facts the user already knows.
+ * what's coming up, what needs the user's review, and recent team/agent activity.
  */
 export async function getWorkspaceDigest(
   campaign: DbCampaign,
@@ -95,19 +118,27 @@ export async function getWorkspaceDigest(
   const twoWeeksOut = new Date(now);
   twoWeeksOut.setDate(twoWeeksOut.getDate() + 14);
 
-  const [tasks, events, reviewAssets, pendingComplianceCount, plan, activity] =
-    await Promise.all([
-      listTasks({ campaignId: campaign.id, excludeArchived: true }),
-      listCalendarEvents({
-        campaignId: campaign.id,
-        startAfter: now.toISOString(),
-        startBefore: twoWeeksOut.toISOString(),
-      }),
-      listAssets({ campaignId: campaign.id, status: "needs_review" }),
-      countPendingComplianceReviews(campaign.id),
-      getLatestFundraisingPlan(campaign.id),
-      listRecentAiActivity(campaign.id, 4),
-    ]);
+  const [
+    tasks,
+    events,
+    reviewAssets,
+    pendingComplianceCount,
+    plan,
+    teamActivity,
+    aiActivity,
+  ] = await Promise.all([
+    listTasks({ campaignId: campaign.id, excludeArchived: true }),
+    listCalendarEvents({
+      campaignId: campaign.id,
+      startAfter: now.toISOString(),
+      startBefore: twoWeeksOut.toISOString(),
+    }),
+    listAssets({ campaignId: campaign.id, status: "needs_review" }),
+    countPendingComplianceReviews(campaign.id),
+    getLatestFundraisingPlan(campaign.id),
+    listRecentTeamActivity(campaign.id, 8),
+    listRecentAiActivity(campaign.id, 4),
+  ]);
 
   const dueTasks = tasks
     .filter((task) => OPEN_TASK_STATUSES.has(task.status))
@@ -123,6 +154,7 @@ export async function getWorkspaceDigest(
       title: task.title,
       priority: task.priority,
       dueDate: task.due_date,
+      ownerUserId: task.owner_user_id,
     }));
 
   const progress = computeFundraisingProgress({
@@ -130,6 +162,10 @@ export async function getWorkspaceDigest(
     planGoal: plan?.goal_amount,
     raisedAmount: plan?.raised_amount,
   });
+
+  const recentActivity = [...teamActivity, ...aiActivity]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 8);
 
   return {
     dueTasks,
@@ -147,7 +183,7 @@ export async function getWorkspaceDigest(
       assetType: asset.asset_type,
     })),
     pendingComplianceCount,
-    recentActivity: activity,
+    recentActivity,
     fundraising: {
       raisedAmount: progress.raisedAmount,
       effectiveGoal: progress.effectiveGoal,

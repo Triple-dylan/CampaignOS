@@ -112,7 +112,7 @@ export const modulePages = {
   settings: {
     title: "Settings",
     description:
-      "Organization, campaign summary, integrations, and knowledge export.",
+      "Organization, team roles, integrations, and knowledge export.",
     phase: 2,
   },
   agents: {

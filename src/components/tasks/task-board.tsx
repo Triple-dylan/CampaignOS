@@ -43,6 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SELECT_CLASS } from "@/lib/form/datetime";
+import type { TeamMemberSummary } from "@/actions/team";
 import type { DbAsset, DbCalendarEvent, DbTask } from "@/lib/db/schema";
 import {
   KANBAN_STATUSES,
@@ -85,6 +86,7 @@ type TaskBoardProps = {
   tasks: DbTask[];
   approvedAssets: DbAsset[];
   events: DbCalendarEvent[];
+  members?: TeamMemberSummary[];
   initialTaskId?: string | null;
 };
 
@@ -97,6 +99,14 @@ function formatDueDate(value: string | null): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function memberName(
+  members: TeamMemberSummary[],
+  userId: string | null | undefined,
+): string | null {
+  if (!userId) return null;
+  return members.find((member) => member.userId === userId)?.displayName ?? null;
 }
 
 function inferWorkflowCategory(task: DbTask): Exclude<WorkflowCategory, "all"> {
@@ -196,6 +206,7 @@ export function TaskBoard({
   tasks,
   approvedAssets,
   events,
+  members = [],
   initialTaskId = null,
 }: TaskBoardProps) {
   const router = useRouter();
@@ -475,7 +486,12 @@ export function TaskBoard({
                       <TaskPriorityBadge priority={task.priority} />
                     </div>
                   </div>
-                  <CardDescription>Due {formatDueDate(task.due_date)}</CardDescription>
+                  <CardDescription>
+                    Due {formatDueDate(task.due_date)}
+                    {memberName(members, task.owner_user_id)
+                      ? ` · ${memberName(members, task.owner_user_id)}`
+                      : ""}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {task.description ? (
@@ -557,6 +573,9 @@ export function TaskBoard({
                       <CardContent className="space-y-2 p-3 pt-0">
                         <p className="text-xs text-muted-foreground">
                           Due {formatDueDate(task.due_date)}
+                          {memberName(members, task.owner_user_id)
+                            ? ` · ${memberName(members, task.owner_user_id)}`
+                            : ""}
                         </p>
                         <TaskSourceBadges links={sourceLinks} />
                         <div className="flex flex-wrap gap-1">
@@ -598,6 +617,7 @@ export function TaskBoard({
         onOpenChange={setCreateOpen}
         approvedAssets={approvedAssets}
         events={events}
+        members={members}
         onSuccess={refresh}
       />
 
@@ -608,6 +628,7 @@ export function TaskBoard({
         }}
         approvedAssets={approvedAssets}
         events={events}
+        members={members}
         task={editTask}
         onSuccess={() => {
           setEditTask(null);

@@ -30,6 +30,8 @@ import type {
   DbGraphNode,
 } from "@/lib/db/schema";
 import type { WorkspaceDigest } from "@/lib/workspace/digest";
+import { useOptionalCampaignFocus } from "@/components/focus/focus-provider";
+import { useGraphPresenceByObject } from "@/components/presence/use-graph-presence";
 
 type WorkspaceHomeProps = {
   isSetupComplete: boolean;
@@ -284,13 +286,29 @@ export function WorkspaceHome({
     return new Set(topicNodeIds);
   }, [thinkingActive, activationIds, topicNodeIds]);
 
+  const focusApi = useOptionalCampaignFocus();
+  const presenceByObject = useGraphPresenceByObject();
+  const presencePeerCount = selectedNodeId
+    ? (presenceByObject.get(selectedNodeId) ?? 0)
+    : 0;
+
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
       setSelectedNode(node);
       setSelectedNodeId(id);
       if (node) setPanelOpen(true);
+      if (node && id) {
+        focusApi?.focusObject({
+          objectType: "graph_node",
+          objectId: id,
+          objectTitle: node.title,
+          module: "dashboard",
+        });
+      } else {
+        focusApi?.clearFocus();
+      }
     },
-    [],
+    [focusApi],
   );
 
   const focusComposer = React.useCallback(() => {
@@ -308,6 +326,7 @@ export function WorkspaceHome({
     onClearSelection: () => handleSelectNode(null, null),
     graphPreferences,
     onGraphPreferencesChange: updateGraphPreferences,
+    presencePeerCount,
   };
 
   if (!isSetupComplete) {

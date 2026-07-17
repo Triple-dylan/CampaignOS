@@ -132,6 +132,8 @@ export type DbAsset = {
   approved_by: string | null;
   approved_at: string | null;
   compliance_status: string;
+  content_version: number;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -175,6 +177,8 @@ export type DbResearchBrief = {
   ai_generated: boolean;
   prompt_used: string | null;
   model_used: string | null;
+  content_version: number;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -193,6 +197,8 @@ export type DbTask = {
   related_research_id: string | null;
   related_prospect_id: string | null;
   created_by: string | null;
+  content_version: number;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -342,6 +348,101 @@ export type Campaign = {
   id: string;
   name: string;
   orgId: string;
+};
+
+export type ActivityActorKind = "user" | "agent" | "system";
+export type CommentAuthorKind = "user" | "agent";
+export type PresenceAction =
+  | "viewing"
+  | "editing"
+  | "commenting"
+  | "reviewing"
+  | "agent_running";
+
+export type DbActivityEvent = {
+  id: string;
+  organization_id: string;
+  campaign_id: string;
+  actor_kind: ActivityActorKind;
+  actor_user_id: string | null;
+  agent_id: string | null;
+  action: string;
+  object_type: string;
+  object_id: string | null;
+  summary: string;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export type DbPrivateChatThread = {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DbPrivateChatMessage = {
+  id: string;
+  thread_id: string;
+  role: "user" | "assistant";
+  content: string;
+  agent_id: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export type DbCommentThread = {
+  id: string;
+  campaign_id: string;
+  object_type: string;
+  object_id: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DbComment = {
+  id: string;
+  thread_id: string;
+  author_kind: CommentAuthorKind;
+  author_user_id: string | null;
+  agent_id: string | null;
+  body: string;
+  parent_id: string | null;
+  mention_user_ids: string[];
+  mention_agent_ids: string[];
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DbPresenceSession = {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  module: string | null;
+  object_type: string | null;
+  object_id: string | null;
+  action: PresenceAction;
+  last_seen_at: string;
+  created_at: string;
+};
+
+export type DbContentVersion = {
+  id: string;
+  campaign_id: string;
+  object_type: string;
+  object_id: string;
+  version: number;
+  content: string | null;
+  content_json: Record<string, unknown> | null;
+  created_by: string | null;
+  agent_id: string | null;
+  created_at: string;
 };
 
 export function campaignDisplayName(campaign: DbCampaign): string {

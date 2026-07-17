@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check,
   Copy,
   Download,
-  ExternalLink,
   Loader2,
-  Network,
 } from "lucide-react";
 import {
   AssetStatusBadge,
   ComplianceStatusBadge,
 } from "@/components/assets/asset-badges";
+import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
+import { useCampaignFocus } from "@/components/focus/focus-provider";
+import { PresenceAvatarStack } from "@/components/presence/presence-avatar-stack";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +38,11 @@ type AssetDetailSheetProps = {
   canApprove: boolean;
   isPending: boolean;
   actionError: string | null;
-  onSave: (input: { title: string; contentText: string }) => void;
+  onSave: (input: {
+    title: string;
+    contentText: string;
+    expectedVersion?: number;
+  }) => void;
   onSubmit: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -67,7 +72,6 @@ export function AssetDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-xl">
         {asset ? (
-          // Remount per asset so edit fields re-initialize without effects.
           <AssetDetailBody
             key={asset.id}
             asset={asset}
@@ -99,16 +103,31 @@ function AssetDetailBody({
   canApprove: boolean;
   isPending: boolean;
   actionError: string | null;
-  onSave: (input: { title: string; contentText: string }) => void;
+  onSave: (input: {
+    title: string;
+    contentText: string;
+    expectedVersion?: number;
+  }) => void;
   onSubmit: () => void;
   onApprove: () => void;
   onReject: () => void;
 }) {
+  const { focusObject } = useCampaignFocus();
   const [editTitle, setEditTitle] = useState(asset.title);
   const [editContent, setEditContent] = useState(asset.content_text ?? "");
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    focusObject({
+      objectType: "asset",
+      objectId: asset.id,
+      objectTitle: asset.title,
+      module: "assets",
+    });
+  }, [asset.id, asset.title, focusObject]);
+
   const editable = asset.status === "draft" || asset.status === "needs_review";
+  const contentVersion = asset.content_version ?? 1;
 
   async function handleCopy() {
     if (!asset.content_text) return;
@@ -146,6 +165,10 @@ function AssetDetailBody({
               AI generated
             </span>
           ) : null}
+          <span className="text-[11px] text-muted-foreground">
+            v{contentVersion}
+          </span>
+          <PresenceAvatarStack scope="object" />
         </div>
         <SheetTitle className="mt-1 text-lg">{asset.title}</SheetTitle>
         <SheetDescription className="capitalize">
@@ -177,128 +200,53 @@ function AssetDetailBody({
             />
           ) : (
             <div className="rounded-lg border border-border bg-muted/30 p-4">
-              <p className="whitespace-pre-line text-sm leading-relaxed">
-                {asset.content_text?.trim() || "No content"}
-              </p>
+              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                {asset.content_text}
+              </pre>
             </div>
           )}
         </div>
 
-        <div className="space-y-2">
-          <SectionLabel>Campaign context</SectionLabel>
-          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-            <ContextItem label="Theme" value={asset.theme} />
-            <ContextItem label="Issue" value={asset.issue} />
-            <ContextItem label="Channel" value={asset.channel} />
-          </dl>
-        </div>
-
-        {asset.description ? (
-          <div className="space-y-2">
-            <SectionLabel>Notes</SectionLabel>
-            <p className="text-sm text-muted-foreground">{asset.description}</p>
-          </div>
-        ) : null}
-
-        <div className="space-y-2">
-          <SectionLabel>Linked graph nodes</SectionLabel>
-          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-            <Network className="size-4 shrink-0" aria-hidden />
-            <span>
-              Connected to the Campaign Brain graph. Inline node previews arrive
-              with the graph-linking phase.
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <SectionLabel>History</SectionLabel>
-          <dl className="space-y-1.5 text-sm">
-            <HistoryRow label="Created" value={formatDateTime(asset.created_at)} />
-            <HistoryRow
-              label="Last updated"
-              value={formatDateTime(asset.updated_at)}
-            />
-            {asset.approved_at ? (
-              <HistoryRow
-                label="Approved"
-                value={formatDateTime(asset.approved_at)}
-              />
-            ) : null}
-            {asset.template_used ? (
-              <HistoryRow label="Template" value={asset.template_used} />
-            ) : null}
-          </dl>
-        </div>
-
-        <div className="space-y-2">
-          <SectionLabel>Export</SectionLabel>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={handleCopy}
-              disabled={!asset.content_text}
-            >
-              {copied ? (
-                <Check data-icon="inline-start" className="size-3.5" />
-              ) : (
-                <Copy data-icon="inline-start" className="size-3.5" />
-              )}
-              {copied ? "Copied" : "Copy text"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={handleDownload}
-              disabled={!asset.content_text}
-            >
-              <Download data-icon="inline-start" className="size-3.5" />
-              Download .txt
-            </Button>
-            {asset.file_url ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                render={
-                  <a href={asset.file_url} target="_blank" rel="noreferrer" />
-                }
-              >
-                <ExternalLink data-icon="inline-start" className="size-3.5" />
-                Open file
-              </Button>
-            ) : null}
-          </div>
-        </div>
+        <CommentThreadPanel
+          objectType="asset"
+          objectId={asset.id}
+          objectTitle={asset.title}
+        />
 
         {actionError ? (
-          <p className="text-sm text-destructive" role="alert">
-            {actionError}
-          </p>
+          <p className="text-sm text-destructive">{actionError}</p>
         ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2 border-t border-border p-4">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void handleCopy()}
+        >
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          Copy
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={handleDownload}>
+          <Download className="size-4" />
+          Download
+        </Button>
+
         {editable ? (
           <Button
             type="button"
-            variant="outline"
             disabled={isPending}
             onClick={() =>
               onSave({
-                title: editTitle.trim(),
-                contentText: editContent.trim(),
+                title: editTitle,
+                contentText: editContent,
+                expectedVersion: contentVersion,
               })
             }
           >
-            {isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              "Save changes"
-            )}
+            {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+            Save changes
           </Button>
         ) : null}
 
@@ -325,29 +273,5 @@ function AssetDetailBody({
         ) : null}
       </div>
     </>
-  );
-}
-
-function ContextItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null;
-}) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="capitalize">{value?.trim() || "—"}</dd>
-    </div>
-  );
-}
-
-function HistoryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-foreground">{value}</dd>
-    </div>
   );
 }

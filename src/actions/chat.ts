@@ -1,6 +1,16 @@
 "use server";
 
 import { getOpenAiClient } from "@/lib/ai/client";
+import {
+  DEFAULT_CHAT_EFFORT,
+  DEFAULT_CHAT_MODEL,
+  getChatModel,
+  isChatEffortId,
+  isChatModelId,
+  temperatureForEffort,
+  type ChatEffortId,
+  type ChatModelId,
+} from "@/lib/ai/chat-models";
 import { getOpenAiModel, isOpenAiConfigured } from "@/lib/ai/config";
 import { logAiGeneration } from "@/lib/ai/log-generation";
 import { requireCampaignContext } from "@/lib/auth/require-campaign-context";
@@ -112,9 +122,31 @@ function cannedReply(input: {
 export async function sendChatMessage(input: {
   messages: ChatTurn[];
   agentMode?: AgentMode;
+  /** Composer-selected model; falls back to OPENAI_MODEL / default. */
+  model?: ChatModelId | string;
+  /** Composer-selected effort; used as reasoning_effort or temperature. */
+  effort?: ChatEffortId | string;
+  /** Current Focus — private chat stays private but grounds on shared object. */
+  focusContext?: {
+    module?: string | null;
+    objectType?: string | null;
+    objectId?: string | null;
+    objectTitle?: string | null;
+    roomSummary?: string | null;
+  } | null;
 }): Promise<SendChatMessageResult> {
   const context = await requireCampaignContext();
   const agentMode: AgentMode = input.agentMode ?? "campaign-manager";
+  const requestedModel = input.model?.trim() ?? "";
+  const chatModel: ChatModelId = isChatModelId(requestedModel)
+    ? requestedModel
+    : isChatModelId(getOpenAiModel())
+      ? (getOpenAiModel() as ChatModelId)
+      : DEFAULT_CHAT_MODEL;
+  const chatEffort: ChatEffortId = isChatEffortId(input.effort ?? "")
+    ? (input.effort as ChatEffortId)
+    : DEFAULT_CHAT_EFFORT;
+  const modelMeta = getChatModel(chatModel);
 
   const history = input.messages
     .filter((m) => m.content.trim().length > 0)
@@ -196,8 +228,33 @@ export async function sendChatMessage(input: {
     nodeCount,
   });
 
+  const focusLines: string[] = [];
+  if (input.focusContext?.objectType && input.focusContext.objectId) {
+    focusLines.push(
+      "",
+      "Current Focus (shared campaign object the user is attending to):",
+      `- Type: ${input.focusContext.objectType}`,
+      `- Id: ${input.focusContext.objectId}`,
+    );
+    if (input.focusContext.objectTitle) {
+      focusLines.push(`- Title: ${input.focusContext.objectTitle}`);
+    }
+    if (input.focusContext.module) {
+      focusLines.push(`- Module: ${input.focusContext.module}`);
+    }
+    if (input.focusContext.roomSummary) {
+      focusLines.push(
+        `- Room awareness (non-private): ${input.focusContext.roomSummary}`,
+      );
+    }
+    focusLines.push(
+      "Prefer answers grounded in this Focus object. This chat is private to the user unless they explicitly promote a reply to a shared thread.",
+    );
+  }
+
   const systemPrompt = [
     baseSystemPrompt,
+    ...focusLines,
     "",
     harnessPlan.systemPreamble,
     "",
@@ -205,11 +262,13 @@ export async function sendChatMessage(input: {
     harnessPlan.skillContext,
   ].join("\n");
 
-  const model = getOpenAiModel();
+  const model = chatModel;
 
   const response = await client.chat.completions.create({
     model,
-    temperature: 0.6,
+    ...(modelMeta.supportsReasoningEffort
+      ? { reasoning_effort: chatEffort }
+      : { temperature: temperatureForEffort(chatEffort) }),
     messages: [
       { role: "system", content: systemPrompt },
       ...history.map((turn) => ({
@@ -233,6 +292,10 @@ export async function sendChatMessage(input: {
       model,
       inputJson: {
         agentMode,
+        effort: chatEffort,
+        reasoningEffort: modelMeta.supportsReasoningEffort
+          ? chatEffort
+          : null,
         turns: history.length,
         harnessSkillId: harnessPlan.resolver.plan.skillId,
         workflowId: harnessPlan.resolver.plan.workflowId,

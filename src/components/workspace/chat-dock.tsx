@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ArrowUp, AtSign, CalendarClock, ChevronDown, Paperclip } from "lucide-react";
 import { useChat } from "@/components/chat/chat-provider";
+import { useOptionalCampaignFocus } from "@/components/focus/focus-provider";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { useAutomations } from "@/components/automations/automations-provider";
 import {
@@ -11,6 +12,7 @@ import {
   parseAgentDirective,
   useAgentMention,
 } from "@/components/chat/agent-mention";
+import { ChatModelControls } from "@/components/chat/chat-model-controls";
 import { useVisualViewportOffset } from "@/hooks/use-visual-viewport-offset";
 import { AGENT_LABELS } from "@/lib/agents";
 import { cn } from "@/lib/utils";
@@ -34,8 +36,11 @@ export function ChatDock({ composerRef }: ChatDockProps) {
     isSending,
     aiConfigured,
     sendMessage,
+    promoteLastReplyToThread,
   } = useChat();
+  const focusApi = useOptionalCampaignFocus();
   const { openCreateDialog } = useAutomations();
+  const [promoteMessage, setPromoteMessage] = React.useState<string | null>(null);
   const keyboardOffset = useVisualViewportOffset();
   const [draft, setDraft] = React.useState("");
   const [collapsed, setCollapsed] = React.useState(false);
@@ -130,16 +135,43 @@ export function ChatDock({ composerRef }: ChatDockProps) {
         <div className="glass-frost motion-rise pointer-events-auto mx-auto mb-2 w-full max-w-3xl rounded-2xl px-4 pb-2">
           <div className="flex items-center justify-between pb-1 pt-3">
             <span className="text-xs font-medium text-muted-foreground">
-              {agentOverride ? AGENT_LABELS[agentOverride] : "Campaign copilot"}
+              {focusApi?.focus.mode === "thread"
+                ? "On shared thread"
+                : agentOverride
+                  ? AGENT_LABELS[agentOverride]
+                  : "Private chat"}
             </span>
-            <button
-              type="button"
-              onClick={() => setCollapsed(true)}
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ChevronDown className="size-3.5" aria-hidden /> Hide
-            </button>
+            <div className="flex items-center gap-1">
+              {focusApi?.focus.objectId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void promoteLastReplyToThread().then((result) => {
+                      setPromoteMessage(
+                        result.ok
+                          ? "Posted to shared thread."
+                          : result.error ?? "Could not promote.",
+                      );
+                      window.setTimeout(() => setPromoteMessage(null), 2500);
+                    });
+                  }}
+                  className="rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Promote
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ChevronDown className="size-3.5" aria-hidden /> Hide
+              </button>
+            </div>
           </div>
+          {promoteMessage ? (
+            <p className="pb-1 text-[11px] text-muted-foreground">{promoteMessage}</p>
+          ) : null}
           <div
             ref={scrollRef}
             className="max-h-[34vh] space-y-3 overflow-y-auto pb-2"
@@ -223,12 +255,12 @@ export function ChatDock({ composerRef }: ChatDockProps) {
             )}
           />
           <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
               <button
                 type="button"
                 title="Attach files (coming soon)"
                 aria-label="Attach files"
-                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <Paperclip className="size-4" aria-hidden />
               </button>
@@ -237,12 +269,13 @@ export function ChatDock({ composerRef }: ChatDockProps) {
                 title="Mention an agent or context"
                 aria-label="Mention an agent or context"
                 onClick={mention.insertMentionTrigger}
-                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <AtSign className="size-4" aria-hidden />
               </button>
+              <ChatModelControls density="dock" />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {aiConfigured === false ? (
                 <span className="hidden rounded-full bg-muted/70 px-2 py-0.5 text-[0.65rem] text-muted-foreground/80 md:inline">
                   AI key off · guided help
