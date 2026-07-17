@@ -695,9 +695,9 @@ function CampaignDigest({
 
       <DigestSection
         icon={<Sparkles className="size-3" aria-hidden />}
-        label="Agent activity"
-        href="/automations"
-        hrefLabel="Automations"
+        label="Team activity"
+        href="/settings"
+        hrefLabel="Team"
       >
         {digest.recentActivity.length > 0 ? (
           <ul className="space-y-1.5">
@@ -707,10 +707,12 @@ function CampaignDigest({
                 className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-2.5 py-2"
               >
                 <span className="truncate text-sm capitalize">
-                  {entry.module.replace(/[-_]/g, " ")}
-                  {entry.createdObjectType
-                    ? ` · ${entry.createdObjectType.replace(/_/g, " ")}`
-                    : ""}
+                  {entry.summary ??
+                    `${entry.module.replace(/[-_]/g, " ")}${
+                      entry.createdObjectType
+                        ? ` · ${entry.createdObjectType.replace(/_/g, " ")}`
+                        : ""
+                    }`}
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {formatRelativeTime(entry.createdAt)}
@@ -720,8 +722,7 @@ function CampaignDigest({
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No agent runs yet. Generated content and research will show up
-            here.
+            Team and agent actions will show up here as the campaign moves.
           </p>
         )}
       </DigestSection>

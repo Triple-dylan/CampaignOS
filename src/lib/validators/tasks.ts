@@ -46,6 +46,7 @@ export const createTaskSchema = z.object({
   status: taskStatusSchema.optional(),
   priority: taskPrioritySchema.optional(),
   dueDate: z.string().nullable().optional(),
+  ownerUserId: z.uuid().nullable().optional(),
   relatedAssetId: z.uuid().nullable().optional(),
   relatedEventId: z.uuid().nullable().optional(),
   relatedResearchId: z.uuid().nullable().optional(),
@@ -63,6 +64,7 @@ export const updateTaskSchema = z.object({
   status: taskStatusSchema.optional(),
   priority: taskPrioritySchema.optional(),
   dueDate: z.string().nullable().optional(),
+  ownerUserId: z.uuid().nullable().optional(),
   relatedAssetId: z.uuid().nullable().optional(),
   relatedEventId: z.uuid().nullable().optional(),
 });

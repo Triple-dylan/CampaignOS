@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { listTeamMembers, type TeamMemberSummary } from "@/actions/team";
+import { recordActivityEvent } from "@/lib/db/activity";
 import {
   requireCampaignContext,
   type ModuleActionResult,
 } from "@/lib/auth/require-campaign-context";
+import { canWriteModule } from "@/lib/auth/permissions";
 import { listAssets } from "@/lib/db/assets";
 import { listCalendarEvents } from "@/lib/db/calendar-events";
 import { listGraphNodes } from "@/lib/db/campaigns";
@@ -36,10 +39,11 @@ export async function getTasksForCampaign(
       tasks: [],
       approvedAssets: [],
       events: [],
+      members: [] as TeamMemberSummary[],
     };
   }
 
-  const [tasks, approvedAssets, events] = await Promise.all([
+  const [tasks, approvedAssets, events, team] = await Promise.all([
     listTasks({
       campaignId: context.campaign.id,
       excludeArchived: true,
@@ -50,6 +54,7 @@ export async function getTasksForCampaign(
       status: "approved",
     }),
     listCalendarEvents({ campaignId: context.campaign.id }),
+    listTeamMembers(),
   ]);
 
   return {
@@ -57,6 +62,7 @@ export async function getTasksForCampaign(
     tasks,
     approvedAssets,
     events,
+    members: team.members,
   };
 }
 
@@ -66,12 +72,20 @@ export async function createCampaignTask(input: {
   status?: TaskStatus;
   priority?: TaskPriority;
   dueDate?: string | null;
+  ownerUserId?: string | null;
   relatedAssetId?: string | null;
   relatedEventId?: string | null;
 }): Promise<ModuleActionResult> {
   const context = await requireCampaignContext();
   if (!context.ok) {
     return { ok: false, error: context.error, code: context.code };
+  }
+  if (context.role && !canWriteModule(context.role, "tasks")) {
+    return {
+      ok: false,
+      error: "You do not have permission to create tasks.",
+      code: "forbidden",
+    };
   }
 
   const parsed = createTaskSchema.safeParse({
@@ -81,6 +95,7 @@ export async function createCampaignTask(input: {
     status: input.status,
     priority: input.priority,
     dueDate: input.dueDate,
+    ownerUserId: input.ownerUserId,
     relatedAssetId: input.relatedAssetId,
     relatedEventId: input.relatedEventId,
     createdBy: context.dbUserId,
@@ -116,6 +131,19 @@ export async function createCampaignTask(input: {
       existingNodes,
     });
 
+    await recordActivityEvent({
+      organizationId: context.campaign.organization_id,
+      campaignId: context.campaign.id,
+      actorUserId: context.dbUserId,
+      action: "task.created",
+      objectType: "task",
+      objectId: result.task.id,
+      summary: result.task.owner_user_id
+        ? `Created task “${result.task.title}” and assigned it`
+        : `Created task “${result.task.title}”`,
+      metadata: { ownerUserId: result.task.owner_user_id },
+    });
+
     revalidatePath("/tasks");
     revalidatePath("/dashboard");
 
@@ -133,12 +161,20 @@ export async function updateCampaignTask(input: {
   status?: TaskStatus;
   priority?: TaskPriority;
   dueDate?: string | null;
+  ownerUserId?: string | null;
   relatedAssetId?: string | null;
   relatedEventId?: string | null;
 }): Promise<ModuleActionResult> {
   const context = await requireCampaignContext();
   if (!context.ok) {
     return { ok: false, error: context.error, code: context.code };
+  }
+  if (context.role && !canWriteModule(context.role, "tasks")) {
+    return {
+      ok: false,
+      error: "You do not have permission to update tasks.",
+      code: "forbidden",
+    };
   }
 
   const existing = await getTaskById(context.campaign.id, input.taskId);
@@ -154,6 +190,7 @@ export async function updateCampaignTask(input: {
     status: input.status,
     priority: input.priority,
     dueDate: input.dueDate,
+    ownerUserId: input.ownerUserId,
     relatedAssetId: input.relatedAssetId,
     relatedEventId: input.relatedEventId,
   });
@@ -171,6 +208,26 @@ export async function updateCampaignTask(input: {
     if (!result.task) {
       return { ok: false, error: "Failed to update task." };
     }
+
+    const assigneeChanged =
+      input.ownerUserId !== undefined &&
+      input.ownerUserId !== existing.owner_user_id;
+
+    await recordActivityEvent({
+      organizationId: context.campaign.organization_id,
+      campaignId: context.campaign.id,
+      actorUserId: context.dbUserId,
+      action: assigneeChanged ? "task.assigned" : "task.updated",
+      objectType: "task",
+      objectId: result.task.id,
+      summary: assigneeChanged
+        ? `Assigned task “${result.task.title}”`
+        : `Updated task “${result.task.title}”`,
+      metadata: {
+        ownerUserId: result.task.owner_user_id,
+        status: result.task.status,
+      },
+    });
 
     revalidatePath("/tasks");
     revalidatePath("/dashboard");
@@ -196,6 +253,13 @@ export async function deleteCampaignTask(
   if (!context.ok) {
     return { ok: false, error: context.error, code: context.code };
   }
+  if (context.role && !canWriteModule(context.role, "tasks")) {
+    return {
+      ok: false,
+      error: "You do not have permission to delete tasks.",
+      code: "forbidden",
+    };
+  }
 
   const existing = await getTaskById(context.campaign.id, taskId);
   if (!existing) {
@@ -204,6 +268,15 @@ export async function deleteCampaignTask(
 
   try {
     await deleteTask(context.campaign.id, taskId);
+    await recordActivityEvent({
+      organizationId: context.campaign.organization_id,
+      campaignId: context.campaign.id,
+      actorUserId: context.dbUserId,
+      action: "task.deleted",
+      objectType: "task",
+      objectId: taskId,
+      summary: `Deleted task “${existing.title}”`,
+    });
     revalidatePath("/tasks");
     revalidatePath("/dashboard");
     return { ok: true, id: taskId };

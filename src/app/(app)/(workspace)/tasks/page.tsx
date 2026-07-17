@@ -48,6 +48,7 @@ export default async function TasksPage({
         tasks={result.tasks}
         approvedAssets={result.approvedAssets}
         events={result.events}
+        members={result.members}
         initialTaskId={taskId}
       />
     </WorkPageFrame>
