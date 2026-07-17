@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { loadTrinhHaTestCampaign } from "@/actions/test-candidate";
 import type { IntegrationSummary } from "@/actions/integrations";
@@ -36,6 +36,7 @@ type SettingsPageClientProps = {
   integrations: IntegrationSummary[];
   demoMode: boolean;
   flashMessage: string | null;
+  initialTab: SettingsTab;
   pageTitle: string;
   pageDescription: string;
   knowledgeStorageLabel: string;
@@ -48,14 +49,54 @@ export function SettingsPageClient({
   integrations,
   demoMode,
   flashMessage,
+  initialTab,
   pageTitle,
   pageDescription,
   knowledgeStorageLabel,
 }: SettingsPageClientProps) {
   const router = useRouter();
-  const [tab, setTab] = React.useState<SettingsTab>("campaign");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [pending, setPending] = React.useState(false);
-  const [message, setMessage] = React.useState<string | null>(flashMessage);
+  const [actionMessage, setActionMessage] = React.useState<string | null>(null);
+  const [flashBanner, setFlashBanner] = React.useState<string | null>(
+    flashMessage,
+  );
+  const [seenFlash, setSeenFlash] = React.useState<string | null>(flashMessage);
+
+  // Adjust local banner when a new OAuth flash arrives (render-time sync).
+  if (flashMessage && flashMessage !== seenFlash) {
+    setSeenFlash(flashMessage);
+    setFlashBanner(flashMessage);
+  }
+
+  const message = actionMessage ?? flashBanner;
+
+  const tabFromUrl = searchParams.get("tab");
+  const tab: SettingsTab =
+    tabFromUrl && TABS.some((item) => item.id === tabFromUrl)
+      ? (tabFromUrl as SettingsTab)
+      : initialTab;
+
+  // Drop OAuth flash query params after they have been shown so refresh is clean.
+  React.useEffect(() => {
+    if (
+      !searchParams.get("integration") &&
+      !searchParams.get("result") &&
+      !searchParams.get("reason")
+    ) {
+      return;
+    }
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("integration");
+    next.delete("result");
+    next.delete("reason");
+    if (!next.get("tab")) {
+      next.set("tab", "integrations");
+    }
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   const tonePrefs = profile?.tone_preferences as
     | { selectedTones?: string[]; notes?: string }
@@ -67,16 +108,35 @@ export function SettingsPageClient({
     description?: string;
   }>;
 
+  const selectTab = (next: SettingsTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next);
+    params.delete("integration");
+    params.delete("result");
+    params.delete("reason");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
   const handleLoadTrinhHa = async () => {
     setPending(true);
-    setMessage(null);
-    const result = await loadTrinhHaTestCampaign();
-    setPending(false);
-    if (result.ok) {
-      setMessage(result.message);
-      router.refresh();
-    } else {
-      setMessage(result.error);
+    setActionMessage(null);
+    setFlashBanner(null);
+    try {
+      const result = await loadTrinhHaTestCampaign();
+      if (result.ok) {
+        setActionMessage(result.message);
+        router.refresh();
+      } else {
+        setActionMessage(result.error);
+      }
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to load the test campaign.",
+      );
+    } finally {
+      setPending(false);
     }
   };
 
@@ -90,7 +150,7 @@ export function SettingsPageClient({
             <button
               key={item.id}
               type="button"
-              onClick={() => setTab(item.id)}
+              onClick={() => selectTab(item.id)}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 tab === item.id
@@ -128,6 +188,10 @@ export function SettingsPageClient({
                     </p>
                     <p className="mt-1">{orgName}</p>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Invite teammates and manage org membership from the
+                    organization switcher in the app rail.
+                  </p>
                 </CardContent>
               </Card>
 
@@ -168,7 +232,7 @@ export function SettingsPageClient({
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       No campaign profile yet. Use the Testing tab to load the
-                      Trinh Ha test candidate.
+                      Trinh Ha test candidate, or finish setup on the dashboard.
                     </p>
                   )}
                 </CardContent>
@@ -277,10 +341,17 @@ export function SettingsPageClient({
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {!campaign ? (
+                <p className="mb-4 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                  Connect integrations anytime. Calendar export/import needs a
+                  campaign — load the test candidate from the Testing tab or
+                  finish dashboard setup first.
+                </p>
+              ) : null}
               <IntegrationsPanel
                 integrations={integrations}
                 demoMode={demoMode}
-                flashMessage={null}
+                calendarActionsEnabled={Boolean(campaign)}
               />
             </CardContent>
           </Card>
@@ -303,13 +374,20 @@ export function SettingsPageClient({
                 </span>
                 . Download the whole tree anytime to keep a local copy.
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                render={<a href="/api/knowledge/export" />}
-              >
-                Download knowledge folder (.zip)
-              </Button>
+              {campaign ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<a href="/api/knowledge/export" />}
+                >
+                  Download knowledge folder (.zip)
+                </Button>
+              ) : (
+                <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-muted-foreground">
+                  No campaign knowledge to export yet. Complete setup or load the
+                  Trinh Ha test campaign first.
+                </p>
+              )}
             </CardContent>
           </Card>
         ) : null}
