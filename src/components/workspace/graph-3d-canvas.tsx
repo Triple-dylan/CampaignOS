@@ -94,8 +94,8 @@ export function Graph3DCanvas({
         nodeLabel={(node) => (node as { name?: string }).name ?? ""}
         nodeColor={(node) =>
           node.id === selectedNodeId
-            ? "#3b82f6"
-            : ((node as { color?: string }).color ?? "#94a3b8")
+            ? "#3b6fd9"
+            : ((node as { color?: string }).color ?? "#6b7280")
         }
       />
     </div>

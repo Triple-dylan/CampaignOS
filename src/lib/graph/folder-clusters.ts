@@ -4,7 +4,10 @@ import {
 } from "@/lib/campaign-knowledge/folders";
 import type { CampaignFolderId } from "@/lib/campaign-knowledge/types";
 import type { GraphNodeType } from "@/lib/validators/enums";
-import { GRAPH_NODE_MINIMAP_COLORS } from "@/lib/graph/node-styles";
+import {
+  GRAPH_NODE_FALLBACK_ACCENT,
+  GRAPH_NODE_TYPE_ACCENTS,
+} from "@/lib/graph/node-styles";
 import type { CampaignGraphNodeData } from "@/lib/graph/to-react-flow";
 
 /**
@@ -69,7 +72,7 @@ export function folderForNode(node: {
 export function folderAccentColor(folderId: CampaignFolderId): string {
   const folder = getCampaignFolder(folderId);
   const primaryType = folder.graphNodeTypes[0];
-  return GRAPH_NODE_MINIMAP_COLORS[primaryType] ?? "#94a3b8";
+  return GRAPH_NODE_TYPE_ACCENTS[primaryType] ?? GRAPH_NODE_FALLBACK_ACCENT;
 }
 
 /**

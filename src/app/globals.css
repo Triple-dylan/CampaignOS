@@ -583,9 +583,21 @@
     border-color: var(--brand-blue) !important;
     background-color: color-mix(
       in oklch,
-      var(--brand-blue) 26%,
+      var(--brand-blue) 55%,
       var(--card)
     ) !important;
+    z-index: 5;
+  }
+
+  /*
+   * Settled "matched context" state. After the assistant answers, the nodes it
+   * drew on keep a calm blue ring — legible but no longer pulsing.
+   */
+  .graph-node-lit {
+    border-color: var(--brand-blue) !important;
+    box-shadow:
+      0 0 0 4px color-mix(in oklch, var(--brand-blue) 18%, transparent),
+      var(--shadow-panel);
     z-index: 5;
   }
 
@@ -857,6 +869,13 @@
   50% {
     opacity: 1;
   }
+}
+
+/* Settled matched-context edges — steady blue, no glow animation. */
+.react-flow__edge.is-lit .react-flow__edge-path {
+  stroke: color-mix(in oklch, var(--brand-blue) 75%, transparent);
+  stroke-width: calc(1.5px * var(--graph-edge-width, 1));
+  opacity: 0.95;
 }
 
 /*

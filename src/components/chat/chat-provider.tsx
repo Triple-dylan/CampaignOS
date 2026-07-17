@@ -387,7 +387,15 @@ export function ChatProvider({
             : null,
         });
         setAiConfigured(result.configured);
-        setGraphFoldersToHighlight(result.graphFoldersToHighlight);
+        // Prefer the server's authoritative highlights, but if it resolved
+        // nothing (no campaign context / AI key off) keep the optimistic topic
+        // cluster lit so the graph still shows what the assistant would read.
+        setGraphFoldersToHighlight(
+          result.graphFoldersToHighlight.length > 0 ||
+            result.graphNodeIdsToHighlight.length > 0
+            ? result.graphFoldersToHighlight
+            : optimisticPlan.graphFolders,
+        );
         setGraphNodeIdsToHighlight(result.graphNodeIdsToHighlight);
         setHarnessContextPaths(optimisticPlan.contextPaths);
         const attributedAgent =

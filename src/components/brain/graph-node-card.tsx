@@ -95,7 +95,8 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
             !data.isCampaignCenter &&
             selected &&
             "graph-dot-selected",
-          data.highlighted && "graph-node-active",
+          data.highlighted &&
+            (data.thinking ? "graph-node-active" : "graph-node-lit"),
           data.isFolderHub && selected && "graph-folder-hub-selected",
           data.isCampaignCenter && selected && "graph-campaign-center-selected",
         )}
@@ -103,16 +104,18 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
           {
             width: diameter,
             height: diameter,
+            // Entity dots are near-solid accent so clusters read at a glance;
+            // hubs / centre stay soft tinted containers.
             backgroundColor: data.isCampaignCenter
               ? `color-mix(in oklch, ${accent} 18%, var(--card))`
               : data.isFolderHub
-                ? `color-mix(in oklch, ${accent} 14%, var(--card))`
-                : `color-mix(in oklch, ${accent} 30%, var(--card))`,
+                ? `color-mix(in oklch, ${accent} 16%, var(--card))`
+                : `color-mix(in oklch, ${accent} 78%, var(--card))`,
             borderColor: data.isCampaignCenter
               ? `color-mix(in oklch, ${accent} 75%, transparent)`
               : data.isFolderHub
-                ? `color-mix(in oklch, ${accent} 65%, transparent)`
-                : `color-mix(in oklch, ${accent} 85%, transparent)`,
+                ? `color-mix(in oklch, ${accent} 70%, transparent)`
+                : `color-mix(in oklch, ${accent} 40%, var(--card))`,
             "--node-accent": accent,
           } as React.CSSProperties
         }
