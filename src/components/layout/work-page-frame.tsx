@@ -87,6 +87,12 @@ type WorkPageFrameProps = {
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  /**
+   * When true, the frame locks height and lets the child manage scrolling
+   * (e.g. Asset Studio's collection rail + content pane). Default keeps the
+   * shared sticky command-bar scroll container used by most module pages.
+   */
+  fill?: boolean;
   children: React.ReactNode;
 };
 
@@ -100,6 +106,7 @@ export function WorkPageFrame({
   title,
   description,
   actions,
+  fill = false,
   children,
 }: WorkPageFrameProps) {
   const { isChatRailOpen, setChatRailOpen } = useChat();
@@ -107,16 +114,27 @@ export function WorkPageFrame({
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      {/* Single scroll container holding both the sticky glass bar and the page
-          content, so content scrolls underneath the bar and shows through the
-          frosted blur instead of poking out around an inset island. */}
-      <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* Default: one scroll container for sticky glass bar + page content.
+          Fill mode: lock the column so dual-pane modules can scroll internally. */}
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col",
+          fill ? "overflow-hidden" : "overflow-y-auto",
+        )}
+      >
         <GlassCommandBar
           title={title}
           description={description}
           actions={actions}
         />
-        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            fill && "overflow-hidden",
+          )}
+        >
+          {children}
+        </div>
       </div>
 
       {/* Always mounted on desktop so it can animate open/closed; the command

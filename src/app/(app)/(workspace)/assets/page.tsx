@@ -42,9 +42,8 @@ export default async function AssetsPage({
   }
 
   return (
-    <WorkPageFrame title={page.title} description={page.description}>
+    <WorkPageFrame title={page.title} description={page.description} fill>
       <AssetStudio
-        key={assetId ?? "default"}
         assets={result.assets}
         canApprove={result.canApprove}
         openAiConfigured={result.openAiConfigured}

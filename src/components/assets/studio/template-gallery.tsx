@@ -13,11 +13,6 @@ type TemplateGalleryProps = {
   onUseTemplate: (template: SocialAssetTemplate) => void;
 };
 
-const PROVIDER_STYLES: Record<SocialAssetTemplate["provider"], string> = {
-  canva: "badge-blue border",
-  higgsfield: "badge-red border",
-};
-
 const TEMPLATE_GRADIENTS: Record<string, string> = {
   "instagram-square-post":
     "from-rose-400/80 via-fuchsia-500/70 to-indigo-500/80",
@@ -43,94 +38,82 @@ function previewAspect(template: SocialAssetTemplate): string {
 }
 
 /**
- * Canva-style template gallery. Large visual cards drive the generation flow;
- * "Use template" hands the selected template up to the studio which opens the
- * generation dialog prefilled.
+ * Compact template starter strip. Collapsed by default so the collection page
+ * stays the primary surface; expand when starting a new asset format.
  */
 export function TemplateGallery({ onUseTemplate }: TemplateGalleryProps) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between gap-2 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+    <section className="border-b border-border/70 pb-1">
+      <header className="flex items-center justify-between gap-2 py-1">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-accent/60"
+        >
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <WandSparkles className="size-3.5" aria-hidden />
           </span>
-          <div>
-            <h2 className="text-sm font-semibold">Start from a template</h2>
-            <p className="text-xs text-muted-foreground">
-              Brand-ready formats for social, print, and email.
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold">Templates</h2>
+            <p className="truncate text-xs text-muted-foreground">
+              Brand-ready formats for social, print, and email
             </p>
           </div>
-        </div>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          aria-label={open ? "Collapse templates" : "Expand templates"}
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
           <ChevronDown
-            className={cn("size-4 transition-transform", open ? "" : "-rotate-90")}
+            className={cn(
+              "ml-1 size-4 shrink-0 text-muted-foreground transition-transform",
+              open ? "" : "-rotate-90",
+            )}
+            aria-hidden
           />
-        </Button>
+        </button>
+        {!open ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setOpen(true)}
+          >
+            Browse
+          </Button>
+        ) : null}
       </header>
 
       {open ? (
-        <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        <div className="motion-fade grid gap-2 py-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {SOCIAL_ASSET_TEMPLATES.map((template) => (
-            <article
+            <button
               key={template.id}
-              className="group/template flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-shadow hover:shadow-md"
+              type="button"
+              onClick={() => onUseTemplate(template)}
+              className="group/template flex flex-col overflow-hidden rounded-lg border border-border/80 bg-background text-left transition-colors hover:border-border hover:bg-accent/40"
             >
-              <div className="relative flex items-center justify-center bg-muted/40 p-3">
+              <div className="relative flex items-center justify-center bg-muted/30 p-3">
                 <div
                   className={cn(
-                    "w-full max-w-[8rem] rounded-md bg-gradient-to-br shadow-sm",
+                    "w-full max-w-[7rem] rounded-md bg-gradient-to-br shadow-sm",
                     previewAspect(template),
                     TEMPLATE_GRADIENTS[template.id] ??
                       "from-slate-400/80 to-slate-600/80",
                   )}
                 />
-                <span
-                  className={cn(
-                    "absolute top-2 right-2 rounded-full px-1.5 py-0.5 text-[0.62rem] font-medium capitalize",
-                    PROVIDER_STYLES[template.provider],
-                  )}
-                >
-                  {template.provider}
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5 p-3">
+                <h3 className="truncate text-sm font-medium">
+                  {template.label}
+                </h3>
+                <p className="line-clamp-2 text-xs text-muted-foreground">
+                  {template.description}
+                </p>
+                <span className="mt-auto inline-flex items-center gap-1 pt-1 text-xs font-medium text-primary">
+                  <Sparkles className="size-3" aria-hidden />
+                  Use template
                 </span>
               </div>
-              <div className="flex flex-1 flex-col gap-2 p-3">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm font-medium">
-                    {template.label}
-                  </h3>
-                  <p className="line-clamp-2 text-xs text-muted-foreground">
-                    {template.description}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
-                    {template.platform}
-                  </span>
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
-                    {template.dimensions}
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="mt-auto w-full"
-                  onClick={() => onUseTemplate(template)}
-                >
-                  <Sparkles data-icon="inline-start" className="size-3.5" />
-                  Use template
-                </Button>
-              </div>
-            </article>
+            </button>
           ))}
         </div>
       ) : null}

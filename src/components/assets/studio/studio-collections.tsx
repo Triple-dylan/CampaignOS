@@ -50,7 +50,7 @@ export function CollectionsNav({
         </Button>
       </div>
 
-      <nav className="flex flex-col gap-0.5">
+      <nav className="flex flex-col gap-0.5" aria-label="Asset collections">
         {ASSET_COLLECTIONS.map((collection) => {
           const Icon = collection.icon;
           const count = countForCollection(collection, assets);
@@ -60,22 +60,20 @@ export function CollectionsNav({
               key={collection.id}
               type="button"
               onClick={() => onSelect(collection.id)}
-              aria-current={isActive ? "true" : undefined}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "glass-hover flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors",
+                "flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-[background-color,color,transform] duration-150",
                 isActive
-                  ? "bg-accent font-medium text-foreground"
-                  : "text-muted-foreground",
+                  ? "bg-background font-medium text-foreground shadow-sm ring-1 ring-border/70"
+                  : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
               )}
             >
               <Icon className="size-4 shrink-0" aria-hidden />
               <span className="min-w-0 flex-1 truncate">{collection.label}</span>
               <span
                 className={cn(
-                  "shrink-0 rounded-full px-1.5 text-[0.7rem] tabular-nums",
-                  isActive
-                    ? "bg-background text-foreground"
-                    : "bg-muted text-muted-foreground",
+                  "shrink-0 text-[0.7rem] tabular-nums",
+                  isActive ? "text-foreground" : "text-muted-foreground",
                 )}
               >
                 {count}
@@ -111,7 +109,7 @@ export function StudioCollections({
   onCreate,
 }: StudioCollectionsProps) {
   return (
-    <aside className="hidden w-60 shrink-0 flex-col gap-3 overflow-y-auto border-r border-border p-3 lg:flex">
+    <aside className="hidden w-56 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border/70 bg-muted/15 p-3 lg:flex">
       <CollectionsNav
         assets={assets}
         activeCollection={activeCollection}

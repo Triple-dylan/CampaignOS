@@ -1,4 +1,17 @@
 export { getOpenAiClient } from "@/lib/ai/client";
+export {
+  CHAT_EFFORTS,
+  CHAT_MODELS,
+  DEFAULT_CHAT_EFFORT,
+  DEFAULT_CHAT_MODEL,
+  getChatEffort,
+  getChatModel,
+  isChatEffortId,
+  isChatModelId,
+  temperatureForEffort,
+  type ChatEffortId,
+  type ChatModelId,
+} from "@/lib/ai/chat-models";
 export { getOpenAiModel, isOpenAiConfigured } from "@/lib/ai/config";
 export { generateCampaignBrainOutput } from "@/lib/ai/generate-campaign-brain";
 export { generateAssetContent } from "@/lib/ai/generate-asset";
