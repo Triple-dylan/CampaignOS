@@ -78,7 +78,8 @@
   --secondary-foreground: oklch(0.3 0 0);
 
   --muted: oklch(0.968 0 0);
-  --muted-foreground: oklch(0.553 0 0);
+  /* Slightly deeper so secondary labels stay readable on frosted chrome. */
+  --muted-foreground: oklch(0.48 0 0);
 
   --accent: oklch(0.962 0 0);
   --accent-foreground: oklch(0.24 0 0);
@@ -128,31 +129,29 @@
     0 2px 6px -2px oklch(0.205 0 0 / 0.06);
 
   /*
-   * Liquid-glass tokens. Translucent frosted surfaces that float over the
-   * knowledge graph (composer) or the stage (rail, bars, follow-chat, preview).
-   * Tuned so the aurora/graph visibly refracts through the panes: heavy blur +
-   * saturation, lower fill opacity, a crisp 1px border and a bright inner top
-   * highlight. Text stays legible because the blur homogenizes the backdrop.
+   * Liquid-glass tokens — clean frost. Slightly more opaque panes, sharper
+   * blur, and a crisp rim + top specular so chrome stays readable over the
+   * stage while still reading as glass (not deep refraction).
    */
-  --glass-blur: 28px;
-  --glass-saturate: 210%;
+  --glass-blur: 22px;
+  --glass-saturate: 160%;
   /* Shared near-white chrome for rail, top bar, and graph controls. */
-  --glass-chrome-bg: oklch(1 0 0 / 0.94);
+  --glass-chrome-bg: oklch(1 0 0 / 0.97);
   --glass-bar-bg: var(--glass-chrome-bg);
   --glass-rail-bg: var(--glass-chrome-bg);
-  --glass-panel-bg: oklch(1 0 0 / 0.5);
-  --glass-composer-bg: oklch(1 0 0 / 0.9);
-  --glass-border: oklch(0.205 0 0 / 0.16);
-  --glass-highlight: oklch(1 0 0 / 0.95);
+  --glass-panel-bg: oklch(1 0 0 / 0.76);
+  --glass-composer-bg: oklch(1 0 0 / 0.94);
+  --glass-border: oklch(0.205 0 0 / 0.2);
+  --glass-highlight: oklch(1 0 0 / 1);
   --glass-sheen: linear-gradient(
     to bottom,
-    oklch(1 0 0 / 0.7),
-    oklch(1 0 0 / 0) 46%
+    oklch(1 0 0 / 0.55),
+    oklch(1 0 0 / 0) 36%
   );
-  --glass-shadow: 0 1px 1px oklch(0.205 0 0 / 0.06),
-    0 6px 18px -10px oklch(0.205 0 0 / 0.18);
-  --glass-shadow-pop: 0 1px 2px oklch(0.205 0 0 / 0.07),
-    0 14px 34px -14px oklch(0.205 0 0 / 0.26);
+  --glass-shadow: 0 1px 1px oklch(0.205 0 0 / 0.07),
+    0 8px 22px -12px oklch(0.205 0 0 / 0.2);
+  --glass-shadow-pop: 0 1px 2px oklch(0.205 0 0 / 0.08),
+    0 16px 36px -14px oklch(0.205 0 0 / 0.28);
 
   /* Patriotic aurora behind the knowledge graph — visible enough that the
    * frosted panes clearly read as glass refracting it. */
@@ -179,7 +178,8 @@
   --secondary-foreground: oklch(0.96 0 0);
 
   --muted: oklch(0.255 0 0);
-  --muted-foreground: oklch(0.7 0 0);
+  /* Brighter secondary text against smoky frost panes. */
+  --muted-foreground: oklch(0.76 0 0);
 
   --accent: oklch(0.28 0 0);
   --accent-foreground: oklch(0.96 0 0);
@@ -222,22 +222,24 @@
   --shadow-panel: 0 1px 2px oklch(0 0 0 / 0.3);
   --shadow-pop: 0 6px 16px -4px oklch(0 0 0 / 0.5);
 
-  /* Dark glass: a smoky translucency with a faint top highlight + crisp edge. */
-  --glass-bar-bg: oklch(0.214 0 0 / 0.52);
-  --glass-rail-bg: oklch(0.2 0 0 / 0.72);
-  --glass-panel-bg: oklch(0.214 0 0 / 0.5);
-  --glass-composer-bg: oklch(0.24 0 0 / 0.62);
-  --glass-border: oklch(1 0 0 / 0.18);
-  --glass-highlight: oklch(1 0 0 / 0.16);
+  /* Dark glass: cleaner smoky frost — more opaque for contrast, crisp rim. */
+  --glass-blur: 22px;
+  --glass-saturate: 150%;
+  --glass-bar-bg: oklch(0.214 0 0 / 0.82);
+  --glass-rail-bg: oklch(0.2 0 0 / 0.88);
+  --glass-panel-bg: oklch(0.214 0 0 / 0.78);
+  --glass-composer-bg: oklch(0.24 0 0 / 0.86);
+  --glass-border: oklch(1 0 0 / 0.22);
+  --glass-highlight: oklch(1 0 0 / 0.22);
   --glass-sheen: linear-gradient(
     to bottom,
-    oklch(1 0 0 / 0.13),
-    oklch(1 0 0 / 0) 46%
+    oklch(1 0 0 / 0.16),
+    oklch(1 0 0 / 0) 34%
   );
-  --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.4),
-    0 8px 22px -12px oklch(0 0 0 / 0.55);
-  --glass-shadow-pop: 0 1px 3px oklch(0 0 0 / 0.45),
-    0 16px 38px -16px oklch(0 0 0 / 0.65);
+  --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.42),
+    0 10px 26px -14px oklch(0 0 0 / 0.58);
+  --glass-shadow-pop: 0 1px 3px oklch(0 0 0 / 0.48),
+    0 18px 40px -16px oklch(0 0 0 / 0.68);
 
   --aurora-red: oklch(0.5 0.17 25 / 0.2);
   --aurora-blue: oklch(0.48 0.15 256 / 0.22);
@@ -302,10 +304,9 @@
   }
 
   /*
-   * Liquid-glass surfaces. Each variant shares a frosted backdrop-blur with a
-   * layered border + inner top highlight, differing only in translucency so the
-   * composer reads as the lightest, most "liftable" pane floating on the graph.
-   * `@supports` keeps a solid fallback where backdrop-filter is unavailable.
+   * Liquid-glass surfaces. Clean frost: shared backdrop-blur + rim + top
+   * specular; variants differ mainly by fill opacity. Composer lifts slightly
+   * more via pop shadow. `@supports` keeps a solid fallback without blur.
    */
   .glass-bar,
   .glass-rail,
@@ -341,7 +342,7 @@
 
   .glass-chrome-pill {
     background-color: var(--glass-chrome-bg);
-    border-color: oklch(0.205 0 0 / 0.08);
+    border-color: oklch(0.205 0 0 / 0.12);
   }
 
   .glass-chrome-pill [data-active="true"],
@@ -352,6 +353,12 @@
 
   .glass-rail {
     background-color: var(--glass-rail-bg);
+    /* Soft stage separation even when the shell clears border-r. */
+    border-right: 1px solid var(--glass-border);
+    box-shadow:
+      1px 0 0 0 color-mix(in oklch, var(--glass-border) 55%, transparent),
+      var(--glass-shadow),
+      inset 0 1px 0 0 var(--glass-highlight);
   }
 
   .glass-frost {
@@ -361,6 +368,17 @@
   .glass-composer {
     background-color: var(--glass-composer-bg);
     box-shadow:
+      var(--glass-shadow-pop),
+      inset 0 1px 0 0 var(--glass-highlight);
+    transition:
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease;
+  }
+
+  .glass-composer:focus-within {
+    border-color: color-mix(in oklch, var(--brand-blue) 55%, var(--glass-border));
+    box-shadow:
+      0 0 0 3px color-mix(in oklch, var(--brand-blue) 18%, transparent),
       var(--glass-shadow-pop),
       inset 0 1px 0 0 var(--glass-highlight);
   }
@@ -426,19 +444,20 @@
   }
 
   .glass-hover:hover {
-    background-color: var(--accent);
+    background-color: color-mix(in oklch, var(--accent) 88%, var(--foreground));
+    color: var(--foreground);
   }
 
-  /* Active rail item — near-white raised fill with a thin blue identity edge,
-   * the way Cursor highlights the selected item. */
+  /* Active rail item — raised frost fill with a sharp blue identity edge. */
   .rail-active {
     background-color: var(--surface);
     color: var(--foreground);
     font-weight: 500;
     box-shadow:
-      inset 2px 0 0 0 var(--brand-blue),
-      0 0 0 1px var(--hairline),
-      var(--shadow-panel);
+      inset 2.5px 0 0 0 var(--brand-blue),
+      0 0 0 1px color-mix(in oklch, var(--hairline) 85%, var(--foreground)),
+      0 1px 2px oklch(0.205 0 0 / 0.06),
+      inset 0 1px 0 0 var(--glass-highlight);
   }
 
   .rail-active :where(svg) {
@@ -467,23 +486,48 @@
     border-color: color-mix(in oklch, var(--brand-blue) 30%, transparent);
   }
 
-  /* Obsidian-style graph dot: a small, flat, type-tinted circle. No default
-   * box-shadow or entrance animation — cheap to paint by the hundreds, and
-   * entrance pops are opt-in via `.graph-node-enter` for genuinely-new nodes
-   * only (never replayed on filter toggles or data refreshes). */
+  /*
+   * Soft glass orbs. Same round sizing as the old Obsidian dots, but with a
+   * layered sheen + inner specular so nodes read as dimensional glass beads
+   * over the aurora. Entrance animation stays opt-in via `.graph-node-enter`.
+   * Inline `backgroundColor` / `borderColor` from the node component supply
+   * the type accent; these images/shadows layer on top.
+   */
   .graph-dot {
     border-radius: 9999px;
     border-width: 1.5px;
     border-style: solid;
+    background-image:
+      radial-gradient(
+        circle at 32% 26%,
+        oklch(1 0 0 / 0.78) 0%,
+        oklch(1 0 0 / 0.18) 38%,
+        transparent 58%
+      ),
+      linear-gradient(
+        165deg,
+        oklch(1 0 0 / 0.28) 0%,
+        transparent 52%
+      );
+    box-shadow:
+      inset 0 1.5px 1px oklch(1 0 0 / 0.7),
+      inset 0 -3px 5px color-mix(in oklch, var(--node-accent) 22%, transparent),
+      0 1px 2px oklch(0.205 0 0 / 0.1),
+      0 4px 12px -4px color-mix(in oklch, var(--node-accent) 32%, transparent);
     transition:
       transform 150ms ease,
-      box-shadow 150ms ease;
+      box-shadow 150ms ease,
+      filter 150ms ease;
   }
 
   .group:hover .graph-dot {
-    transform: scale(1.12);
-    box-shadow: 0 0 10px 1px
-      color-mix(in oklch, var(--node-accent) 35%, transparent);
+    transform: scale(1.14);
+    filter: brightness(1.04);
+    box-shadow:
+      inset 0 1.5px 1px oklch(1 0 0 / 0.85),
+      inset 0 -3px 5px color-mix(in oklch, var(--node-accent) 28%, transparent),
+      0 2px 4px oklch(0.205 0 0 / 0.1),
+      0 0 14px 1px color-mix(in oklch, var(--node-accent) 40%, transparent);
   }
 
   /* Entrance pop, applied only to nodes entering the graph for the first
@@ -495,7 +539,10 @@
   .graph-dot-selected {
     border-color: var(--brand-blue) !important;
     box-shadow:
-      0 0 0 4px color-mix(in oklch, var(--brand-blue) 22%, transparent),
+      inset 0 1.5px 1px oklch(1 0 0 / 0.85),
+      inset 0 -2px 4px color-mix(in oklch, var(--brand-blue) 18%, transparent),
+      0 0 0 4px color-mix(in oklch, var(--brand-blue) 24%, transparent),
+      0 0 16px 2px color-mix(in oklch, var(--brand-blue) 18%, transparent),
       var(--shadow-panel);
   }
 
@@ -537,28 +584,75 @@
     opacity: 1;
   }
 
-  /* Folder hub nodes — wiki-llm cluster containers. */
+  /* Folder hub nodes — dashed glass rings for wiki-llm cluster containers. */
   .graph-folder-hub {
     border-radius: 9999px;
     border-width: 2px;
     border-style: dashed;
+    background-image:
+      radial-gradient(
+        circle at 30% 24%,
+        oklch(1 0 0 / 0.55) 0%,
+        transparent 55%
+      ),
+      linear-gradient(
+        165deg,
+        oklch(1 0 0 / 0.2) 0%,
+        transparent 50%
+      );
+    box-shadow:
+      inset 0 1px 1px oklch(1 0 0 / 0.55),
+      inset 0 -2px 4px color-mix(in oklch, var(--node-accent) 14%, transparent),
+      0 2px 8px -3px color-mix(in oklch, var(--node-accent) 22%, transparent);
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease;
   }
 
-  /* Campaign goal centre — pinned sun of the constellation. */
+  .group:hover .graph-folder-hub {
+    transform: scale(1.08);
+    box-shadow:
+      inset 0 1px 1px oklch(1 0 0 / 0.7),
+      0 0 12px 1px color-mix(in oklch, var(--node-accent) 28%, transparent);
+  }
+
+  /* Campaign goal centre — richer blue glass sun of the constellation. */
   .graph-campaign-center {
     border-radius: 9999px;
     border-width: 2.5px;
     border-style: solid;
+    background-image:
+      radial-gradient(
+        circle at 34% 28%,
+        oklch(1 0 0 / 0.72) 0%,
+        oklch(1 0 0 / 0.12) 42%,
+        transparent 62%
+      ),
+      linear-gradient(
+        160deg,
+        color-mix(in oklch, var(--brand-blue) 18%, transparent) 0%,
+        transparent 60%
+      );
     box-shadow:
-      0 0 0 6px color-mix(in oklch, var(--brand-blue) 14%, transparent),
-      0 0 20px 2px color-mix(in oklch, var(--brand-blue) 12%, transparent);
+      inset 0 2px 2px oklch(1 0 0 / 0.65),
+      inset 0 -4px 8px color-mix(in oklch, var(--brand-blue) 16%, transparent),
+      0 0 0 5px color-mix(in oklch, var(--brand-blue) 14%, transparent),
+      0 0 18px 2px color-mix(in oklch, var(--brand-blue) 14%, transparent);
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .group:hover .graph-campaign-center {
+    transform: scale(1.06);
   }
 
   .graph-campaign-center-selected {
     border-color: var(--brand-blue) !important;
     box-shadow:
-      0 0 0 8px color-mix(in oklch, var(--brand-blue) 22%, transparent),
-      0 0 24px 4px color-mix(in oklch, var(--brand-blue) 18%, transparent);
+      inset 0 2px 2px oklch(1 0 0 / 0.75),
+      0 0 0 7px color-mix(in oklch, var(--brand-blue) 22%, transparent),
+      0 0 22px 3px color-mix(in oklch, var(--brand-blue) 18%, transparent);
   }
 
   .graph-center-label {
@@ -569,7 +663,9 @@
     border-color: var(--brand-blue) !important;
     border-style: solid;
     box-shadow:
-      0 0 0 5px color-mix(in oklch, var(--brand-blue) 18%, transparent),
+      inset 0 1px 1px oklch(1 0 0 / 0.65),
+      0 0 0 5px color-mix(in oklch, var(--brand-blue) 20%, transparent),
+      0 0 14px 1px color-mix(in oklch, var(--brand-blue) 14%, transparent),
       var(--shadow-panel);
   }
 
@@ -583,7 +679,7 @@
     border-color: var(--brand-blue) !important;
     background-color: color-mix(
       in oklch,
-      var(--brand-blue) 26%,
+      var(--brand-blue) 30%,
       var(--card)
     ) !important;
     z-index: 5;
@@ -594,15 +690,16 @@
     100% {
       transform: scale(1);
       box-shadow:
+        inset 0 1px 1px oklch(1 0 0 / 0.55),
         0 0 0 0 color-mix(in oklch, var(--brand-blue) 50%, transparent),
-        var(--shadow-panel);
+        0 0 10px 1px color-mix(in oklch, var(--brand-blue) 18%, transparent);
     }
     50% {
-      transform: scale(1.18);
+      transform: scale(1.16);
       box-shadow:
-        0 0 0 7px color-mix(in oklch, var(--brand-blue) 0%, transparent),
-        0 0 20px 3px color-mix(in oklch, var(--brand-blue) 40%, transparent),
-        var(--shadow-panel);
+        inset 0 1px 1px oklch(1 0 0 / 0.7),
+        0 0 0 6px color-mix(in oklch, var(--brand-blue) 0%, transparent),
+        0 0 18px 3px color-mix(in oklch, var(--brand-blue) 36%, transparent);
     }
   }
 
@@ -904,15 +1001,87 @@
 }
 
 .dark .graph-dot {
+  background-image:
+    radial-gradient(
+      circle at 32% 26%,
+      oklch(1 0 0 / 0.28) 0%,
+      oklch(1 0 0 / 0.06) 40%,
+      transparent 60%
+    ),
+    linear-gradient(
+      165deg,
+      oklch(1 0 0 / 0.12) 0%,
+      transparent 52%
+    );
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--border) 60%, transparent),
-    var(--shadow-panel);
+    inset 0 1.5px 1px oklch(1 0 0 / 0.22),
+    inset 0 -3px 5px color-mix(in oklch, var(--node-accent) 28%, transparent),
+    0 0 0 1px color-mix(in oklch, var(--border) 70%, transparent),
+    0 4px 14px -4px color-mix(in oklch, var(--node-accent) 40%, transparent),
+    0 2px 6px oklch(0 0 0 / 0.35);
+}
+
+.dark .group:hover .graph-dot {
+  box-shadow:
+    inset 0 1.5px 1px oklch(1 0 0 / 0.32),
+    inset 0 -3px 5px color-mix(in oklch, var(--node-accent) 34%, transparent),
+    0 0 0 1px color-mix(in oklch, var(--border) 80%, transparent),
+    0 0 16px 2px color-mix(in oklch, var(--node-accent) 45%, transparent);
 }
 
 .dark .graph-folder-hub {
+  background-image:
+    radial-gradient(
+      circle at 30% 24%,
+      oklch(1 0 0 / 0.18) 0%,
+      transparent 55%
+    ),
+    linear-gradient(
+      165deg,
+      oklch(1 0 0 / 0.08) 0%,
+      transparent 50%
+    );
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--border) 50%, transparent),
-    var(--shadow-panel);
+    inset 0 1px 1px oklch(1 0 0 / 0.16),
+    0 0 0 1px color-mix(in oklch, var(--border) 55%, transparent),
+    0 4px 12px -4px color-mix(in oklch, var(--node-accent) 30%, transparent);
+}
+
+.dark .graph-campaign-center {
+  background-image:
+    radial-gradient(
+      circle at 34% 28%,
+      oklch(1 0 0 / 0.24) 0%,
+      oklch(1 0 0 / 0.04) 44%,
+      transparent 62%
+    ),
+    linear-gradient(
+      160deg,
+      color-mix(in oklch, var(--brand-blue) 28%, transparent) 0%,
+      transparent 60%
+    );
+  box-shadow:
+    inset 0 2px 2px oklch(1 0 0 / 0.2),
+    inset 0 -4px 8px color-mix(in oklch, var(--brand-blue) 22%, transparent),
+    0 0 0 5px color-mix(in oklch, var(--brand-blue) 18%, transparent),
+    0 0 20px 2px color-mix(in oklch, var(--brand-blue) 20%, transparent);
+}
+
+.dark .glass-chrome-pill {
+  border-color: oklch(1 0 0 / 0.14);
+}
+
+.dark .glass-chrome-pill [data-active="true"],
+.dark .glass-chrome-pill .is-active-pill {
+  background-color: oklch(0.28 0 0);
+}
+
+.dark .rail-active {
+  box-shadow:
+    inset 2.5px 0 0 0 var(--brand-blue),
+    0 0 0 1px oklch(1 0 0 / 0.12),
+    0 1px 3px oklch(0 0 0 / 0.35),
+    inset 0 1px 0 0 oklch(1 0 0 / 0.1);
 }
 
 /* iOS safe-area insets for notched devices and home indicators. */

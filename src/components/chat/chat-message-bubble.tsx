@@ -99,8 +99,8 @@ export function ChatMessageBubble({
       className={cn(
         "max-w-[88%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
         role === "user"
-          ? "bg-primary text-primary-foreground"
-          : "border border-border bg-card text-foreground",
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "border border-border/90 bg-card/95 text-foreground shadow-[inset_0_1px_0_0_var(--glass-highlight)]",
       )}
     >
       {persona ? (

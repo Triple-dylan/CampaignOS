@@ -103,16 +103,17 @@ function GraphNodeCardInner({ data, selected }: NodeProps<GraphNodeCardNode>) {
           {
             width: diameter,
             height: diameter,
+            /* Slightly more translucent fills so CSS orb sheens read as glass. */
             backgroundColor: data.isCampaignCenter
-              ? `color-mix(in oklch, ${accent} 18%, var(--card))`
+              ? `color-mix(in oklch, ${accent} 22%, var(--card))`
               : data.isFolderHub
-                ? `color-mix(in oklch, ${accent} 14%, var(--card))`
-                : `color-mix(in oklch, ${accent} 30%, var(--card))`,
+                ? `color-mix(in oklch, ${accent} 16%, var(--card))`
+                : `color-mix(in oklch, ${accent} 36%, var(--card))`,
             borderColor: data.isCampaignCenter
-              ? `color-mix(in oklch, ${accent} 75%, transparent)`
+              ? `color-mix(in oklch, ${accent} 82%, transparent)`
               : data.isFolderHub
-                ? `color-mix(in oklch, ${accent} 65%, transparent)`
-                : `color-mix(in oklch, ${accent} 85%, transparent)`,
+                ? `color-mix(in oklch, ${accent} 72%, transparent)`
+                : `color-mix(in oklch, ${accent} 92%, transparent)`,
             "--node-accent": accent,
           } as React.CSSProperties
         }
