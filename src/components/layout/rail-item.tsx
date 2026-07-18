@@ -20,7 +20,7 @@ const railItemClass = (active?: boolean, disabled?: boolean) =>
     "focus-visible:ring-2 focus-visible:ring-ring/25",
     active
       ? "rail-active font-medium"
-      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+      : "text-muted-foreground hover:text-foreground",
     disabled && "cursor-not-allowed opacity-55 hover:bg-transparent hover:text-muted-foreground",
   );
 

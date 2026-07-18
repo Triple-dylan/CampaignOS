@@ -214,7 +214,7 @@ export function WorkspaceChatContent({
             : undefined
         }
       >
-        <div className="glass-composer relative rounded-2xl transition-shadow focus-within:border-brand-blue/60">
+        <div className="glass-composer relative rounded-2xl">
           <AgentMentionMenu mention={mention} />
           {agentOverride ? (
             <div className="flex flex-wrap items-center gap-1 px-3 pt-2">
