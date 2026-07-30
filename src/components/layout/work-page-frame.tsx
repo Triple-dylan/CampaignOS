@@ -7,6 +7,7 @@ import { useChat } from "@/components/chat/chat-provider";
 import { MobileChatSheet } from "@/components/layout/mobile-chat-sheet";
 import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { WorkspaceChatPanel } from "@/components/workspace/workspace-chat-panel";
+import { useOptionalGraphStage } from "@/components/workspace/graph-stage-provider";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { campaignDisplayName } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
@@ -97,10 +98,8 @@ type WorkPageFrameProps = {
 };
 
 /**
- * The single shared frame for every dedicated module page: a glass command bar,
- * a scrolling content area, and the persistent right-rail chat that follows the
- * user across the app. Adopting this everywhere removes the old AppHeader /
- * module-page-shell split so there is one consistent page system.
+ * Module working surface: a frosted right panel over the persistent graph stage.
+ * The left of the stage stays interactive so camera travel remains visible.
  */
 export function WorkPageFrame({
   title,
@@ -111,14 +110,28 @@ export function WorkPageFrame({
 }: WorkPageFrameProps) {
   const { isChatRailOpen, setChatRailOpen } = useChat();
   const isBelowMd = useIsMobile();
+  const graphStage = useOptionalGraphStage();
+  const overGraph = Boolean(graphStage?.active);
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      {/* Default: one scroll container for sticky glass bar + page content.
-          Fill mode: lock the column so dual-pane modules can scroll internally. */}
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 overflow-hidden",
+        overGraph && "pointer-events-none",
+      )}
+    >
+      {/* Transparent stage — graph remains visible / interactive on desktop. */}
+      {overGraph ? (
+        <div className="relative hidden min-w-0 flex-1 md:block" aria-hidden />
+      ) : null}
+
+      {/* Doc / working view */}
       <div
         className={cn(
-          "flex min-h-0 min-w-0 flex-1 flex-col",
+          "pointer-events-auto relative z-20 flex min-h-0 min-w-0 flex-col",
+          overGraph
+            ? "glass-frost work-panel w-full md:w-[min(52vw,42rem)] md:border-l md:shadow-[var(--glass-shadow-pop)]"
+            : "flex-1",
           fill ? "overflow-hidden" : "overflow-y-auto",
         )}
       >
@@ -129,7 +142,7 @@ export function WorkPageFrame({
         />
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col",
+            "flex min-h-0 flex-1 flex-col bg-background/40",
             fill && "overflow-hidden",
           )}
         >
@@ -137,9 +150,12 @@ export function WorkPageFrame({
         </div>
       </div>
 
-      {/* Always mounted on desktop so it can animate open/closed; the command
-          bar owns the single chat toggle control. */}
-      {!isBelowMd ? <WorkspaceChatPanel open={isChatRailOpen} /> : null}
+      {/* Follow-along chat — sits beside the working panel when open. */}
+      {!isBelowMd ? (
+        <div className="pointer-events-auto relative z-20">
+          <WorkspaceChatPanel open={isChatRailOpen} />
+        </div>
+      ) : null}
 
       {isChatRailOpen && isBelowMd ? (
         <MobileChatSheet open={isChatRailOpen} onOpenChange={setChatRailOpen} />

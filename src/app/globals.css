@@ -354,6 +354,18 @@
     background-color: var(--glass-rail-bg);
   }
 
+  /* Floating features card — former docked rail, now a rounded glass overlay. */
+  .glass-features {
+    box-shadow:
+      var(--glass-shadow-pop),
+      inset 0 1px 0 0 var(--glass-highlight);
+  }
+
+  /* Module working panel over the persistent graph stage. */
+  .work-panel {
+    background-color: color-mix(in oklab, var(--glass-panel-bg) 88%, var(--background));
+  }
+
   .glass-frost {
     background-color: var(--glass-panel-bg);
   }

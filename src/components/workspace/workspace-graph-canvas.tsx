@@ -70,22 +70,23 @@ const CAMERA_PRIORITY = {
 } as const;
 
 /**
- * Asymmetric padding so the constellation stays clear of the floating overlays:
- * the frosted breadcrumb bar at the top and the glass composer docked at the
- * bottom. Without the extra bottom space, nodes would hide behind the composer.
+ * Asymmetric padding so the constellation stays clear of floating overlays:
+ * left features card, top breadcrumb, bottom composer. Extra right padding
+ * when the working panel is open so travel frames the visible graph stage.
  */
 const DESKTOP_FIT_VIEW_OPTIONS = {
-  padding: { top: "80px", right: "88px", bottom: "236px", left: "88px" },
+  padding: { top: "80px", right: "88px", bottom: "236px", left: "240px" },
   duration: CAMERA_EASE_MS,
 } as const;
 
-/**
- * With a conversation open, the chat card (up to 34vh) + composer cover
- * roughly the bottom 40% of the canvas — the frame shifts visible nodes up
- * into the uncovered area.
- */
 const DESKTOP_DOCK_OPEN_FIT_VIEW_OPTIONS = {
-  padding: { top: "72px", right: "88px", bottom: "44%", left: "88px" },
+  padding: { top: "72px", right: "88px", bottom: "44%", left: "240px" },
+  duration: CAMERA_EASE_MS,
+} as const;
+
+/** Module working panel covers ~half the stage on the right. */
+const DESKTOP_WORK_PANEL_FIT_VIEW_OPTIONS = {
+  padding: { top: "72px", right: "48%", bottom: "88px", left: "240px" },
   duration: CAMERA_EASE_MS,
 } as const;
 
@@ -107,6 +108,17 @@ type WorkspaceGraphCanvasProps = {
   searching?: boolean;
   /** True while a conversation card floats over the bottom of the canvas. */
   chatDockOpen?: boolean;
+  /**
+   * True while a module working panel occupies the right side of the stage.
+   * Camera fit padding shifts left so travel frames the visible graph.
+   */
+  workingPanelOpen?: boolean;
+  /**
+   * Controlled folder travel target from app navigation. `null` clears focus
+   * back to the whole-graph overview; `undefined` leaves internal focus alone.
+   */
+  travelFolderId?: CampaignFolderId | null;
+  onTravelFolderChange?: (folderId: CampaignFolderId | null) => void;
   onSelectNode: (node: CampaignGraphNodeData | null, id: string | null) => void;
   onFocusComposer?: () => void;
   /** Show folder / entity view toggle (default true). */
@@ -120,6 +132,8 @@ type WorkspaceGraphCanvasProps = {
     patch: Partial<CampaignGraphPreferences>,
   ) => void;
   onRestoreGraphDefaults?: () => void;
+  /** Hide the duplicate stage aurora when the shell already paints one. */
+  showAurora?: boolean;
 };
 
 export function WorkspaceGraphCanvas(props: WorkspaceGraphCanvasProps) {
@@ -137,6 +151,9 @@ function WorkspaceGraphCanvasInner({
   highlightedNodeIds,
   searching = false,
   chatDockOpen = false,
+  workingPanelOpen = false,
+  travelFolderId,
+  onTravelFolderChange,
   onSelectNode,
   onFocusComposer,
   showViewToggle = true,
@@ -145,6 +162,7 @@ function WorkspaceGraphCanvasInner({
   graphPreferences,
   onGraphPreferencesChange,
   onRestoreGraphDefaults,
+  showAurora = true,
 }: WorkspaceGraphCanvasProps) {
   const highlighted = highlightedNodeIds ?? EMPTY_SET;
   const isMobile = useIsMobile();
@@ -168,9 +186,11 @@ function WorkspaceGraphCanvasInner({
     ? chatDockOpen
       ? MOBILE_DOCK_OPEN_FIT_VIEW_OPTIONS
       : MOBILE_FIT_VIEW_OPTIONS
-    : chatDockOpen
-      ? DESKTOP_DOCK_OPEN_FIT_VIEW_OPTIONS
-      : DESKTOP_FIT_VIEW_OPTIONS;
+    : workingPanelOpen
+      ? DESKTOP_WORK_PANEL_FIT_VIEW_OPTIONS
+      : chatDockOpen
+        ? DESKTOP_DOCK_OPEN_FIT_VIEW_OPTIONS
+        : DESKTOP_FIT_VIEW_OPTIONS;
   const { fitView, setCenter, getZoom } = useReactFlow();
   // Boolean selector: re-renders only when the zoom threshold is crossed —
   // never once per zoom frame. Label fading itself is pure CSS.
@@ -185,10 +205,23 @@ function WorkspaceGraphCanvasInner({
   const setViewMode = onViewModeChange ?? setInternalViewMode;
 
   // Obsidian-style local-graph focus: folder hub OR entity neighbourhood.
-  const [focusFolderId, setFocusFolderId] = useState<CampaignFolderId | null>(
-    null,
-  );
+  // App navigation drives focus via `travelFolderId` when provided.
+  const [localFocusFolderId, setLocalFocusFolderId] =
+    useState<CampaignFolderId | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [lastTravelFolderId, setLastTravelFolderId] = useState(travelFolderId);
+
+  // Controlled travel from shell/nav — sync during render, clear entity focus.
+  if (travelFolderId !== lastTravelFolderId) {
+    setLastTravelFolderId(travelFolderId);
+    if (travelFolderId !== undefined) {
+      setLocalFocusFolderId(travelFolderId);
+      if (travelFolderId) setFocusNodeId(null);
+    }
+  }
+
+  const focusFolderId =
+    travelFolderId !== undefined ? travelFolderId : localFocusFolderId;
 
   // Hovered node: its touching edges brighten so the local neighbourhood
   // reads at a glance (cheap CSS class toggle, no layout work).
@@ -514,44 +547,48 @@ function WorkspaceGraphCanvasInner({
   );
 
   const exitFocus = useCallback(() => {
-    setFocusFolderId(null);
+    setLocalFocusFolderId(null);
     setFocusNodeId(null);
-  }, []);
+    onTravelFolderChange?.(null);
+  }, [onTravelFolderChange]);
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
       const data = node.data as CampaignGraphNodeData;
       if (data.isFolderHub && data.folder) {
-        setFocusFolderId(data.folder);
+        setLocalFocusFolderId(data.folder);
         setFocusNodeId(null);
+        onTravelFolderChange?.(data.folder);
       } else if (!data.isCampaignCenter) {
         setFocusNodeId(node.id);
       }
       onSelectNode(data, node.id);
     },
-    [onSelectNode],
+    [onSelectNode, onTravelFolderChange],
   );
 
   const onPaneClick = useCallback(() => {
-    setFocusFolderId(null);
+    setLocalFocusFolderId(null);
     setFocusNodeId(null);
+    onTravelFolderChange?.(null);
     onSelectNode(null, null);
-  }, [onSelectNode]);
+  }, [onSelectNode, onTravelFolderChange]);
 
   // Escape exits focus (and clears the selected node when nothing is focused).
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (activeFocusFolderId) {
-        setFocusFolderId(null);
+        setLocalFocusFolderId(null);
         setFocusNodeId(null);
+        onTravelFolderChange?.(null);
       } else if (selectedNodeId) {
         onSelectNode(null, null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeFocusFolderId, selectedNodeId, onSelectNode]);
+  }, [activeFocusFolderId, selectedNodeId, onSelectNode, onTravelFolderChange]);
 
   // Once the physics settles for the first time, gently reframe the settled
   // constellation. (The initial `fitView` prop frames the seeded layout, but
@@ -592,6 +629,17 @@ function WorkspaceGraphCanvasInner({
       fitView(fitViewOptions);
     });
   }, [chatDockOpen, requestCameraMove, fitView, fitViewOptions]);
+
+  // Working panel (module doc view) covering the right side — reframe into the
+  // remaining stage so travel stays framed in the visible graph.
+  const workPanelRef = useRef(workingPanelOpen);
+  useEffect(() => {
+    if (workPanelRef.current === workingPanelOpen) return;
+    workPanelRef.current = workingPanelOpen;
+    requestCameraMove(CAMERA_PRIORITY.frame, () => {
+      fitView(fitViewOptions);
+    });
+  }, [workingPanelOpen, requestCameraMove, fitView, fitViewOptions]);
 
   // Folder focus reads as a camera push-in toward the cluster; exiting eases
   // back out to the full constellation.
@@ -660,7 +708,7 @@ function WorkspaceGraphCanvasInner({
   if (isEmpty) {
     return (
       <div className="relative flex h-full w-full items-center justify-center p-6">
-        <div className="graph-aurora" aria-hidden />
+        {showAurora ? <div className="graph-aurora" aria-hidden /> : null}
         <div className="relative max-w-md text-center">
           <div className="brand-mark mx-auto mb-4 flex size-11 items-center justify-center rounded-xl">
             <Sparkles className="size-5" aria-hidden />
@@ -696,7 +744,7 @@ function WorkspaceGraphCanvasInner({
         } as CSSProperties
       }
     >
-      <div className="graph-aurora" aria-hidden />
+      {showAurora ? <div className="graph-aurora" aria-hidden /> : null}
       {viewRenderer === "3d" && graph ? (
         <Graph3DCanvas
           graph={{

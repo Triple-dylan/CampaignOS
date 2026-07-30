@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 import { AppRail } from "@/components/layout/app-rail";
 import { ComplianceDisclaimer } from "@/components/layout/compliance-disclaimer";
+import { GraphStageProvider } from "@/components/workspace/graph-stage-provider";
 import {
   Sheet,
   SheetContent,
@@ -11,6 +12,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { isWorkingPanelRoute } from "@/lib/navigation/route-graph-folders";
+import { cn } from "@/lib/utils";
 
 type WorkspaceShellContextValue = {
   isRailOpenMobile: boolean;
@@ -32,10 +35,17 @@ export function useWorkspaceShell(): WorkspaceShellContextValue {
   return context;
 }
 
+/**
+ * App chrome: persistent graph stage + floating feature controls.
+ *
+ * The knowledge graph is the world. Navigation features float over it; module
+ * pages render as a right working panel. Mobile keeps a Sheet for features.
+ */
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isRailOpenMobile, setRailOpenMobile] = React.useState(false);
   const [lastPathname, setLastPathname] = React.useState(pathname);
+  const workingPanel = isWorkingPanelRoute(pathname);
 
   // Close the mobile drawer on route change (during render to avoid cascades).
   if (pathname !== lastPathname) {
@@ -56,35 +66,52 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
     <WorkspaceShellContext.Provider value={value}>
       <div className="workspace-stage relative isolate flex h-svh w-full overflow-hidden">
-        {/* Stage-wide aurora so every frosted pane (rail, bars, panels) has the
-            drifting red/white/blue field refracting behind its blur. */}
+        {/* Stage-wide aurora so frosted panes (features, bars, panels) have
+            the drifting red/white/blue field refracting behind their blur. */}
         <div className="graph-aurora -z-10" aria-hidden />
-        <aside className="glass-rail hidden w-[232px] shrink-0 border-r-0 sm:flex">
-          <AppRail />
-        </aside>
 
-        <Sheet open={isRailOpenMobile} onOpenChange={setRailOpenMobile}>
-          <SheetContent
-            side="left"
-            showCloseButton={false}
-            className="w-[18rem] gap-0 border-r border-border p-0"
+        <GraphStageProvider>
+          {/* Floating features — former left rail, now a glass card over the graph. */}
+          <aside
+            className={cn(
+              "pointer-events-none absolute inset-y-0 left-0 z-40 hidden sm:block",
+              workingPanel && "max-lg:opacity-90",
+            )}
           >
-            <SheetHeader className="sr-only">
-              <SheetTitle>Workspace navigation</SheetTitle>
-              <SheetDescription>
-                Primary navigation, workflows, and settings.
-              </SheetDescription>
-            </SheetHeader>
-            <AppRail />
-          </SheetContent>
-        </Sheet>
+            <div className="pointer-events-auto absolute bottom-3 left-3 top-3 flex w-[13.5rem]">
+              <div className="glass-rail glass-features flex h-full w-full flex-col overflow-hidden rounded-2xl">
+                <AppRail />
+              </div>
+            </div>
+          </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {children}
+          <Sheet open={isRailOpenMobile} onOpenChange={setRailOpenMobile}>
+            <SheetContent
+              side="left"
+              showCloseButton={false}
+              className="w-[18rem] gap-0 border-r border-border p-0"
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Workspace navigation</SheetTitle>
+                <SheetDescription>
+                  Primary navigation, workflows, and settings.
+                </SheetDescription>
+              </SheetHeader>
+              <AppRail />
+            </SheetContent>
+          </Sheet>
+
+          {/* Foreground: route content (desk overlays or right working panel).
+              pointer-events-none so the graph stays interactive; panels opt in. */}
+          <div className="pointer-events-none relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {children}
+            </div>
+            <div className="pointer-events-auto">
+              <ComplianceDisclaimer />
+            </div>
           </div>
-          <ComplianceDisclaimer />
-        </div>
+        </GraphStageProvider>
       </div>
     </WorkspaceShellContext.Provider>
   );
