@@ -153,30 +153,32 @@ export function SettingsPageClient({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header className="border-b px-3 py-3 md:px-4">
-        <h1 className="text-lg font-semibold tracking-tight">{pageTitle}</h1>
-        <p className="text-sm text-muted-foreground">{pageDescription}</p>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {TABS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => selectTab(item.id)}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                tab === item.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground",
+    <div className="pointer-events-none flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative hidden min-w-0 flex-1 md:block" aria-hidden />
+      <div className="glass-frost work-panel pointer-events-auto relative z-20 flex min-h-0 w-full min-w-0 flex-col overflow-hidden md:w-[min(52vw,42rem)] md:border-l md:shadow-[var(--glass-shadow-pop)]">
+        <header className="glass-bar glass-chrome-top shrink-0 border-x-0 border-t-0 px-3 py-3 md:px-4">
+          <h1 className="text-lg font-semibold tracking-tight">{pageTitle}</h1>
+          <p className="text-sm text-muted-foreground">{pageDescription}</p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {TABS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => selectTab(item.id)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  tab === item.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground",
               )}
             >
               {item.label}
             </button>
           ))}
-        </div>
-      </header>
+          </div>
+        </header>
 
-      <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-3 md:p-4">
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto bg-background/40 p-3 md:p-4">
         {message ? (
           <p className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
             {message}
@@ -452,6 +454,7 @@ export function SettingsPageClient({
             </CardContent>
           </Card>
         ) : null}
+        </div>
       </div>
     </div>
   );

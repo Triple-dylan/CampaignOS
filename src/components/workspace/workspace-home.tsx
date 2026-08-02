@@ -5,7 +5,7 @@ import { useChat } from "@/components/chat/chat-provider";
 import { useWorkspaceShell } from "@/components/layout/workspace-shell";
 import { WorkspaceTopBar } from "@/components/workspace/workspace-top-bar";
 import { ChatDock } from "@/components/workspace/chat-dock";
-import { WorkspaceGraphCanvasLazy as WorkspaceGraphCanvas } from "@/components/workspace/workspace-graph-canvas.lazy";
+import { useOptionalGraphStage } from "@/components/workspace/graph-stage-provider";
 import {
   WorkspaceContextPanel,
   type WorkspaceMetrics,
@@ -21,8 +21,6 @@ import type {
 import { useDynamicCampaignGraph } from "@/lib/graph/dynamic-graph";
 import { nodeIdsForFolders } from "@/lib/graph/folder-clusters";
 import { resolveRetrievalNodeIdsFromFlow } from "@/lib/graph/retrieval-highlights";
-import { useCampaignGraphPreferences } from "@/hooks/use-campaign-graph-preferences";
-import { applyCenterDisplayToGraph } from "@/lib/graph/apply-center-display";
 import type {
   DbCampaign,
   DbCampaignProfile,
@@ -210,19 +208,21 @@ export function WorkspaceHome({
   onboardingData,
   liveSeed = null,
 }: WorkspaceHomeProps) {
-  const { isSending, activeThread, graphFoldersToHighlight, graphNodeIdsToHighlight, harnessContextPaths } = useChat();
+  const {
+    isSending,
+    activeThread,
+    graphFoldersToHighlight,
+    graphNodeIdsToHighlight,
+    harnessContextPaths,
+  } = useChat();
   const { toggleRailMobile } = useWorkspaceShell();
-  const [selectedNode, setSelectedNode] =
-    React.useState<CampaignGraphNodeData | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
-    null,
-  );
+  const graphStage = useOptionalGraphStage();
   const [panelOpen, setPanelOpen] = React.useState(false);
   const isMobile = useIsMobile();
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
 
   // Live (client-side, growable) graph. Seeded only in live mode; otherwise the
-  // server-provided `graph` prop is the source of truth.
+  // server-provided `graph` prop hydrates the persistent stage.
   const liveController = useDynamicCampaignGraph({
     campaignId: campaign?.id ?? "campaign",
     nodes: liveSeed?.nodes ?? [],
@@ -230,40 +230,39 @@ export function WorkspaceHome({
   });
   const liveMode = liveSeed !== null;
   const activeGraph = liveMode ? liveController.graph : graph;
-  const {
-    preferences: graphPreferences,
-    updatePreferences: updateGraphPreferences,
-    resetPreferences: resetGraphPreferences,
-  } = useCampaignGraphPreferences(
-    campaign?.id,
-    campaign?.graph_preferences,
-  );
   const activeEdgeCount = liveMode
     ? liveController.graph.edges.length
     : edgeCount;
 
-  const displayGraph = React.useMemo(
-    () =>
-      applyCenterDisplayToGraph(activeGraph, {
-        displayMode: graphPreferences.center.displayMode,
-        customLabel: graphPreferences.center.customLabel,
-        customSubtitle: graphPreferences.center.customSubtitle,
-        campaign,
-        profile,
-        digest,
-      }),
-    [
-      activeGraph,
-      graphPreferences.center,
-      campaign,
-      profile,
-      digest,
-    ],
-  );
+  // Hydrate the shell's persistent stage (and keep live demo graphs in sync).
+  React.useEffect(() => {
+    if (!graphStage?.active) return;
+    graphStage.hydrateGraph(activeGraph, activeEdgeCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only push graph identity
+  }, [graphStage?.active, activeGraph, activeEdgeCount]);
+
+  const displayGraph = graphStage?.active
+    ? graphStage.graph
+    : activeGraph;
+
+  const selectedNode = graphStage?.selectedNode ?? null;
+  const selectedNodeId = graphStage?.selectedNodeId ?? null;
+  const selectedKey = selectedNodeId ?? "";
+  const [lastSelectedKey, setLastSelectedKey] = React.useState(selectedKey);
+
+  // Open the context panel when the stage selects a node (render sync).
+  if (selectedKey !== lastSelectedKey) {
+    setLastSelectedKey(selectedKey);
+    if (selectedKey) setPanelOpen(true);
+  }
 
   // With a conversation on screen, the chat card + composer cover the bottom
   // of the canvas — the graph re-frames itself into the uncovered upper area.
   const chatDockOpen = (activeThread?.messages.length ?? 0) > 0;
+
+  React.useEffect(() => {
+    graphStage?.setChatDockOpen(chatDockOpen);
+  }, [graphStage, chatDockOpen]);
 
   // Hold the "thinking" pass on long enough to be visible even for fast replies.
   const thinkingActive = useMinimumActive(isSending, 1800);
@@ -286,16 +285,23 @@ export function WorkspaceHome({
     return new Set(topicNodeIds);
   }, [thinkingActive, activationIds, topicNodeIds]);
 
+  React.useEffect(() => {
+    graphStage?.setHighlightedNodeIds(highlightedNodeIds);
+    graphStage?.setSearching(thinkingActive);
+  }, [graphStage, highlightedNodeIds, thinkingActive]);
+
   const focusApi = useOptionalCampaignFocus();
   const presenceByObject = useGraphPresenceByObject();
   const presencePeerCount = selectedNodeId
     ? (presenceByObject.get(selectedNodeId) ?? 0)
     : 0;
 
+  // Open the context panel when the stage selects a node (click on graph).
+  // (handled via render-time selectedKey sync above)
+
   const handleSelectNode = React.useCallback(
     (node: CampaignGraphNodeData | null, id: string | null) => {
-      setSelectedNode(node);
-      setSelectedNodeId(id);
+      graphStage?.selectNode(node, id);
       if (node) setPanelOpen(true);
       if (node && id) {
         focusApi?.focusObject({
@@ -308,12 +314,31 @@ export function WorkspaceHome({
         focusApi?.clearFocus();
       }
     },
-    [focusApi],
+    [focusApi, graphStage],
   );
+
+  // Keep stage selection in sync with campaign focus metadata.
+  React.useEffect(() => {
+    if (!selectedNode || !selectedNodeId) {
+      focusApi?.clearFocus();
+      return;
+    }
+    focusApi?.focusObject({
+      objectType: "graph_node",
+      objectId: selectedNodeId,
+      objectTitle: selectedNode.title,
+      module: "dashboard",
+    });
+  }, [selectedNode, selectedNodeId, focusApi]);
 
   const focusComposer = React.useCallback(() => {
     composerRef.current?.focus();
   }, []);
+
+  React.useEffect(() => {
+    graphStage?.setFocusComposerHandler(focusComposer);
+    return () => graphStage?.setFocusComposerHandler(null);
+  }, [graphStage, focusComposer]);
 
   const contextPanelProps = {
     campaign,
@@ -324,14 +349,14 @@ export function WorkspaceHome({
     selectedNode,
     onClose: () => setPanelOpen(false),
     onClearSelection: () => handleSelectNode(null, null),
-    graphPreferences,
-    onGraphPreferencesChange: updateGraphPreferences,
+    graphPreferences: graphStage?.graphPreferences,
+    onGraphPreferencesChange: graphStage?.updateGraphPreferences,
     presencePeerCount,
   };
 
   if (!isSetupComplete) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="pointer-events-auto flex min-h-0 flex-1 flex-col">
         <WorkspaceTopBar
           onToggleRail={toggleRailMobile}
           onTogglePanel={() => setPanelOpen((v) => !v)}
@@ -365,56 +390,39 @@ export function WorkspaceHome({
   }
 
   return (
-    <div className="flex min-h-0 flex-1">
-      {/* Center: full-bleed knowledge graph with floating glass overlays */}
+    <div className="pointer-events-none relative flex min-h-0 flex-1">
+      {/* Center: overlays on the persistent graph stage */}
       <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* The graph fills the entire center compartment and sits behind the
-            floating top bar and composer — Cursor/Codex style. */}
-        <div className="absolute inset-0 z-0">
-          <WorkspaceGraphCanvas
-            graph={displayGraph}
-            edgeCount={activeEdgeCount}
-            selectedNodeId={selectedNodeId}
-            highlightedNodeIds={highlightedNodeIds}
-            searching={thinkingActive}
-            chatDockOpen={chatDockOpen}
-            onSelectNode={handleSelectNode}
-            onFocusComposer={focusComposer}
-            graphPreferences={graphPreferences}
-            onGraphPreferencesChange={updateGraphPreferences}
-            onRestoreGraphDefaults={resetGraphPreferences}
+        {/* Floating frosted breadcrumb — inset so it clears the features card. */}
+        <div className="pointer-events-auto relative z-30">
+          <WorkspaceTopBar
+            onToggleRail={toggleRailMobile}
+            onTogglePanel={() => setPanelOpen((v) => !v)}
+            panelOpen={panelOpen}
+            showPanelToggle
           />
         </div>
 
-        {/* Full-bleed frosted breadcrumb bar — graph shows through the blur,
-            edge to edge like every module page's command bar. */}
-        <WorkspaceTopBar
-          onToggleRail={toggleRailMobile}
-          onTogglePanel={() => setPanelOpen((v) => !v)}
-          panelOpen={panelOpen}
-          showPanelToggle
-        />
-
-        {/* Floating glass composer docked at the bottom. The wrapper lets
-            pointer events fall through to the graph everywhere except the
-            card itself, which opts back in. */}
+        {/* Floating glass composer docked at the bottom. */}
         <div className="pointer-events-none relative z-20 mt-auto">
           <ChatDock composerRef={composerRef} />
         </div>
       </section>
 
-      {/* Right rail: preview + accessibility (collapsible). Always mounted on
-          desktop so it can animate open/closed; the top bar owns the single
-          toggle control. */}
+      {/* Right rail: preview + digest (collapsible). */}
       {!isMobile ? (
-        <WorkspaceContextPanel open={panelOpen} {...contextPanelProps} />
+        <div className="pointer-events-auto relative z-20">
+          <WorkspaceContextPanel open={panelOpen} {...contextPanelProps} />
+        </div>
       ) : null}
 
-      <MobileContextSheet
-        open={panelOpen && isMobile}
-        onOpenChange={setPanelOpen}
-        {...contextPanelProps}
-      />
+      <div className="pointer-events-auto">
+        <MobileContextSheet
+          open={panelOpen && isMobile}
+          onOpenChange={setPanelOpen}
+          {...contextPanelProps}
+        />
+      </div>
     </div>
   );
 }

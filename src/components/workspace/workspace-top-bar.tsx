@@ -26,7 +26,7 @@ export function WorkspaceTopBar({
   const focusedTitle = focusApi?.focus.objectTitle;
 
   return (
-    <header className="glass-bar glass-chrome-top pointer-events-auto sticky top-0 z-30 flex h-11 shrink-0 items-center gap-2 rounded-none border-x-0 border-t-0 border-b-0 px-3 md:px-4">
+    <header className="glass-bar glass-chrome-top pointer-events-auto relative z-30 mx-3 mt-3 flex h-11 shrink-0 items-center gap-2 rounded-xl border-border/60 px-3 sm:ml-[calc(13.5rem+1.5rem)] sm:mr-3">
       <button
         type="button"
         onClick={onToggleRail}
