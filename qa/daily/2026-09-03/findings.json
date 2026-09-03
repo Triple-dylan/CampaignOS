@@ -1,0 +1,280 @@
+{
+  "date": "2026-09-03",
+  "baseUrl": "https://campaignos-sigma.vercel.app",
+  "agentRunUrl": "https://github.com/Triple-dylan/CampaignOS/actions/runs/33781535719",
+  "loopsCompleted": 3,
+  "summary": "All public checks passed across 3 loops (45 checks).",
+  "checks": [
+    {
+      "id": "loop1-home",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop1-sign-in",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop1-sign-up",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop1-health",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop1-redir-dashboard",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-brain",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-planner",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-assets",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-research",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-fundraising",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-tasks",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-compliance",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-automations",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-settings",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop1-redir-onboarding",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-home",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop2-sign-in",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop2-sign-up",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop2-health",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop2-redir-dashboard",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-brain",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-planner",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-assets",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-research",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-fundraising",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-tasks",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-compliance",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-automations",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-settings",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop2-redir-onboarding",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-home",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop3-sign-in",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop3-sign-up",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop3-health",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "httpStatus": 200
+    },
+    {
+      "id": "loop3-redir-dashboard",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-brain",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-planner",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-assets",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-research",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-fundraising",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-tasks",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-compliance",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-automations",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-settings",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    },
+    {
+      "id": "loop3-redir-onboarding",
+      "status": "pass",
+      "detail": "HTTP 307 loc=/sign-in",
+      "httpStatus": 307
+    }
+  ],
+  "findings": []
+}
