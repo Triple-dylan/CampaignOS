@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/db/client";
-import type { DbWorkflowSchedule } from "@/lib/db/schema";
+import type { DbWorkflowRun, DbWorkflowSchedule } from "@/lib/db/schema";
+import { buildScheduleMetadata } from "@/lib/workflows/resolve-schedule";
 import { toCronExpression } from "@/lib/workflows/schedule";
 import {
   createWorkflowScheduleSchema,
@@ -8,6 +9,10 @@ import {
 
 function mapSchedule(row: Record<string, unknown>): DbWorkflowSchedule {
   return row as DbWorkflowSchedule;
+}
+
+function mapRun(row: Record<string, unknown>): DbWorkflowRun {
+  return row as DbWorkflowRun;
 }
 
 export async function listWorkflowSchedules(campaignId: string) {
@@ -70,7 +75,11 @@ export async function createWorkflowSchedule(input: CreateWorkflowScheduleInput)
       enabled: parsed.enabled,
       status: "pending_implementation",
       created_by: parsed.createdBy ?? null,
-      metadata_json: { source: "ui_scaffold" },
+      metadata_json: buildScheduleMetadata({
+        prompt: parsed.prompt,
+        agentMode: parsed.agentMode,
+        source: "ui_scaffold",
+      }),
     })
     .select("*")
     .single();
@@ -83,4 +92,163 @@ export async function createWorkflowSchedule(input: CreateWorkflowScheduleInput)
     synced: true as const,
     schedule: mapSchedule(data),
   };
+}
+
+export async function getWorkflowScheduleById(
+  scheduleId: string,
+  campaignId: string,
+) {
+  if (!isSupabaseConfigured()) {
+    return { synced: false as const, schedule: null as DbWorkflowSchedule | null };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("workflow_schedules")
+    .select("*")
+    .eq("id", scheduleId)
+    .eq("campaign_id", campaignId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    synced: true as const,
+    schedule: data ? mapSchedule(data) : null,
+  };
+}
+
+export async function listWorkflowRuns(campaignId: string, limit = 50) {
+  if (!isSupabaseConfigured()) {
+    return { synced: false as const, runs: [] as DbWorkflowRun[] };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("workflow_runs")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    synced: true as const,
+    runs: (data ?? []).map(mapRun),
+  };
+}
+
+export async function createWorkflowRun(input: {
+  scheduleId: string;
+  campaignId: string;
+  promptSnapshot: string;
+  agentMode: string;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!isSupabaseConfigured()) {
+    return { synced: false as const, run: null as DbWorkflowRun | null };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("workflow_runs")
+    .insert({
+      schedule_id: input.scheduleId,
+      campaign_id: input.campaignId,
+      status: "running",
+      prompt_snapshot: input.promptSnapshot,
+      agent_mode: input.agentMode,
+      started_at: now,
+      metadata_json: input.metadata ?? {},
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    synced: true as const,
+    run: mapRun(data),
+  };
+}
+
+export async function updateWorkflowRun(input: {
+  runId: string;
+  status: "running" | "completed" | "failed";
+  outputText?: string | null;
+  outputJson?: Record<string, unknown> | null;
+  errorMessage?: string | null;
+  aiGenerationLogId?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!isSupabaseConfigured()) {
+    return { synced: false as const };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const updates: Record<string, unknown> = {
+    status: input.status,
+  };
+
+  if (input.status === "completed" || input.status === "failed") {
+    updates.completed_at = new Date().toISOString();
+  }
+  if (input.outputText !== undefined) {
+    updates.output_text = input.outputText;
+  }
+  if (input.outputJson !== undefined) {
+    updates.output_json = input.outputJson;
+  }
+  if (input.errorMessage !== undefined) {
+    updates.error_message = input.errorMessage;
+  }
+  if (input.aiGenerationLogId !== undefined) {
+    updates.ai_generation_log_id = input.aiGenerationLogId;
+  }
+  if (input.metadata) {
+    updates.metadata_json = input.metadata;
+  }
+
+  const { error } = await supabase
+    .from("workflow_runs")
+    .update(updates)
+    .eq("id", input.runId);
+
+  if (error) {
+    throw error;
+  }
+
+  return { synced: true as const };
+}
+
+export async function markScheduleRan(input: {
+  scheduleId: string;
+  status?: "active" | "error";
+}) {
+  if (!isSupabaseConfigured()) {
+    return { synced: false as const };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("workflow_schedules")
+    .update({
+      last_run_at: new Date().toISOString(),
+      status: input.status ?? "active",
+    })
+    .eq("id", input.scheduleId);
+
+  if (error) {
+    throw error;
+  }
+
+  return { synced: true as const };
 }
